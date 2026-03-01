@@ -1,3 +1,9 @@
+from pathlib import Path
+import os
+import pymysql
+
+pymysql.install_as_MySQLdb()
+
 """
 Django settings for config project.
 
@@ -23,7 +29,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 
-# SECRET KEY
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 
 # DEBUG (safe parsing)
@@ -99,9 +104,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-import os
-import pymysql
-pymysql.install_as_MySQLdb()
+
 DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
 
 if DB_ENGINE == "mysql":
