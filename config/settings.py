@@ -23,9 +23,40 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-=ji#s8kmrsagk338(bsj&s2)5q$i%yl5-=wl4ha(k^io%ijpp*'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+import os
 
-ALLOWED_HOSTS = []
+# SECRET KEY
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+
+# DEBUG (safe parsing)
+def env_bool(name: str, default: bool = False) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "y", "on")
+
+DEBUG = env_bool("DEBUG", default=False)
+
+# Allowed Hosts
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("ALLOWED_HOSTS", "").split(",")
+    if h.strip()
+]
+
+# Required for Coolify / Traefik HTTPS proxy
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
+# CSRF (important for admin)
+CSRF_TRUSTED_ORIGINS = []
+for h in ALLOWED_HOSTS:
+    hh = h.lstrip(".")
+    if "." in hh:
+        CSRF_TRUSTED_ORIGINS += [f"https://{hh}", f"http://{hh}"]
+
+# Set India timezone
+TIME_ZONE = "Asia/Kolkata"
 
 
 # Application definition
