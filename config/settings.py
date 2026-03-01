@@ -19,11 +19,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=ji#s8kmrsagk338(bsj&s2)5q$i%yl5-=wl4ha(k^io%ijpp*'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-import os
+
+
 
 # SECRET KEY
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
@@ -55,8 +53,6 @@ for h in ALLOWED_HOSTS:
     if "." in hh:
         CSRF_TRUSTED_ORIGINS += [f"https://{hh}", f"http://{hh}"]
 
-# Set India timezone
-TIME_ZONE = "Asia/Kolkata"
 
 
 # Application definition
@@ -104,7 +100,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 import os
-
+import pymysql
+pymysql.install_as_MySQLdb()
 DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
 
 if DB_ENGINE == "mysql":
@@ -151,11 +148,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
-
 USE_TZ = True
 
 
