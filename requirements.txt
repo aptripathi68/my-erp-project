@@ -10,3 +10,4 @@ six==1.17.0
 sqlparse==0.5.5
 urllib3==2.6.3
 gunicorn==25.1.0
+mysqlclient==2.2.4
