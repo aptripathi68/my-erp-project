@@ -1,4 +1,5 @@
 
+
 """
 URL configuration for config project.
 """
@@ -13,3 +14,9 @@ def home(request):
         <p>Welcome to your inventory management system.</p>
         <p><a href="/admin/">Go to Admin</a></p>
     """)
+
+# THIS PART IS MISSING - ADD IT:
+urlpatterns = [
+    path('', home, name='home'),
+    path('admin/', admin.site.urls),
+]
