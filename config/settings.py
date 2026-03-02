@@ -1,3 +1,37 @@
+# At the top with other imports
+import os
+
+# In INSTALLED_APPS, make sure 'storages' is included
+INSTALLED_APPS = [
+    # ... your existing apps ...
+    'storages',  # Add this if missing
+]
+
+# Add these at the bottom of the file
+# Cloudflare R2 Settings
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
+AWS_S3_REGION_NAME = "auto"
+AWS_S3_SIGNATURE_VERSION = "s4v4"
+
+# Security settings for presigned URLs
+AWS_QUERYSTRING_AUTH = True
+AWS_QUERYSTRING_EXPIRE = 3600  # 1 hour default expiry
+
+# Tell Django to use R2 for file storage
+STORAGES = {
+    'default': {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    }
+}
+
+# For older Django versions (if STORAGES doesn't work)
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 from pathlib import Path
 import os
 
