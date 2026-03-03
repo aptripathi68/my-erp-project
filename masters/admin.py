@@ -8,7 +8,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django import forms
 from .models import Group2, Grade, Item
-from .utils.excel_import import ItemMasterImporter
+
 
 class ExcelImportForm(forms.Form):
     excel_file = forms.FileField(
