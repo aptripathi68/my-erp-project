@@ -1,0 +1,118 @@
+from django.db import models
+
+# Create your models here.
+from django.db import models
+from django.core.validators import MinValueValidator
+from django.utils import timezone
+from masters.models import Item
+from users.models import User
+
+class Site(models.Model):
+    """Site master"""
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20, unique=True)
+    address = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class GRN(models.Model):
+    """Goods Receipt Note"""
+    grn_number = models.CharField(max_length=20, unique=True, editable=False)
+    received_date = models.DateField(default=timezone.now)
+    supplier_name = models.CharField(max_length=200)
+    site = models.ForeignKey(Site, on_delete=models.PROTECT, related_name='grns')
+    received_by = models.ForeignKey(
+        User, 
+        on_delete=models.PROTECT, 
+        related_name='received_grns',
+        limit_choices_to={'role__in': ['Store', 'Admin']}
+    )
+    notes = models.TextField(blank=True)
+    
+    # Calculated fields
+    total_quantity = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    total_value = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_weight = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        User, 
+        on_delete=models.PROTECT, 
+        related_name='created_grns',
+        null=True
+    )
+
+    class Meta:
+        ordering = ['-received_date', '-grn_number']
+        indexes = [
+            models.Index(fields=['grn_number']),
+            models.Index(fields=['received_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.grn_number} - {self.supplier_name}"
+
+    def save(self, *args, **kwargs):
+        if not self.grn_number:
+            year = timezone.now().year
+            last_grn = GRN.objects.filter(
+                grn_number__startswith=f'GRN/{year}/'
+            ).order_by('grn_number').last()
+            
+            if last_grn:
+                last_number = int(last_grn.grn_number.split('/')[-1])
+                new_number = last_number + 1
+            else:
+                new_number = 1
+            
+            self.grn_number = f'GRN/{year}/{new_number:05d}'
+        
+        super().save(*args, **kwargs)
+
+    def update_totals(self):
+        items = self.items.all()
+        self.total_quantity = sum(item.quantity_received for item in items)
+        self.total_value = sum(item.total_price for item in items)
+        self.total_weight = sum(item.total_weight for item in items)
+        self.save(update_fields=['total_quantity', 'total_value', 'total_weight'])
+
+
+class GRNItem(models.Model):
+    grn = models.ForeignKey(GRN, on_delete=models.CASCADE, related_name='items')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='grn_items')
+    quantity_received = models.DecimalField(
+        max_digits=15, 
+        decimal_places=3,
+        validators=[MinValueValidator(0.001)]
+    )
+    unit_price = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)]
+    )
+    total_price = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_weight = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    batch_number = models.CharField(max_length=50, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def save(self, *args, **kwargs):
+        self.total_price = self.quantity_received * self.unit_price
+        if self.item.unit_weight:
+            self.total_weight = self.quantity_received * self.item.unit_weight
+        super().save(*args, **kwargs)
+        self.grn.update_totals()
+    
+    def __str__(self):
+        return f"{self.grn.grn_number} - {self.item.item_description[:50]}"
