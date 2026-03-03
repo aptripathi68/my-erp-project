@@ -1,6 +1,9 @@
 from pathlib import Path
 import os
-DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DB_ENGINE = os.getenv("DB_ENGINE", "mysql").lower()
 
 if DB_ENGINE == "mysql":
     DATABASES = {
@@ -24,7 +27,6 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
 # Rest of your settings.py continues...
 """
 Django settings for config project.
@@ -38,8 +40,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -123,20 +123,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database - HARDCODED for local development
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'erp_db',
-        'USER': 'erp_user',
-        'PASSWORD': 'erp_password',
-        'HOST': 'localhost',
-        'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
-}
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
