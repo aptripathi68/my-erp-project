@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.db.models import Sum
 
 from ledger.models import (
     StockTxn,
@@ -8,9 +9,60 @@ from ledger.models import (
 )
 
 
+def get_available_stock(item_id, location_id, stock_object_id=None):
+    """
+    Calculate current available stock from ledger
+    """
+
+    qs = StockLedgerEntry.objects.filter(
+        item_id=item_id,
+        location_id=location_id
+    )
+
+    if stock_object_id:
+        qs = qs.filter(stock_object_id=stock_object_id)
+
+    agg = qs.aggregate(
+        qty=Sum("qty"),
+        weight=Sum("weight")
+    )
+
+    qty = agg["qty"] or 0
+    weight = agg["weight"] or 0
+
+    return qty, weight
+
+
+def validate_stock_availability(line):
+    """
+    Prevent negative inventory
+    """
+
+    if not line.from_location:
+        return
+
+    qty_available, weight_available = get_available_stock(
+        item_id=line.item_id,
+        location_id=line.from_location_id,
+        stock_object_id=line.stock_object_id
+    )
+
+    if line.qty > qty_available:
+        raise ValidationError(
+            f"Insufficient stock for item {line.item_id} at location {line.from_location.name}. "
+            f"Available={qty_available}, Requested={line.qty}"
+        )
+
+    if line.weight > weight_available:
+        raise ValidationError(
+            f"Insufficient weight for item {line.item_id} at location {line.from_location.name}. "
+            f"Available={weight_available}, Requested={line.weight}"
+        )
+
+
 def validate_qr_policy(line):
     """
-    Enforces QR scanning policy
+    Enforce QR policy
     """
 
     obj = line.stock_object
@@ -23,7 +75,7 @@ def validate_qr_policy(line):
 
 def validate_offcut_scan(line, txn):
     """
-    Ensure offcut QR is scanned when issuing to fabrication
+    Ensure offcut QR scanned before fabrication issue
     """
 
     if txn.txn_type == "ISSUE_FAB":
@@ -40,7 +92,7 @@ def validate_offcut_scan(line, txn):
 
 def post_stock_txn(txn_id):
     """
-    Main ledger posting engine
+    Industrial-grade posting engine
     """
 
     txn = StockTxn.objects.get(id=txn_id)
@@ -58,9 +110,12 @@ def post_stock_txn(txn_id):
         for line in lines:
 
             validate_qr_policy(line)
+
             validate_offcut_scan(line, txn)
 
-            # FROM LOCATION ENTRY
+            validate_stock_availability(line)
+
+            # FROM location entry
             if line.from_location:
 
                 StockLedgerEntry.objects.create(
@@ -72,7 +127,7 @@ def post_stock_txn(txn_id):
                     weight=-line.weight,
                 )
 
-            # TO LOCATION ENTRY
+            # TO location entry
             if line.to_location:
 
                 StockLedgerEntry.objects.create(
