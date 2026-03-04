@@ -1,60 +1,130 @@
-# ledger/views.py
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
-
-from ledger.services.stock_queries import (
-    stock_by_item,
-    stock_by_location,
-    stock_by_mark,
-    stock_by_qr,
-)
+from django.db.models import Sum
+from .models import StockLedgerEntry
 
 
-@require_GET
+# ------------------------------
+# STOCK BY ITEM
+# ------------------------------
+
 def api_stock_by_item(request):
-    """
-    GET /api/stock/by-item/?location=<id>&object_type=RAW|OFFCUT|FINISHED_MARK
-    """
-    location = request.GET.get("location")
-    object_type = request.GET.get("object_type")
-    data = stock_by_item(location_id=location, object_type=object_type)
+
+    rows = (
+        StockLedgerEntry.objects
+        .values("item__id", "item__name")
+        .annotate(
+            qty=Sum("qty"),
+            weight=Sum("weight")
+        )
+        .order_by("item__name")
+    )
+
+    data = []
+
+    for r in rows:
+        data.append({
+            "item_id": r["item__id"],
+            "item": r["item__name"],
+            "qty": float(r["qty"] or 0),
+            "weight": float(r["weight"] or 0),
+        })
+
     return JsonResponse(data, safe=False)
 
 
-@require_GET
+# ------------------------------
+# STOCK BY LOCATION
+# ------------------------------
+
 def api_stock_by_location(request):
-    """
-    GET /api/stock/by-location/?item=<id>&object_type=RAW|OFFCUT|FINISHED_MARK
-    """
-    item = request.GET.get("item")
-    object_type = request.GET.get("object_type")
-    data = stock_by_location(item_id=item, object_type=object_type)
+
+    rows = (
+        StockLedgerEntry.objects
+        .values("location__id", "location__name")
+        .annotate(
+            qty=Sum("qty"),
+            weight=Sum("weight")
+        )
+        .order_by("location__name")
+    )
+
+    data = []
+
+    for r in rows:
+        data.append({
+            "location_id": r["location__id"],
+            "location": r["location__name"],
+            "qty": float(r["qty"] or 0),
+            "weight": float(r["weight"] or 0),
+        })
+
     return JsonResponse(data, safe=False)
 
 
-@require_GET
+# ------------------------------
+# STOCK BY MARK NUMBER
+# ------------------------------
+
 def api_stock_by_mark(request):
-    """
-    GET /api/stock/by-mark/?mark_no=<MARK>&location=<id>
-    """
-    mark_no = request.GET.get("mark_no")
-    if not mark_no:
-        return JsonResponse({"error": "mark_no is required"}, status=400)
 
-    location = request.GET.get("location")
-    data = stock_by_mark(mark_no=mark_no, location_id=location)
+    rows = (
+        StockLedgerEntry.objects
+        .values("stock_object__mark_no")
+        .annotate(
+            qty=Sum("qty"),
+            weight=Sum("weight")
+        )
+        .order_by("stock_object__mark_no")
+    )
+
+    data = []
+
+    for r in rows:
+
+        mark = r["stock_object__mark_no"]
+
+        if not mark:
+            continue
+
+        data.append({
+            "mark_no": mark,
+            "qty": float(r["qty"] or 0),
+            "weight": float(r["weight"] or 0),
+        })
+
     return JsonResponse(data, safe=False)
 
 
-@require_GET
-def api_stock_by_qr(request):
-    """
-    GET /api/stock/by-qr/?qr=<QR_CODE>&location=<id>
-    """
-    qr = request.GET.get("qr")
-    if not qr:
-        return JsonResponse({"error": "qr is required"}, status=400)
+# ------------------------------
+# STOCK BY OFFCUT QR
+# ------------------------------
 
-    location = request.GET.get("location")
-    data = stock_by_qr(qr_code=qr, location_id=location)
+def api_stock_by_qr(request):
+
+    rows = (
+        StockLedgerEntry.objects
+        .filter(stock_object__object_type="OFFCUT")
+        .values(
+            "stock_object__qr_code",
+            "item__name",
+            "location__name"
+        )
+        .annotate(
+            qty=Sum("qty"),
+            weight=Sum("weight")
+        )
+    )
+
+    data = []
+
+    for r in rows:
+
+        data.append({
+            "qr_code": r["stock_object__qr_code"],
+            "item": r["item__name"],
+            "location": r["location__name"],
+            "qty": float(r["qty"] or 0),
+            "weight": float(r["weight"] or 0),
+        })
+
     return JsonResponse(data, safe=False)
