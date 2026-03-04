@@ -203,3 +203,42 @@ def api_offcut_capture(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+    
+# ------------------------------
+# OFFCUT LOOKUP BY QR
+# ------------------------------
+
+def api_offcut_lookup(request, qr_code):
+
+    try:
+
+        obj = StockObject.objects.get(qr_code=qr_code)
+
+        # find current location from ledger
+        last_entry = (
+            StockLedgerEntry.objects
+            .filter(stock_object=obj)
+            .order_by("-created_at")
+            .first()
+        )
+
+        location = None
+        if last_entry:
+            location = last_entry.location.name
+
+        data = {
+            "qr_code": obj.qr_code,
+            "item": obj.item.item_description,
+            "qty": float(obj.qty),
+            "weight": float(obj.weight),
+            "location": location,
+            "photo_url": obj.photo_url,
+            "latitude": obj.capture_latitude,
+            "longitude": obj.capture_longitude,
+            "created_at": obj.created_at,
+        }
+
+        return JsonResponse(data)
+
+    except StockObject.DoesNotExist:
+        return JsonResponse({"error": "QR not found"}, status=404)
