@@ -7,4 +7,6 @@ urlpatterns = [
     path("stock/by-location/", views.api_stock_by_location, name="api_stock_by_location"),
     path("stock/by-mark/", views.api_stock_by_mark, name="api_stock_by_mark"),
     path("stock/by-qr/", views.api_stock_by_qr, name="api_stock_by_qr"),
+
+    path("offcuts/capture/", views.api_offcut_capture, name="api_offcut_capture"),
 ]
