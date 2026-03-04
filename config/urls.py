@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponse
 
+
 # Simple home view
 def home(request):
     return HttpResponse("""
@@ -11,10 +12,14 @@ def home(request):
         <p><a href="/api/group2/">View Group2 API</a></p>
     """)
 
+
 urlpatterns = [
     path('', home, name='home'),
     path('admin/', admin.site.urls),
 
-    # Include Masters APIs
+    # Masters APIs
     path('', include('masters.urls')),
+
+    # NEW Ledger APIs
+    path('api/', include('ledger.urls')),
 ]
