@@ -1,6 +1,10 @@
 from django.http import JsonResponse
 from django.db.models import Sum
-from .models import StockLedgerEntry
+from django.views.decorators.csrf import csrf_exempt
+import json
+
+from .models import StockLedgerEntry, StockObject, StockLocation, StockTxn, StockTxnLine
+from masters.models import Item
 
 
 # ------------------------------
@@ -128,3 +132,74 @@ def api_stock_by_qr(request):
         })
 
     return JsonResponse(data, safe=False)
+
+
+# ------------------------------
+# OFFCUT CAPTURE API
+# ------------------------------
+
+@csrf_exempt
+def api_offcut_capture(request):
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+
+        data = json.loads(request.body)
+
+        qr_code = data.get("qr_code")
+        item_id = data.get("item_id")
+        qty = data.get("qty")
+        weight = data.get("weight")
+        photo_url = data.get("photo_url")
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+
+        # QR required
+        if not qr_code:
+            return JsonResponse({"error": "QR code required"}, status=400)
+
+        # QR must be exactly 16 digits
+        if not qr_code.isdigit() or len(qr_code) != 16:
+            return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
+
+        # Prevent duplicate QR
+        if StockObject.objects.filter(qr_code=qr_code).exists():
+            return JsonResponse({"error": "QR already exists"}, status=400)
+
+        item = Item.objects.get(id=item_id)
+        store = StockLocation.objects.get(name="Store")
+
+        # create offcut object
+        obj = StockObject.objects.create(
+            object_type="OFFCUT",
+            item=item,
+            qty=qty,
+            weight=weight,
+            qr_code=qr_code,
+            photo_url=photo_url,
+            capture_latitude=latitude,
+            capture_longitude=longitude,
+        )
+
+        # create stock transaction
+        txn = StockTxn.objects.create(txn_type="IN_OFFCUT")
+
+        StockTxnLine.objects.create(
+            txn=txn,
+            item=item,
+            stock_object=obj,
+            qty=qty,
+            weight=weight,
+            to_location=store,
+        )
+
+        return JsonResponse({
+            "status": "success",
+            "offcut_id": obj.id,
+            "qr_code": qr_code
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
