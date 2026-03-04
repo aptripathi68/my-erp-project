@@ -1,6 +1,8 @@
 from pathlib import Path
 import os
 
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DB_ENGINE = os.getenv("DB_ENGINE", "mysql").lower()
@@ -12,7 +14,7 @@ if DB_ENGINE == "mysql":
             "NAME": os.getenv("DB_NAME", "erp_db"),
             "USER": os.getenv("DB_USER", "mysql"),
             "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST", "localhost"),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
             "PORT": os.getenv("DB_PORT", "3306"),
             "OPTIONS": {
                 "charset": "utf8mb4",
@@ -88,6 +90,8 @@ INSTALLED_APPS = [
     'users',
     'masters',
     'procurement',
+    'ledger',  # Add the ledger app to installed apps
+
 ]
 
 MIDDLEWARE = [
