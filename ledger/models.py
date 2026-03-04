@@ -24,6 +24,9 @@ class StockLocation(models.Model):
         return f"{self.name} ({self.location_type})"
 
 
+from django.core.validators import RegexValidator
+
+
 class StockObject(models.Model):
     OBJECT_TYPES = [
         ("RAW", "Raw Material"),
@@ -38,21 +41,38 @@ class StockObject(models.Model):
     qty = models.DecimalField(max_digits=12, decimal_places=3)
     weight = models.DecimalField(max_digits=12, decimal_places=3)
 
-    qr_code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    # STRICT 16 digit QR
+    qr_code = models.CharField(
+        max_length=16,
+        unique=True,
+        null=True,
+        blank=True,
+        validators=[
+            RegexValidator(
+                regex=r'^\d{16}$',
+                message="QR code must be exactly 16 digits."
+            )
+        ]
+    )
 
     mark_no = models.CharField(max_length=100, blank=True)
 
     photo_url = models.URLField(blank=True)
 
+    # GPS capture for OFFCUT yard tracking
+    capture_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    capture_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # NEW FIELD
     qr_required = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
+
         """
         Automatically enforce QR policy.
         """
+
         if self.object_type == "RAW":
             self.qr_required = False
 
