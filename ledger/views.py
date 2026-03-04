@@ -241,4 +241,45 @@ def api_offcut_lookup(request, qr_code):
         return JsonResponse(data)
 
     except StockObject.DoesNotExist:
-        return JsonResponse({"error": "QR not found"}, status=404)
+
+# Off-cut lookup API
+
+from django.shortcuts import get_object_or_404
+
+def api_offcut_detail(request, qr_code):
+    if request.method != "GET":
+        return JsonResponse({"error": "GET required"}, status=405)
+
+    if (not qr_code.isdigit()) or len(qr_code) != 16:
+        return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
+
+    obj = get_object_or_404(
+        StockObject,
+        object_type="OFFCUT",
+        qr_code=qr_code
+    )
+
+    # current location from ledger (latest entry)
+    last = (
+        StockLedgerEntry.objects
+        .filter(stock_object=obj)
+        .order_by("-created_at")
+        .values("location__id", "location__name")
+        .first()
+    )
+
+    return JsonResponse({
+        "id": obj.id,
+        "qr_code": obj.qr_code,
+        "object_type": obj.object_type,
+        "item_id": obj.item_id,
+        "item": obj.item.item_description,   # adjust if you want other field
+        "qty": float(obj.qty),
+        "weight": float(obj.weight),
+        "photo_url": obj.photo_url,
+        "capture_latitude": float(obj.capture_latitude) if obj.capture_latitude is not None else None,
+        "capture_longitude": float(obj.capture_longitude) if obj.capture_longitude is not None else None,
+        "created_at": obj.created_at.isoformat(),
+        "current_location": last["location__name"] if last else None,
+        "current_location_id": last["location__id"] if last else None,
+    })

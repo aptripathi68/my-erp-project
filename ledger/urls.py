@@ -10,4 +10,6 @@ urlpatterns = [
     path("offcuts/capture/", views.api_offcut_capture, name="api_offcut_capture"),
 
     path("offcuts/<str:qr_code>/", views.api_offcut_lookup, name="api_offcut_lookup"),
+
+    path("offcuts/<str:qr_code>/", views.api_offcut_detail, name="api_offcut_detail"),
 ]
