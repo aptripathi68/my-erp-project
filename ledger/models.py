@@ -15,7 +15,6 @@ class StockLocation(models.Model):
     name = models.CharField(max_length=200)
     location_type = models.CharField(max_length=30, choices=LOCATION_TYPES)
 
-    # optional GPS (for yard/offcut tracing)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
@@ -46,6 +45,24 @@ class StockObject(models.Model):
     photo_url = models.URLField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # NEW FIELD
+    qr_required = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        """
+        Automatically enforce QR policy.
+        """
+        if self.object_type == "RAW":
+            self.qr_required = False
+
+        elif self.object_type == "OFFCUT":
+            self.qr_required = True
+
+        elif self.object_type == "FINISHED_MARK":
+            self.qr_required = True
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.object_type} - {self.item}"
