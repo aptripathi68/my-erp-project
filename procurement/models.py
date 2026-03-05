@@ -116,3 +116,117 @@ class GRNItem(models.Model):
     
     def __str__(self):
         return f"{self.grn.grn_number} - {self.item.item_description[:50]}"
+    
+    # ============================================
+# BOM STRUCTURE (Fabrication Job Definition)
+# ============================================
+
+
+class BOMHeader(models.Model):
+    """
+    Represents one uploaded BOM file
+    Example: JK Cement / Frigate / Wonder
+    """
+
+    bom_name = models.CharField(max_length=200)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="uploaded_boms",
+        null=True,
+        blank=True
+    )
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return self.bom_name
+
+
+class BOMMark(models.Model):
+    """
+    Each fabrication MARK number
+    Example: SPS-204
+    """
+
+    bom = models.ForeignKey(
+        BOMHeader,
+        on_delete=models.CASCADE,
+        related_name="marks"
+    )
+
+    sheet_name = models.CharField(max_length=200)
+
+    mark_no = models.CharField(max_length=100)
+
+    drawing_no = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        ordering = ["mark_no"]
+        indexes = [
+            models.Index(fields=["mark_no"]),
+        ]
+
+    def __str__(self):
+        return f"{self.mark_no}"
+
+
+class BOMComponent(models.Model):
+    """
+    Child parts under each MARK
+    """
+
+    mark = models.ForeignKey(
+        BOMMark,
+        on_delete=models.CASCADE,
+        related_name="components"
+    )
+
+    item_no = models.CharField(
+        max_length=20,
+        blank=True
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        related_name="bom_components"
+    )
+
+    # Raw description from Excel
+    item_description_raw = models.CharField(max_length=255)
+
+    qty_all = models.DecimalField(
+        max_digits=10,
+        decimal_places=3
+    )
+
+    length_mm = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    line_weight_kg = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True
+    )
+
+    excel_row = models.IntegerField()
+
+    class Meta:
+        ordering = ["excel_row"]
+
+    def __str__(self):
+        return f"{self.mark.mark_no} - {self.item_description_raw}"
