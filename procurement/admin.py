@@ -37,3 +37,68 @@ class GRNItemAdmin(admin.ModelAdmin):
     list_display = ['grn', 'item', 'quantity_received', 'unit_price', 'total_price']
     list_filter = ['grn__received_date']
     search_fields = ['item__item_description', 'batch_number']
+
+# ===============================
+# BOM ADMIN REGISTRATION
+# ===============================
+
+from .models import BOMHeader, BOMMark, BOMComponent
+
+
+@admin.register(BOMHeader)
+class BOMHeaderAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "bom_name",
+        "uploaded_at",
+        "uploaded_by"
+    )
+
+    search_fields = (
+        "bom_name",
+    )
+
+    ordering = (
+        "-uploaded_at",
+    )
+
+
+@admin.register(BOMMark)
+class BOMMarkAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "mark_no",
+        "sheet_name",
+        "bom",
+    )
+
+    search_fields = (
+        "mark_no",
+    )
+
+    list_filter = (
+        "bom",
+        "sheet_name",
+    )
+
+
+@admin.register(BOMComponent)
+class BOMComponentAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "mark",
+        "item",
+        "item_description_raw",
+        "qty_all",
+        "length_mm",
+        "line_weight_kg",
+    )
+
+    search_fields = (
+        "item_description_raw",
+        "mark__mark_no",
+    )
+
+    list_filter = (
+        "item",
+    )
