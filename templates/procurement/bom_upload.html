@@ -1,0 +1,56 @@
+<!-- templates/procurement/bom_upload.html -->
+<h2>BOM Upload (Validate → Import)</h2>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div>
+    <label>BOM Name (optional):</label>
+    <input type="text" name="bom_name" style="width:420px;" />
+  </div>
+  <div style="margin-top:8px;">
+    <input type="file" name="file" required />
+  </div>
+
+  <div style="margin-top:12px;">
+    <button type="submit" name="action" value="validate">Validate</button>
+    {% if result and result.ok %}
+      <button type="submit" name="action" value="import">Import</button>
+    {% endif %}
+  </div>
+</form>
+
+{% if result %}
+  <hr/>
+  <h3>Summary</h3>
+  <pre>{{ result.summary }}</pre>
+
+  {% if result.errors %}
+    <h3 style="color:#b00020;">Errors (Fix Item Master or BOM and re-upload)</h3>
+    <table border="1" cellpadding="6" cellspacing="0">
+      <tr>
+        <th>Sheet</th><th>Row</th><th>Mark</th><th>Item No</th><th>Item Description</th><th>Suggestions</th>
+      </tr>
+      {% for e in result.errors %}
+        <tr>
+          <td>{{ e.sheet_name }}</td>
+          <td>{{ e.excel_row }}</td>
+          <td>{{ e.mark_no }}</td>
+          <td>{{ e.item_no }}</td>
+          <td>{{ e.item_description_in_bom }}</td>
+          <td>{{ e.suggestions|join:", " }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <h3 style="color:green;">Validation OK ✅</h3>
+  {% endif %}
+{% endif %}
+
+{% if imported_bom_id %}
+  <hr/>
+  <h3>Imported ✅</h3>
+  <p>BOM ID: {{ imported_bom_id }}</p>
+  <p>
+    <a href="/procurement/bom/{{ imported_bom_id }}/export-master/">Download Master BOM Excel</a>
+  </p>
+{% endif %}

@@ -18,8 +18,11 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # Masters APIs
-    path('', include('masters.urls')),
+    path('api/masters/', include('masters.urls')),
 
     # NEW Ledger APIs
     path('api/', include('ledger.urls')),
+
+    # Procurement APIs
+    path("procurement/", include("procurement.urls")),
 ]
