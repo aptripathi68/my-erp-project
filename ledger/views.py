@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.db.models import Sum
 from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import get_object_or_404
 import json
 
 from .models import StockLedgerEntry, StockObject, StockLocation, StockTxn, StockTxnLine
@@ -10,25 +11,19 @@ from masters.models import Item
 # ------------------------------
 # STOCK BY ITEM
 # ------------------------------
-
 def api_stock_by_item(request):
-
     rows = (
         StockLedgerEntry.objects
-        .values("item__id", "item__name")
-        .annotate(
-            qty=Sum("qty"),
-            weight=Sum("weight")
-        )
-        .order_by("item__name")
+        .values("item__id", "item__item_description")   # <-- your Item human name
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
+        .order_by("item__item_description")
     )
 
     data = []
-
     for r in rows:
         data.append({
             "item_id": r["item__id"],
-            "item": r["item__name"],
+            "item": r["item__item_description"],
             "qty": float(r["qty"] or 0),
             "weight": float(r["weight"] or 0),
         })
@@ -39,21 +34,15 @@ def api_stock_by_item(request):
 # ------------------------------
 # STOCK BY LOCATION
 # ------------------------------
-
 def api_stock_by_location(request):
-
     rows = (
         StockLedgerEntry.objects
         .values("location__id", "location__name")
-        .annotate(
-            qty=Sum("qty"),
-            weight=Sum("weight")
-        )
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
         .order_by("location__name")
     )
 
     data = []
-
     for r in rows:
         data.append({
             "location_id": r["location__id"],
@@ -68,28 +57,19 @@ def api_stock_by_location(request):
 # ------------------------------
 # STOCK BY MARK NUMBER
 # ------------------------------
-
 def api_stock_by_mark(request):
-
     rows = (
         StockLedgerEntry.objects
         .values("stock_object__mark_no")
-        .annotate(
-            qty=Sum("qty"),
-            weight=Sum("weight")
-        )
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
         .order_by("stock_object__mark_no")
     )
 
     data = []
-
     for r in rows:
-
         mark = r["stock_object__mark_no"]
-
         if not mark:
             continue
-
         data.append({
             "mark_no": mark,
             "qty": float(r["qty"] or 0),
@@ -102,30 +82,20 @@ def api_stock_by_mark(request):
 # ------------------------------
 # STOCK BY OFFCUT QR
 # ------------------------------
-
 def api_stock_by_qr(request):
-
     rows = (
         StockLedgerEntry.objects
         .filter(stock_object__object_type="OFFCUT")
-        .values(
-            "stock_object__qr_code",
-            "item__name",
-            "location__name"
-        )
-        .annotate(
-            qty=Sum("qty"),
-            weight=Sum("weight")
-        )
+        .values("stock_object__qr_code", "item__item_description", "location__name")
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
+        .order_by("stock_object__qr_code")
     )
 
     data = []
-
     for r in rows:
-
         data.append({
             "qr_code": r["stock_object__qr_code"],
-            "item": r["item__name"],
+            "item": r["item__item_description"],
             "location": r["location__name"],
             "qty": float(r["qty"] or 0),
             "weight": float(r["weight"] or 0),
@@ -137,15 +107,12 @@ def api_stock_by_qr(request):
 # ------------------------------
 # OFFCUT CAPTURE API
 # ------------------------------
-
 @csrf_exempt
 def api_offcut_capture(request):
-
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
     try:
-
         data = json.loads(request.body)
 
         qr_code = data.get("qr_code")
@@ -156,22 +123,18 @@ def api_offcut_capture(request):
         latitude = data.get("latitude")
         longitude = data.get("longitude")
 
-        # QR required
         if not qr_code:
             return JsonResponse({"error": "QR code required"}, status=400)
 
-        # QR must be exactly 16 digits
         if not qr_code.isdigit() or len(qr_code) != 16:
             return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
 
-        # Prevent duplicate QR
         if StockObject.objects.filter(qr_code=qr_code).exists():
             return JsonResponse({"error": "QR already exists"}, status=400)
 
         item = Item.objects.get(id=item_id)
         store = StockLocation.objects.get(name="Store")
 
-        # create offcut object
         obj = StockObject.objects.create(
             object_type="OFFCUT",
             item=item,
@@ -183,7 +146,6 @@ def api_offcut_capture(request):
             capture_longitude=longitude,
         )
 
-        # create stock transaction
         txn = StockTxn.objects.create(txn_type="IN_OFFCUT")
 
         StockTxnLine.objects.create(
@@ -195,57 +157,25 @@ def api_offcut_capture(request):
             to_location=store,
         )
 
-        return JsonResponse({
-            "status": "success",
-            "offcut_id": obj.id,
-            "qr_code": qr_code
-        })
+        # IMPORTANT: post to ledger so stock APIs work (if you added this earlier, keep it)
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=item,
+            stock_object=obj,
+            qty=qty,
+            weight=weight,
+            location=store,
+        )
+
+        return JsonResponse({"status": "success", "offcut_id": obj.id, "qr_code": qr_code})
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-    
+
+
 # ------------------------------
-# OFFCUT LOOKUP BY QR
+# OFFCUT DETAIL (Option B)
 # ------------------------------
-
-def api_offcut_lookup(request, qr_code):
-
-    try:
-
-        obj = StockObject.objects.get(qr_code=qr_code)
-
-        # find current location from ledger
-        last_entry = (
-            StockLedgerEntry.objects
-            .filter(stock_object=obj)
-            .order_by("-created_at")
-            .first()
-        )
-
-        location = None
-        if last_entry:
-            location = last_entry.location.name
-
-        data = {
-            "qr_code": obj.qr_code,
-            "item": obj.item.item_description,
-            "qty": float(obj.qty),
-            "weight": float(obj.weight),
-            "location": location,
-            "photo_url": obj.photo_url,
-            "latitude": obj.capture_latitude,
-            "longitude": obj.capture_longitude,
-            "created_at": obj.created_at,
-        }
-
-        return JsonResponse(data)
-
-    except StockObject.DoesNotExist:
-        return JsonResponse({"error": "Offcut not found"}, status=404)
-# Off-cut lookup API
-
-from django.shortcuts import get_object_or_404
-
 def api_offcut_detail(request, qr_code):
     if request.method != "GET":
         return JsonResponse({"error": "GET required"}, status=405)
@@ -253,13 +183,8 @@ def api_offcut_detail(request, qr_code):
     if (not qr_code.isdigit()) or len(qr_code) != 16:
         return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
 
-    obj = get_object_or_404(
-        StockObject,
-        object_type="OFFCUT",
-        qr_code=qr_code
-    )
+    obj = get_object_or_404(StockObject, object_type="OFFCUT", qr_code=qr_code)
 
-    # current location from ledger (latest entry)
     last = (
         StockLedgerEntry.objects
         .filter(stock_object=obj)
@@ -273,7 +198,7 @@ def api_offcut_detail(request, qr_code):
         "qr_code": obj.qr_code,
         "object_type": obj.object_type,
         "item_id": obj.item_id,
-        "item": obj.item.item_description,   # adjust if you want other field
+        "item": obj.item.item_description,
         "qty": float(obj.qty),
         "weight": float(obj.weight),
         "photo_url": obj.photo_url,
