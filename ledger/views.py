@@ -241,7 +241,7 @@ def api_offcut_lookup(request, qr_code):
         return JsonResponse(data)
 
     except StockObject.DoesNotExist:
-
+        return JsonResponse({"error": "Offcut not found"}, status=404)
 # Off-cut lookup API
 
 from django.shortcuts import get_object_or_404
