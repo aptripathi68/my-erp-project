@@ -113,12 +113,11 @@ class Item(models.Model):
 
     # NEW: normalized key for robust matching and to prevent duplicates
     item_description_norm = models.CharField(
-        max_length=255,
-        unique=True,
-        db_index=True,
-        blank=True,
-        default="",
-        help_text="Auto-generated normalized item_description for BOM matching.",
+    max_length=255,
+    null=True,
+    blank=True,
+    db_index=True,
+    help_text="Auto-computed normalized description for matching and uniqueness. Not editable.",
     )
 
     # From Excel
