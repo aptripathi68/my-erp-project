@@ -1,7 +1,8 @@
-# masters/models.py
 from __future__ import annotations
 
 import re
+import secrets
+
 from django.db import models
 from django.core.exceptions import ValidationError
 
@@ -35,9 +36,6 @@ def is_plate_description(item_description: str) -> bool:
     """
     Heuristic: treat descriptions starting with 'PL' as steel plates.
     Adjust if your Item Master uses different naming patterns.
-    Examples:
-      - 'PL 147x10'
-      - 'PLT 10MM 1250X2500'
     """
     d = (item_description or "").strip().upper()
     return d.startswith("PL") or d.startswith("PLT")
@@ -108,26 +106,21 @@ class Item(models.Model):
         related_name="items",
     )
 
-    # Human-readable description (your key for BOM matching)
     item_description = models.TextField()
 
-    # NEW: normalized key for robust matching and to prevent duplicates
     item_description_norm = models.CharField(
-    max_length=255,
-    null=True,
-    blank=True,
-    db_index=True,
-    help_text="Auto-computed normalized description for matching and uniqueness. Not editable.",
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Auto-computed normalized description for matching and uniqueness. Not editable.",
     )
 
-    # From Excel
     group1_name = models.CharField(max_length=200, blank=True)
     section_name = models.CharField(max_length=200, blank=True)
 
-    # Weight value; meaning depends on unit_weight_basis
     unit_weight = models.DecimalField(max_digits=10, decimal_places=3, default=0)
 
-    # NEW: weight basis (kg/m vs kg/m²)
     unit_weight_basis = models.CharField(
         max_length=20,
         choices=UnitWeightBasis.choices,
@@ -135,7 +128,6 @@ class Item(models.Model):
         db_index=True,
     )
 
-    # Optional future fields
     hsn_code = models.CharField(max_length=20, blank=True)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
@@ -162,14 +154,12 @@ class Item(models.Model):
         if not norm:
             raise ValidationError({"item_description": "Item description cannot be blank."})
 
-        # If someone manually set it, keep it consistent
         self.item_description_norm = norm
 
         qs = Item.objects.filter(item_description_norm=norm)
         if self.pk:
             qs = qs.exclude(pk=self.pk)
         if qs.exists():
-            # show the clashing item id for easy fix
             clash = qs.first()
             raise ValidationError({
                 "item_description": (
@@ -180,19 +170,24 @@ class Item(models.Model):
             })
 
     def save(self, *args, **kwargs):
+        # Auto-generate system item_master_id if blank
+        if not self.item_master_id:
+            while True:
+                generated_id = secrets.token_hex(6)
+                if not Item.objects.filter(item_master_id=generated_id).exists():
+                    self.item_master_id = generated_id
+                    break
+
         # Always compute normalized description
         self.item_description_norm = normalize_item_description(self.item_description)
 
-        # Auto-set basis based on description (safe default)
+        # Auto-set basis based on description
         if is_plate_description(self.item_description):
             self.unit_weight_basis = self.UnitWeightBasis.KG_PER_SQM
         else:
             self.unit_weight_basis = self.UnitWeightBasis.KG_PER_M
 
-        # Optional: run model validation on save (helps admin edits)
-        # Comment out if you prefer speed over strict validation.
         self.full_clean()
-
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
