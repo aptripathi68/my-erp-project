@@ -1,3 +1,5 @@
+import secrets
+
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
@@ -87,7 +89,6 @@ def item_master_add(request):
     grade_list = Grade.objects.select_related("group2").order_by("name")
 
     if request.method == "POST":
-        item_master_id = (request.POST.get("item_master_id") or "").strip()
         section_name = (request.POST.get("section_name") or "").strip()
         item_description = (request.POST.get("item_description") or "").strip()
         group2_id = request.POST.get("group2")
@@ -98,8 +99,6 @@ def item_master_add(request):
 
         errors = []
 
-        if not item_master_id:
-            errors.append("Item Master ID is required.")
         if not section_name:
             errors.append("Section Name is required.")
         if not item_description:
@@ -113,16 +112,18 @@ def item_master_add(request):
         if not unit_weight_basis:
             errors.append("Unit Weight Basis is required.")
 
-        if Item.objects.filter(item_master_id=item_master_id).exists():
-            errors.append("Item Master ID already exists.")
-
         if errors:
             for err in errors:
                 messages.error(request, err)
         else:
             try:
+                while True:
+                    generated_item_master_id = secrets.token_hex(6)
+                    if not Item.objects.filter(item_master_id=generated_item_master_id).exists():
+                        break
+
                 Item.objects.create(
-                    item_master_id=item_master_id,
+                    item_master_id=generated_item_master_id,
                     section_name=section_name,
                     item_description=item_description,
                     group2_id=group2_id,
