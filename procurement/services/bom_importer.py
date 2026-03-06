@@ -48,10 +48,9 @@ def normalize_grade_name(s: Any) -> str:
 
     s = str(s).strip().upper()
     s = s.replace("\n", " ")
-    s = re.sub(r"\s+", " ", s)
 
-    # remove extra spaces around commas
-    s = re.sub(r"\s*,\s*", ", ", s)
+    # remove all punctuation/separators and spaces
+    s = re.sub(r"[^A-Z0-9]+", "", s)
 
     return s
 
