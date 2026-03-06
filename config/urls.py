@@ -1,27 +1,20 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.http import HttpResponse
-
-
-# Simple home view
-def home(request):
-    return HttpResponse("""
-        <h1>ERP System</h1>
-        <p>Welcome to your inventory management system.</p>
-        <p><a href="/admin/">Go to Admin</a></p>
-        <p><a href="/api/group2/">View Group2 API</a></p>
-    """)
+from config.views import dashboard_home
 
 
 urlpatterns = [
-    path('', home, name='home'),
-    path('admin/', admin.site.urls),
+    # ERP Dashboard (main landing page)
+    path("", dashboard_home, name="dashboard_home"),
+
+    # Django Admin (for maintenance)
+    path("admin/", admin.site.urls),
 
     # Masters APIs
-    path('api/masters/', include('masters.urls')),
+    path("api/masters/", include("masters.urls")),
 
-    # NEW Ledger APIs
-    path('api/', include('ledger.urls')),
+    # Ledger APIs
+    path("api/", include("ledger.urls")),
 
     # Procurement APIs
     path("procurement/", include("procurement.urls")),
