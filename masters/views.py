@@ -142,12 +142,11 @@ def item_master_add(request):
         "unit_weight_basis_choices": Item.UnitWeightBasis.choices,
     }
     return render(request, "masters/item_master_form.html", context)
+
+
 @login_required
 def item_master_edit(request, item_id):
-    item = get_object_or_404(
-        Item.objects.select_related("group2", "grade"),
-        id=item_id
-    )
+    item = get_object_or_404(Item, id=item_id)
 
     group2_list = Group2.objects.order_by("name")
     grade_list = Grade.objects.select_related("group2").order_by("name")
@@ -208,5 +207,4 @@ def item_master_edit(request, item_id):
         "grade_list": grade_list,
         "unit_weight_basis_choices": Item.UnitWeightBasis.choices,
     }
-
     return render(request, "masters/item_master_edit_form.html", context)
