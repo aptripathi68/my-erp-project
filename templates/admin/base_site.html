@@ -1,16 +1,49 @@
 {% extends "admin/base.html" %}
 {% load static %}
 
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  /* Hide the theme switch block completely */
+  .theme-toggle,
+  .theme-toggle svg,
+  button.theme-toggle,
+  [class*="theme-toggle"] {
+    display: none !important;
+  }
+
+  /* Hide the large theme area if rendered */
+  header + div,
+  .main > div:first-child {
+    margin-top: 0 !important;
+  }
+
+  /* Logo + heading alignment */
+  .custom-branding {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 0;
+  }
+
+  .custom-branding img {
+    height: 72px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .custom-branding h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+  }
+</style>
+{% endblock %}
+
 {% block branding %}
-<div style="display:flex;align-items:center;gap:15px;padding:10px 0;">
-    
-    <img src="{% static 'logo/kalpadeep_logo.jpg' %}" 
-         style="height:60px;width:auto;" />
-
-    <h1 id="site-name" style="font-size:28px;margin:0;">
-        Kalpadeep Industries Private Limited
-    </h1>
-
+<div class="custom-branding">
+    <img src="{% static 'logo/Kalpadeep Logo.jpg' %}" alt="Kalpadeep Logo">
+    <h1 id="site-name">Kalpadeep Industries Private Limited</h1>
 </div>
 {% endblock %}
 
