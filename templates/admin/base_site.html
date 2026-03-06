@@ -4,47 +4,59 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
-  /* Hide the theme switch block completely */
-  .theme-toggle,
-  .theme-toggle svg,
-  button.theme-toggle,
-  [class*="theme-toggle"] {
+.skip-to-content-link {
     display: none !important;
-  }
+}
 
-  /* Hide the large theme area if rendered */
-  header + div,
-  .main > div:first-child {
-    margin-top: 0 !important;
-  }
+.theme-toggle,
+[class*="theme-toggle"] {
+    display: none !important;
+}
 
-  /* Logo + heading alignment */
-  .custom-branding {
+#header {
+    background: #5f839d;
+    color: #fff;
+}
+
+#branding {
+    float: none;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 10px 0;
-  }
+    gap: 24px;
+    padding: 16px 0;
+}
 
-  .custom-branding img {
-    height: 72px;
+#branding img {
+    height: 90px;
     width: auto;
-    object-fit: contain;
-  }
+    background: #fff;
+    padding: 6px;
+}
 
-  .custom-branding h1 {
+#branding h1 {
     margin: 0;
-    font-size: 26px;
-    font-weight: 700;
-  }
+    font-size: 34px;
+    font-weight: 600;
+    color: #f0d76b;
+}
+
+#user-tools {
+    float: none;
+    text-align: center;
+    font-size: 16px;
+    padding-bottom: 10px;
+}
+
+#user-tools,
+#user-tools a {
+    color: #fff;
+}
 </style>
 {% endblock %}
 
 {% block branding %}
-<div class="custom-branding">
-    <img src="{% static 'logo/Kalpadeep Logo.jpg' %}" alt="Kalpadeep Logo">
-    <h1 id="site-name">Kalpadeep Industries Private Limited</h1>
-</div>
+<img src="{% static 'logo/kalpadeep_logo.jpg' %}" alt="Kalpadeep Logo">
+<h1 id="site-name">Kalpadeep Industries Private Limited</h1>
 {% endblock %}
 
 {% block nav-global %}{% endblock %}
