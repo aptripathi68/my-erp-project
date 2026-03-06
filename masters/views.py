@@ -1,5 +1,8 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.db.models import Q
 
 from .models import Group2, Grade, Item
 
@@ -43,6 +46,7 @@ def api_items(request):
         return JsonResponse([], safe=False)
 
     qs = Item.objects.filter(group2_id=group2_id)
+
     if grade_id:
         qs = qs.filter(grade_id=grade_id)
 
@@ -58,4 +62,33 @@ def api_items(request):
             "grade_id",
         )
     )
+
     return JsonResponse(data, safe=False)
+
+
+# -------------------------------------------------------------------
+# ERP Item Master Maintenance Page
+# -------------------------------------------------------------------
+
+@login_required
+def item_master_list(request):
+
+    q = (request.GET.get("q") or "").strip()
+
+    items = Item.objects.select_related("group2", "grade").all()
+
+    if q:
+        items = items.filter(
+            Q(item_master_id__icontains=q) |
+            Q(section_name__icontains=q) |
+            Q(item_description__icontains=q)
+        )
+
+    items = items.order_by("item_master_id")
+
+    context = {
+        "items": items,
+        "q": q,
+    }
+
+    return render(request, "masters/item_master_list.html", context)
