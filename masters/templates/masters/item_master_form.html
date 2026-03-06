@@ -2,49 +2,81 @@
 
 {% block content %}
 
-<h2>Add New Item</h2>
+<div style="max-width:700px;margin:auto;padding:20px">
+
+<h2 style="margin-bottom:20px">Add New Item</h2>
 
 <form method="post">
-    {% csrf_token %}
+{% csrf_token %}
 
-    <label>Item Master ID</label><br>
-    <input type="text" name="item_master_id"><br><br>
+<div style="margin-bottom:15px">
+<label><b>Item Master ID</b></label><br>
+<input type="text" name="item_master_id" style="width:100%;padding:8px" required>
+</div>
 
-    <label>Section Name</label><br>
-    <input type="text" name="section_name"><br><br>
+<div style="margin-bottom:15px">
+<label><b>Section Name</b></label><br>
+<input type="text" name="section_name" style="width:100%;padding:8px" required>
+</div>
 
-    <label>Item Description</label><br>
-    <input type="text" name="item_description"><br><br>
+<div style="margin-bottom:15px">
+<label><b>Item Description</b></label><br>
+<input type="text" name="item_description" style="width:100%;padding:8px" required>
+</div>
 
-    <label>Group</label><br>
-    <select name="group2">
-        {% for g in group2_list %}
-        <option value="{{ g.id }}">{{ g.name }}</option>
-        {% endfor %}
-    </select><br><br>
+<div style="margin-bottom:15px">
+<label><b>Group</b></label><br>
+<select name="group2" style="width:100%;padding:8px" required>
+<option value="">Select Group</option>
+{% for g in group2_list %}
+<option value="{{ g.id }}">{{ g.name }}</option>
+{% endfor %}
+</select>
+</div>
 
-    <label>Grade</label><br>
-    <select name="grade">
-        {% for g in grade_list %}
-        <option value="{{ g.id }}">{{ g.name }}</option>
-        {% endfor %}
-    </select><br><br>
+<div style="margin-bottom:15px">
+<label><b>Grade</b></label><br>
+<select name="grade" style="width:100%;padding:8px" required>
+<option value="">Select Grade</option>
+{% for g in grade_list %}
+<option value="{{ g.id }}">{{ g.name }}</option>
+{% endfor %}
+</select>
+</div>
 
-    <label>Unit Weight</label><br>
-    <input type="text" name="unit_weight"><br><br>
+<div style="margin-bottom:15px">
+<label><b>Unit Weight</b></label><br>
+<input type="number" step="0.001" name="unit_weight" style="width:100%;padding:8px" required>
+</div>
 
-    <label>Weight Basis</label><br>
-    <select name="unit_weight_basis">
-        {% for val,label in unit_weight_basis_choices %}
-        <option value="{{ val }}">{{ label }}</option>
-        {% endfor %}
-    </select><br><br>
+<div style="margin-bottom:15px">
+<label><b>Weight Basis</b></label><br>
+<select name="unit_weight_basis" style="width:100%;padding:8px" required>
+{% for value,label in unit_weight_basis_choices %}
+<option value="{{ value }}">{{ label }}</option>
+{% endfor %}
+</select>
+</div>
 
-    <label>Active</label>
-    <input type="checkbox" name="is_active" checked><br><br>
+<div style="margin-bottom:20px">
+<label>
+<input type="checkbox" name="is_active" checked>
+Active Item
+</label>
+</div>
 
-    <button type="submit">Save Item</button>
+<div>
+<button type="submit" style="padding:10px 20px;font-size:14px">
+Save Item
+</button>
+
+<a href="/item-master/" style="margin-left:20px">
+Cancel
+</a>
+</div>
 
 </form>
+
+</div>
 
 {% endblock %}
