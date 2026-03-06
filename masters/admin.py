@@ -30,27 +30,17 @@ class GradeAdmin(admin.ModelAdmin):
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
     """
-    Item Master Online Grid:
-    - List view shows many rows (like Excel)
-    - Inline edit for safe fields
-    - Full edit still available by clicking item_master_id
-    - Add new item still available from top-right "Add Item"
+    Online Item Master maintenance:
+    - list view for browsing
+    - direct inline editing for a few safe fields
+    - full row edit by clicking item_master_id
+    - add new row from admin
     """
 
     list_display = [
         "item_master_id",
-        "item_description",
-        "group2",
-        "grade",
-        "unit_weight",
-        "unit_weight_basis",
-        "is_active",
-        "updated_at",
-    ]
-
-    # Inline editable fields in list view (safe operations)
-    # NOTE: Django rule: first column of list_display cannot be editable.
-    list_editable = [
+        "item_description_short",
+        "section_name",
         "group2",
         "grade",
         "unit_weight",
@@ -68,48 +58,58 @@ class ItemAdmin(admin.ModelAdmin):
     search_fields = [
         "item_master_id",
         "item_description",
+        "section_name",
         "item_description_norm",
         "hsn_code",
     ]
 
-    ordering = ["item_description"]
-    list_per_page = 50
-    save_on_top = True  # shows Save buttons at top also
+    # keep inline editing light for speed/safety
+    list_editable = [
+        "unit_weight",
+        "unit_weight_basis",
+        "is_active",
+    ]
 
-    # Optional: make it harder to accidentally delete
-    actions = None
+    ordering = ["item_master_id"]
+    list_per_page = 25
+    save_on_top = True
 
-    # Optional: show read-only fields in the edit form (detail page)
-    readonly_fields = ["item_description_norm", "created_at", "updated_at"]
+    list_select_related = ("group2", "grade")
+
+    readonly_fields = [
+        "item_description_norm",
+        "created_at",
+        "updated_at",
+    ]
 
     fieldsets = (
-        ("Basic", {
+        ("Basic Information", {
             "fields": (
                 "item_master_id",
                 "item_description",
+                "section_name",
                 "item_description_norm",
                 "group2",
                 "grade",
                 "is_active",
             )
         }),
-        ("Weight", {
+        ("Weight Information", {
             "fields": (
                 "unit_weight",
                 "unit_weight_basis",
             )
         }),
-        ("Tax / Optional", {
+        ("Other Details", {
             "classes": ("collapse",),
             "fields": (
+                "group1_name",
                 "hsn_code",
                 "tax_rate",
-                "group1_name",
-                "section_name",
                 "import_batch_id",
             )
         }),
-        ("Timestamps", {
+        ("Audit", {
             "classes": ("collapse",),
             "fields": (
                 "created_at",
@@ -117,3 +117,15 @@ class ItemAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("group2", "grade")
+        )
+
+    @admin.display(description="Item Description")
+    def item_description_short(self, obj):
+        text = obj.item_description or ""
+        return text[:80] + ("..." if len(text) > 80 else "")
