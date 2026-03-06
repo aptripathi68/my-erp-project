@@ -11,7 +11,6 @@ from masters.models import Item, normalize_item_description
 
 
 def _h(s: Any) -> str:
-    """Normalize header cell text."""
     if s is None:
         return ""
     s = str(s).strip().lower()
@@ -23,6 +22,7 @@ def _h(s: Any) -> str:
 def _to_decimal(v: Any) -> Optional[Decimal]:
     if v is None:
         return None
+
     if isinstance(v, (int, float, Decimal)):
         try:
             return Decimal(str(v))
@@ -30,6 +30,7 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
             return None
 
     s = str(v).strip()
+
     if s == "":
         return None
 
@@ -190,15 +191,17 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
     items = list(
         Item.objects.filter(is_active=True).only(
             "id",
-            "item_description",
-            "item_description_norm"
+            "section_name",
+            "item_description"
         )
     )
 
-    item_by_norm = {
-        it.item_description_norm: it
-        for it in items
-    }
+    item_by_norm = {}
+
+    for it in items:
+        if it.section_name:
+            norm = normalize_item_description(it.section_name)
+            item_by_norm[norm] = it
 
     extracted: List[ExtractedRow] = []
     errors: List[Dict[str, Any]] = []
@@ -295,13 +298,12 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
                 hint = item_desc_raw.replace(" ", "")[:6]
 
                 sugg = [
-                    x.item_description
+                    x.section_name
                     for x in items
-                    if hint.lower() in (x.item_description_norm or "")
+                    if x.section_name and hint.lower() in normalize_item_description(x.section_name)
                 ]
 
                 errors.append({
-
                     "type": "ITEM_MISMATCH",
                     "sheet_name": sheet_name,
                     "excel_row": excel_r,
