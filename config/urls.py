@@ -7,6 +7,11 @@ from config.views import dashboard_home
 urlpatterns = [
     path("", dashboard_home, name="dashboard_home"),
     path("admin/", admin.site.urls),
+
+    # ERP page routes from masters app
+    path("", include("masters.urls")),
+
+    # API routes
     path("api/masters/", include("masters.urls")),
     path("api/", include("ledger.urls")),
     path("procurement/", include("procurement.urls")),
