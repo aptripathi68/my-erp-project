@@ -6,6 +6,7 @@ from .models import Group2, Grade, Item
 class Group2Admin(admin.ModelAdmin):
     list_display = ["code", "name", "grade_count", "item_count"]
     search_fields = ["code", "name"]
+    ordering = ["code"]
 
     def grade_count(self, obj):
         return obj.grades.count()
@@ -21,6 +22,7 @@ class GradeAdmin(admin.ModelAdmin):
     list_display = ["code", "name", "group2", "item_count"]
     list_filter = ["group2"]
     search_fields = ["code", "name"]
+    ordering = ["group2__code", "code"]
 
     def item_count(self, obj):
         return obj.items.count()
@@ -31,10 +33,12 @@ class GradeAdmin(admin.ModelAdmin):
 class ItemAdmin(admin.ModelAdmin):
     """
     Online Item Master maintenance:
-    - list view for browsing
-    - direct inline editing for a few safe fields
-    - full row edit by clicking item_master_id
+    - browse rows in list view
+    - inline edit a few safe fields
+    - click first column for full edit
     - add new row from admin
+    - while editing an item, Group2 and Grade remain normal dropdown widgets
+      so Django can show the related-object add/edit buttons if permissions allow
     """
 
     list_display = [
@@ -63,7 +67,7 @@ class ItemAdmin(admin.ModelAdmin):
         "hsn_code",
     ]
 
-    # keep inline editing light for speed/safety
+    # Keep inline editing light for speed/safety
     list_editable = [
         "unit_weight",
         "unit_weight_basis",
