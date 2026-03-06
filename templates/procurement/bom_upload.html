@@ -1,56 +1,204 @@
-<!-- templates/procurement/bom_upload.html -->
-<h2>BOM Upload (Validate → Import)</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BOM Upload</title>
+    <style>
+        body{
+            font-family:Arial, Helvetica, sans-serif;
+            margin:24px;
+            background:#f7f9fb;
+            color:#24313d;
+        }
+        h2, h3{
+            margin-bottom:10px;
+        }
+        .card{
+            background:#fff;
+            border:1px solid #d9e2ec;
+            border-radius:10px;
+            padding:20px;
+            margin-bottom:20px;
+            box-shadow:0 2px 8px rgba(0,0,0,0.05);
+        }
+        label{
+            font-weight:600;
+        }
+        input[type="text"], input[type="file"]{
+            margin-top:6px;
+        }
+        input[type="text"]{
+            width:420px;
+            padding:8px 10px;
+            border:1px solid #cfd8df;
+            border-radius:6px;
+        }
+        .btn{
+            display:inline-block;
+            padding:10px 16px;
+            border:none;
+            border-radius:6px;
+            cursor:pointer;
+            font-weight:600;
+            text-decoration:none;
+        }
+        .btn-primary{
+            background:#5f839d;
+            color:#fff;
+        }
+        .btn-success{
+            background:#2e7d32;
+            color:#fff;
+        }
+        .btn-secondary{
+            background:#fff;
+            color:#24313d;
+            border:1px solid #cfd8df;
+        }
+        .mt-12{ margin-top:12px; }
+        .mt-16{ margin-top:16px; }
+        .ok{
+            color:green;
+            font-weight:700;
+        }
+        .error-head{
+            color:#b00020;
+        }
+        table{
+            width:100%;
+            border-collapse:collapse;
+            background:#fff;
+        }
+        th, td{
+            border:1px solid #d9e2ec;
+            padding:8px 10px;
+            vertical-align:top;
+            text-align:left;
+            font-size:14px;
+        }
+        th{
+            background:#eef3f7;
+        }
+        pre{
+            background:#f3f6f9;
+            border:1px solid #d9e2ec;
+            border-radius:6px;
+            padding:12px;
+            overflow:auto;
+        }
+        .small{
+            font-size:13px;
+            color:#5b6875;
+        }
+    </style>
+</head>
+<body>
 
-<form method="post" enctype="multipart/form-data">
-  {% csrf_token %}
-  <div>
-    <label>BOM Name (optional):</label>
-    <input type="text" name="bom_name" style="width:420px;" />
-  </div>
-  <div style="margin-top:8px;">
-    <input type="file" name="file" required />
-  </div>
+<div class="card">
+    <h2>BOM Upload (Validate → Import)</h2>
 
-  <div style="margin-top:12px;">
-    <button type="submit" name="action" value="validate">Validate</button>
-    {% if result and result.ok %}
-      <button type="submit" name="action" value="import">Import</button>
-    {% endif %}
-  </div>
-</form>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div>
+            <label>BOM Name (optional):</label><br>
+            <input type="text" name="bom_name" value="{{ bom_name|default:'' }}">
+        </div>
+
+        <div class="mt-12">
+            <label>Select BOM Excel File:</label><br>
+            <input type="file" name="file" required>
+        </div>
+
+        <div class="mt-16">
+            <button class="btn btn-primary" type="submit" name="action" value="validate">Validate</button>
+
+            {% if result and result.ok %}
+                <button class="btn btn-success" type="submit" name="action" value="import">Import</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
 
 {% if result %}
-  <hr/>
-  <h3>Summary</h3>
-  <pre>{{ result.summary }}</pre>
+<div class="card">
+    <h3>Summary</h3>
+    <pre>{{ result.summary }}</pre>
 
-  {% if result.errors %}
-    <h3 style="color:#b00020;">Errors (Fix Item Master or BOM and re-upload)</h3>
-    <table border="1" cellpadding="6" cellspacing="0">
-      <tr>
-        <th>Sheet</th><th>Row</th><th>Mark</th><th>Item No</th><th>Item Description</th><th>Suggestions</th>
-      </tr>
-      {% for e in result.errors %}
-        <tr>
-          <td>{{ e.sheet_name }}</td>
-          <td>{{ e.excel_row }}</td>
-          <td>{{ e.mark_no }}</td>
-          <td>{{ e.item_no }}</td>
-          <td>{{ e.item_description_in_bom }}</td>
-          <td>{{ e.suggestions|join:", " }}</td>
-        </tr>
-      {% endfor %}
-    </table>
-  {% else %}
-    <h3 style="color:green;">Validation OK ✅</h3>
-  {% endif %}
+    {% if result.errors %}
+        <h3 class="error-head">Errors (Fix Item Master or BOM and re-upload)</h3>
+
+        <p>
+            <strong>{{ result.summary.errors }}</strong> validation errors found.
+            <a class="btn btn-secondary" href="{% url 'download_bom_validation_errors' %}" style="margin-left:12px;">
+                Download Validation Errors (Excel)
+            </a>
+        </p>
+
+        <table>
+            <tr>
+                <th>Error Type</th>
+                <th>Sheet</th>
+                <th>Row</th>
+                <th>Mark</th>
+                <th>Item No</th>
+                <th>BOM Item Description</th>
+                <th>BOM Grade</th>
+                <th>Message</th>
+                <th>Possible Grades / Suggestions</th>
+            </tr>
+
+            {% for e in result.errors %}
+            <tr>
+                <td>{{ e.type }}</td>
+                <td>{{ e.sheet_name }}</td>
+                <td>{{ e.excel_row }}</td>
+                <td>{{ e.mark_no }}</td>
+                <td>{{ e.item_no }}</td>
+                <td>{{ e.item_description_in_bom }}</td>
+                <td>{{ e.grade_in_bom }}</td>
+                <td>
+                    {{ e.message }}
+                    {% if e.normalized_section or e.normalized_grade %}
+                        <div class="small mt-12">
+                            Normalized Section: {{ e.normalized_section }}<br>
+                            Normalized Grade: {{ e.normalized_grade }}
+                        </div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if e.possible_grades_for_section %}
+                        <strong>Possible Grades:</strong><br>
+                        {{ e.possible_grades_for_section|join:", " }}
+                    {% endif %}
+
+                    {% if e.suggestions %}
+                        {% if e.possible_grades_for_section %}<br><br>{% endif %}
+                        <strong>Suggestions:</strong><br>
+                        {{ e.suggestions|join:", " }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <h3 class="ok">Validation OK ✅</h3>
+        <p>All BOM rows matched successfully with Item Master using Section Name + Grade.</p>
+    {% endif %}
+</div>
 {% endif %}
 
 {% if imported_bom_id %}
-  <hr/>
-  <h3>Imported ✅</h3>
-  <p>BOM ID: {{ imported_bom_id }}</p>
-  <p>
-    <a href="/procurement/bom/{{ imported_bom_id }}/export-master/">Download Master BOM Excel</a>
-  </p>
+<div class="card">
+    <h3 class="ok">Imported ✅</h3>
+    <p><strong>BOM ID:</strong> {{ imported_bom_id }}</p>
+    <p>
+        <a class="btn btn-secondary" href="/procurement/bom/{{ imported_bom_id }}/export-master/">
+            Download Master BOM Excel
+        </a>
+    </p>
+</div>
 {% endif %}
+
+</body>
+</html>
