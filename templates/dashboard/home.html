@@ -5,164 +5,356 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalpadeep ERP Dashboard</title>
-
     <style>
-        body {
-            margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            background: #f5f5f5;
-            color: #222;
+        :root{
+            --brand:#5f839d;
+            --brand-dark:#49697f;
+            --brand-accent:#f0d76b;
+            --bg:#f4f6f8;
+            --card:#ffffff;
+            --text:#24313d;
+            --muted:#667786;
+            --border:#dbe3ea;
+            --shadow:0 4px 18px rgba(0,0,0,0.08);
         }
 
-        .topbar {
-            background: #587f99;
-            color: white;
-            text-align: center;
-            padding: 18px 20px 24px;
+        *{box-sizing:border-box}
+
+        body{
+            margin:0;
+            font-family:Arial, Helvetica, sans-serif;
+            background:var(--bg);
+            color:var(--text);
         }
 
-        .brand-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 24px;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
+        .topbar{
+            background:var(--brand);
+            color:#fff;
+            padding:20px 28px 24px;
         }
 
-        .brand-wrap img {
-            height: 120px;
-            width: auto;
-            background: white;
-            padding: 6px;
-            border-radius: 2px;
+        .brand-row{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:24px;
+            flex-wrap:wrap;
+            text-align:center;
         }
 
-        .brand-wrap h1 {
-            margin: 0;
-            font-size: 34px;
-            font-weight: 500;
-            color: #f2d96b;
+        .brand-row img{
+            height:110px;
+            width:auto;
+            background:#fff;
+            padding:6px;
+            border-radius:4px;
         }
 
-        .top-links {
-            font-size: 18px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
+        .brand-text h1{
+            margin:0;
+            font-size:32px;
+            font-weight:600;
+            color:var(--brand-accent);
         }
 
-        .top-links a {
-            color: white;
-            text-decoration: underline;
-            margin: 0 6px;
+        .brand-text p{
+            margin:8px 0 0;
+            font-size:16px;
+            color:#eef4f7;
         }
 
-        .page-body {
-            padding: 28px 32px;
+        .top-links{
+            margin-top:18px;
+            text-align:center;
+            font-size:15px;
+            font-weight:700;
+            letter-spacing:.2px;
         }
 
-        .page-title {
-            font-size: 34px;
-            margin: 0 0 24px;
-            color: #333;
+        .top-links a{
+            color:#fff;
+            text-decoration:underline;
+            margin:0 6px;
         }
 
-        .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 18px;
-            margin-top: 20px;
+        .layout{
+            display:grid;
+            grid-template-columns:260px 1fr;
+            gap:24px;
+            padding:24px;
         }
 
-        .card {
-            background: white;
-            border-radius: 8px;
-            padding: 22px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-            border-left: 6px solid #587f99;
+        .sidebar{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:12px;
+            box-shadow:var(--shadow);
+            padding:18px;
+            height:fit-content;
         }
 
-        .card h3 {
-            margin: 0 0 10px;
-            font-size: 24px;
-            color: #587f99;
+        .sidebar h3{
+            margin:0 0 14px;
+            font-size:18px;
+            color:var(--brand-dark);
         }
 
-        .card p {
-            margin: 0 0 16px;
-            font-size: 16px;
-            line-height: 1.5;
-            color: #555;
+        .nav-group{
+            margin-bottom:18px;
         }
 
-        .card a {
-            display: inline-block;
-            color: #587f99;
-            font-weight: 700;
-            text-decoration: none;
+        .nav-group-title{
+            font-size:13px;
+            font-weight:700;
+            color:var(--muted);
+            text-transform:uppercase;
+            letter-spacing:.6px;
+            margin-bottom:8px;
         }
 
-        .card a:hover {
-            text-decoration: underline;
+        .nav-link{
+            display:block;
+            padding:10px 12px;
+            margin-bottom:6px;
+            text-decoration:none;
+            color:var(--text);
+            border-radius:8px;
+            border:1px solid transparent;
+        }
+
+        .nav-link:hover{
+            background:#f2f7fa;
+            border-color:#d7e4ec;
+        }
+
+        .content{
+            min-width:0;
+        }
+
+        .hero{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:12px;
+            box-shadow:var(--shadow);
+            padding:22px 24px;
+            margin-bottom:22px;
+        }
+
+        .hero h2{
+            margin:0 0 8px;
+            font-size:36px;
+            color:#2e3b47;
+        }
+
+        .hero p{
+            margin:0;
+            color:var(--muted);
+            font-size:16px;
+            line-height:1.6;
+        }
+
+        .stats{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+            gap:16px;
+            margin-bottom:22px;
+        }
+
+        .stat-card{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:12px;
+            box-shadow:var(--shadow);
+            padding:18px;
+        }
+
+        .stat-card .label{
+            font-size:14px;
+            color:var(--muted);
+            margin-bottom:10px;
+        }
+
+        .stat-card .value{
+            font-size:34px;
+            font-weight:700;
+            color:var(--brand-dark);
+        }
+
+        .section-title{
+            font-size:24px;
+            margin:0 0 14px;
+            color:#2e3b47;
+        }
+
+        .module-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+            gap:18px;
+        }
+
+        .module-card{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-left:6px solid var(--brand);
+            border-radius:12px;
+            box-shadow:var(--shadow);
+            padding:22px;
+        }
+
+        .module-card h3{
+            margin:0 0 10px;
+            font-size:22px;
+            color:var(--brand-dark);
+        }
+
+        .module-card p{
+            margin:0 0 16px;
+            line-height:1.6;
+            color:#556573;
+            min-height:78px;
+        }
+
+        .module-card a{
+            display:inline-block;
+            text-decoration:none;
+            font-weight:700;
+            color:var(--brand-dark);
+        }
+
+        .module-card a:hover{
+            text-decoration:underline;
+        }
+
+        @media (max-width: 980px){
+            .layout{
+                grid-template-columns:1fr;
+            }
         }
     </style>
 </head>
 <body>
 
     <div class="topbar">
-        <div class="brand-wrap">
+        <div class="brand-row">
             <img src="{% static 'logo/kalpadeep_logo.jpg' %}" alt="Kalpadeep Logo">
-            <h1>Kalpadeep Industries Private Limited</h1>
+            <div class="brand-text">
+                <h1>Kalpadeep Industries Private Limited</h1>
+                <p>Steel Inventory & Fabrication ERP</p>
+            </div>
         </div>
 
         <div class="top-links">
             WELCOME, {{ request.user.username|upper }}.
-            <a href="/">VIEW SITE</a> /
+            <a href="/">HOME</a> /
             <a href="/admin/password_change/">CHANGE PASSWORD</a> /
             <a href="/admin/logout/">LOG OUT</a>
         </div>
     </div>
 
-    <div class="page-body">
-        <h2 class="page-title">ERP Dashboard</h2>
+    <div class="layout">
+        <aside class="sidebar">
+            <h3>ERP Navigation</h3>
 
-        <div class="card-grid">
-            <div class="card">
-                <h3>Item Master</h3>
-                <p>View, edit and add steel items, consumables, paint, electrode and other inventory items.</p>
-                <a href="/admin/masters/item/">Open Item Master</a>
+            <div class="nav-group">
+                <div class="nav-group-title">Masters</div>
+                <a class="nav-link" href="/admin/masters/item/">Item Master</a>
+                <a class="nav-link" href="/admin/masters/group2/">Groups 2</a>
+                <a class="nav-link" href="/admin/masters/grade/">Grades</a>
             </div>
 
-            <div class="card">
-                <h3>BOM Upload</h3>
-                <p>Upload BOM files, validate item matching with Item Master and import approved BOM data.</p>
-                <a href="/procurement/bom/upload/">Open BOM Upload</a>
+            <div class="nav-group">
+                <div class="nav-group-title">Procurement</div>
+                <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
+                <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
+                <a class="nav-link" href="/admin/procurement/grn/">GRN Management</a>
+                <a class="nav-link" href="/admin/procurement/site/">Sites</a>
             </div>
 
-            <div class="card">
-                <h3>GRN Management</h3>
-                <p>Create and manage goods receipt notes and incoming inventory records.</p>
-                <a href="/admin/procurement/grn/">Open GRN</a>
+            <div class="nav-group">
+                <div class="nav-group-title">Inventory</div>
+                <a class="nav-link" href="/admin/ledger/stockledgerentry/">Stock Ledger</a>
+                <a class="nav-link" href="/admin/ledger/stocklocation/">Stock Locations</a>
+                <a class="nav-link" href="/admin/ledger/stocktxn/">Stock Transactions</a>
             </div>
 
-            <div class="card">
-                <h3>BOM Records</h3>
-                <p>Review uploaded BOM headers, marks and component details.</p>
-                <a href="/admin/procurement/bomheader/">Open BOM Records</a>
+            <div class="nav-group">
+                <div class="nav-group-title">Administration</div>
+                <a class="nav-link" href="/admin/">Admin Panel</a>
+                <a class="nav-link" href="/admin/users/user/">Users</a>
             </div>
+        </aside>
 
-            <div class="card">
-                <h3>Stock Ledger</h3>
-                <p>Monitor stock movement entries and inventory transaction history.</p>
-                <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
-            </div>
+        <main class="content">
+            <section class="hero">
+                <h2>ERP Dashboard</h2>
+                <p>
+                    Control item master, BOM validation, GRN, stock movement, and fabrication workflow from one place.
+                </p>
+            </section>
 
-            <div class="card">
-                <h3>Admin Panel</h3>
-                <p>Open the full admin interface for controlled maintenance and advanced ERP setup.</p>
-                <a href="/admin/">Open Admin</a>
-            </div>
-        </div>
+            <section class="stats">
+                <div class="stat-card">
+                    <div class="label">Active Items</div>
+                    <div class="value">{{ item_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Uploaded BOMs</div>
+                    <div class="value">{{ bom_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">GRNs</div>
+                    <div class="value">{{ grn_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Sites</div>
+                    <div class="value">{{ site_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Ledger Entries</div>
+                    <div class="value">{{ ledger_count }}</div>
+                </div>
+            </section>
+
+            <h3 class="section-title">Operational Modules</h3>
+
+            <section class="module-grid">
+                <div class="module-card">
+                    <h3>Item Master</h3>
+                    <p>Maintain steel sections, plates, pipes, consumables, paint, electrodes and other inventory items.</p>
+                    <a href="/admin/masters/item/">Open Item Master</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>BOM Upload</h3>
+                    <p>Upload and validate multi-sheet BOM files against Item Master using section name matching.</p>
+                    <a href="/procurement/bom/upload/">Open BOM Upload</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>GRN Management</h3>
+                    <p>Create and monitor goods receipt notes and incoming inventory records.</p>
+                    <a href="/admin/procurement/grn/">Open GRN</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>BOM Records</h3>
+                    <p>Review BOM headers, marks and components after validation and import.</p>
+                    <a href="/admin/procurement/bomheader/">Open BOM Records</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>Stock Ledger</h3>
+                    <p>Track stock movement entries and maintain complete inventory traceability.</p>
+                    <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>Administration</h3>
+                    <p>Access admin maintenance for users, permissions and advanced ERP configuration.</p>
+                    <a href="/admin/">Open Admin Panel</a>
+                </div>
+            </section>
+        </main>
     </div>
 
 </body>
