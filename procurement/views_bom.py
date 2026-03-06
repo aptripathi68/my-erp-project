@@ -1,7 +1,8 @@
-# procurement/views_bom.py
 from __future__ import annotations
 
 import tempfile
+from io import BytesIO
+
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.http import HttpResponse
@@ -9,6 +10,7 @@ from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 from .models import BOMHeader, BOMMark, BOMComponent
 from .services.bom_importer import validate_and_extract_workbook
@@ -35,6 +37,10 @@ def bom_upload(request):
             tmp_path = tmp.name
 
         result = validate_and_extract_workbook(tmp_path)
+
+        # Store validation errors in session so they can be downloaded in Excel
+        request.session["bom_validation_errors"] = result.get("errors", [])
+
         context["result"] = result
         context["bom_name"] = bom_name
         context["tmp_path"] = tmp_path  # used only for import in same request flow
@@ -63,22 +69,90 @@ def bom_upload(request):
                 comps = []
                 for row in result["extracted"]:
                     m = mark_map[(row.sheet_name, row.mark_no or "")]
-                    comps.append(BOMComponent(
-                        mark=m,
-                        item_no=row.item_no or "",
-                        item_id=row.item_id,
-                        item_description_raw=row.item_description_raw,
-                        qty_all=row.qty_all,
-                        length_mm=row.length_mm,
-                        line_weight_kg=row.line_weight_kg,
-                        excel_row=row.excel_row,
-                    ))
+                    comps.append(
+                        BOMComponent(
+                            mark=m,
+                            item_no=row.item_no or "",
+                            item_id=row.item_id,
+                            item_description_raw=row.item_description_raw,
+                            qty_all=row.qty_all,
+                            length_mm=row.length_mm,
+                            line_weight_kg=row.line_weight_kg,
+                            excel_row=row.excel_row,
+                        )
+                    )
 
                 BOMComponent.objects.bulk_create(comps, batch_size=2000)
 
             context["imported_bom_id"] = header.id
 
     return render(request, "procurement/bom_upload.html", context)
+
+
+@staff_member_required
+def download_bom_validation_errors(request):
+    """
+    Download latest BOM validation errors from session as Excel.
+    """
+    errors = request.session.get("bom_validation_errors", [])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "BOM Validation Errors"
+
+    headers = [
+        "Error Type",
+        "Sheet Name",
+        "Excel Row",
+        "Mark No",
+        "Item No",
+        "BOM Item Description",
+        "BOM Grade",
+        "Message",
+        "Normalized Section",
+        "Normalized Grade",
+        "Possible Grades For Section",
+        "Suggestions",
+    ]
+    ws.append(headers)
+
+    for err in errors:
+        possible_grades = err.get("possible_grades_for_section", [])
+        suggestions = err.get("suggestions", [])
+
+        ws.append([
+            err.get("type", ""),
+            err.get("sheet_name", ""),
+            err.get("excel_row", ""),
+            err.get("mark_no", ""),
+            err.get("item_no", ""),
+            err.get("item_description_in_bom", ""),
+            err.get("grade_in_bom", ""),
+            err.get("message", ""),
+            err.get("normalized_section", ""),
+            err.get("normalized_grade", ""),
+            ", ".join(possible_grades) if isinstance(possible_grades, list) else str(possible_grades or ""),
+            ", ".join(suggestions) if isinstance(suggestions, list) else str(suggestions or ""),
+        ])
+
+    for col_idx, column_cells in enumerate(ws.columns, start=1):
+        max_len = 0
+        for cell in column_cells:
+            value = "" if cell.value is None else str(cell.value)
+            if len(value) > max_len:
+                max_len = len(value)
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 40)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="bom_validation_errors.xlsx"'
+    return response
 
 
 @staff_member_required
@@ -115,7 +189,9 @@ def bom_export_master(request, bom_id: int):
                 c.excel_row,
             ])
 
-    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     resp["Content-Disposition"] = f'attachment; filename="BOM_MASTER_{header.id}.xlsx"'
     wb.save(resp)
     return resp
