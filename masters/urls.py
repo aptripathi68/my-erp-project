@@ -10,4 +10,5 @@ urlpatterns = [
 
     # ERP pages
     path("item-master/", views.item_master_list, name="item_master_list"),
+    path("item-master/add/", views.item_master_add, name="item_master_add"),
 ]
