@@ -130,7 +130,7 @@
 
         <p>
             <strong>{{ result.summary.errors }}</strong> validation errors found.
-            <a class="btn btn-secondary" href="{% url 'download_bom_validation_errors' %}" style="margin-left:12px;">
+            <a class="btn btn-secondary" href="{% url 'procurement:download_bom_validation_errors' %}" style="margin-left:12px;">
                 Download Validation Errors (Excel)
             </a>
         </p>
@@ -193,7 +193,7 @@
     <h3 class="ok">Imported ✅</h3>
     <p><strong>BOM ID:</strong> {{ imported_bom_id }}</p>
     <p>
-        <a class="btn btn-secondary" href="/procurement/bom/{{ imported_bom_id }}/export-master/">
+        <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">
             Download Master BOM Excel
         </a>
     </p>
