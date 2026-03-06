@@ -1,4 +1,3 @@
-# procurement/urls.py
 from django.urls import path
 from . import views_bom
 
@@ -11,5 +10,9 @@ urlpatterns = [
         views_bom.download_bom_validation_errors,
         name="download_bom_validation_errors",
     ),
-    path("bom/<int:bom_id>/export-master/", views_bom.bom_export_master, name="bom_export_master"),
+    path(
+        "bom/<int:bom_id>/export-master/",
+        views_bom.bom_export_master,
+        name="bom_export_master",
+    ),
 ]

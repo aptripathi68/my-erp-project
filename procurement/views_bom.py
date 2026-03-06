@@ -18,19 +18,12 @@ from .services.bom_importer import validate_and_extract_workbook
 
 @staff_member_required
 def bom_upload(request):
-    """
-    Simple online page:
-    - Upload Excel
-    - Validate
-    - If ok: import
-    """
     context = {}
 
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
         bom_name = request.POST.get("bom_name") or f.name
 
-        # Save to a temp file for openpyxl
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
             for chunk in f.chunks():
                 tmp.write(chunk)
@@ -38,14 +31,12 @@ def bom_upload(request):
 
         result = validate_and_extract_workbook(tmp_path)
 
-        # Store validation errors in session so they can be downloaded in Excel
         request.session["bom_validation_errors"] = result.get("errors", [])
 
         context["result"] = result
         context["bom_name"] = bom_name
-        context["tmp_path"] = tmp_path  # used only for import in same request flow
+        context["tmp_path"] = tmp_path
 
-        # If user clicked "Import" and validation ok
         if request.POST.get("action") == "import" and result["ok"]:
             with transaction.atomic():
                 header = BOMHeader.objects.create(
@@ -54,8 +45,7 @@ def bom_upload(request):
                     uploaded_at=timezone.now(),
                 )
 
-                # create marks
-                mark_map = {}  # (sheet, mark_no) -> BOMMark
+                mark_map = {}
                 for row in result["extracted"]:
                     key = (row.sheet_name, row.mark_no or "")
                     if key not in mark_map:
@@ -91,9 +81,6 @@ def bom_upload(request):
 
 @staff_member_required
 def download_bom_validation_errors(request):
-    """
-    Download latest BOM validation errors from session as Excel.
-    """
     errors = request.session.get("bom_validation_errors", [])
 
     wb = openpyxl.Workbook()
@@ -157,9 +144,6 @@ def download_bom_validation_errors(request):
 
 @staff_member_required
 def bom_export_master(request, bom_id: int):
-    """
-    Download master BOM as Excel for monitoring.
-    """
     header = get_object_or_404(BOMHeader, id=bom_id)
 
     wb = openpyxl.Workbook()
