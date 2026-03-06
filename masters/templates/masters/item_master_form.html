@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Add New Item</h2>
+
+<form method="post">
+    {% csrf_token %}
+
+    <label>Item Master ID</label><br>
+    <input type="text" name="item_master_id"><br><br>
+
+    <label>Section Name</label><br>
+    <input type="text" name="section_name"><br><br>
+
+    <label>Item Description</label><br>
+    <input type="text" name="item_description"><br><br>
+
+    <label>Group</label><br>
+    <select name="group2">
+        {% for g in group2_list %}
+        <option value="{{ g.id }}">{{ g.name }}</option>
+        {% endfor %}
+    </select><br><br>
+
+    <label>Grade</label><br>
+    <select name="grade">
+        {% for g in grade_list %}
+        <option value="{{ g.id }}">{{ g.name }}</option>
+        {% endfor %}
+    </select><br><br>
+
+    <label>Unit Weight</label><br>
+    <input type="text" name="unit_weight"><br><br>
+
+    <label>Weight Basis</label><br>
+    <select name="unit_weight_basis">
+        {% for val,label in unit_weight_basis_choices %}
+        <option value="{{ val }}">{{ label }}</option>
+        {% endfor %}
+    </select><br><br>
+
+    <label>Active</label>
+    <input type="checkbox" name="is_active" checked><br><br>
+
+    <button type="submit">Save Item</button>
+
+</form>
+
+{% endblock %}
