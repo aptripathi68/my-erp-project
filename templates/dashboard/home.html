@@ -1,16 +1,169 @@
+{% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalpadeep ERP Dashboard</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f5f5;
+            color: #222;
+        }
+
+        .topbar {
+            background: #587f99;
+            color: white;
+            text-align: center;
+            padding: 18px 20px 24px;
+        }
+
+        .brand-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .brand-wrap img {
+            height: 120px;
+            width: auto;
+            background: white;
+            padding: 6px;
+            border-radius: 2px;
+        }
+
+        .brand-wrap h1 {
+            margin: 0;
+            font-size: 34px;
+            font-weight: 500;
+            color: #f2d96b;
+        }
+
+        .top-links {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .top-links a {
+            color: white;
+            text-decoration: underline;
+            margin: 0 6px;
+        }
+
+        .page-body {
+            padding: 28px 32px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            margin: 0 0 24px;
+            color: #333;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 22px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-left: 6px solid #587f99;
+        }
+
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 24px;
+            color: #587f99;
+        }
+
+        .card p {
+            margin: 0 0 16px;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+        }
+
+        .card a {
+            display: inline-block;
+            color: #587f99;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .card a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-    <h1>Kalpadeep Industries Private Limited</h1>
-    <p>ERP Dashboard is working.</p>
 
-    <ul>
-        <li><a href="/admin/">Admin</a></li>
-        <li><a href="/procurement/bom/upload/">BOM Upload</a></li>
-        <li><a href="/admin/masters/item/">Item Master</a></li>
-    </ul>
+    <div class="topbar">
+        <div class="brand-wrap">
+            <img src="{% static 'logo/kalpadeep_logo.jpg' %}" alt="Kalpadeep Logo">
+            <h1>Kalpadeep Industries Private Limited</h1>
+        </div>
+
+        <div class="top-links">
+            WELCOME, {{ request.user.username|upper }}.
+            <a href="/">VIEW SITE</a> /
+            <a href="/admin/password_change/">CHANGE PASSWORD</a> /
+            <a href="/admin/logout/">LOG OUT</a>
+        </div>
+    </div>
+
+    <div class="page-body">
+        <h2 class="page-title">ERP Dashboard</h2>
+
+        <div class="card-grid">
+            <div class="card">
+                <h3>Item Master</h3>
+                <p>View, edit and add steel items, consumables, paint, electrode and other inventory items.</p>
+                <a href="/admin/masters/item/">Open Item Master</a>
+            </div>
+
+            <div class="card">
+                <h3>BOM Upload</h3>
+                <p>Upload BOM files, validate item matching with Item Master and import approved BOM data.</p>
+                <a href="/procurement/bom/upload/">Open BOM Upload</a>
+            </div>
+
+            <div class="card">
+                <h3>GRN Management</h3>
+                <p>Create and manage goods receipt notes and incoming inventory records.</p>
+                <a href="/admin/procurement/grn/">Open GRN</a>
+            </div>
+
+            <div class="card">
+                <h3>BOM Records</h3>
+                <p>Review uploaded BOM headers, marks and component details.</p>
+                <a href="/admin/procurement/bomheader/">Open BOM Records</a>
+            </div>
+
+            <div class="card">
+                <h3>Stock Ledger</h3>
+                <p>Monitor stock movement entries and inventory transaction history.</p>
+                <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
+            </div>
+
+            <div class="card">
+                <h3>Admin Panel</h3>
+                <p>Open the full admin interface for controlled maintenance and advanced ERP setup.</p>
+                <a href="/admin/">Open Admin</a>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
