@@ -30,7 +30,6 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
             return None
 
     s = str(v).strip()
-
     if s == "":
         return None
 
@@ -43,83 +42,101 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
 
 
 def normalize_grade_name(s: Any) -> str:
-    """
-    Normalize grade text for robust matching.
-
-    Examples that should all match:
-    - IS 3589
-    - IS:3589
-    - IS-3589
-    - IS;3589
-    - IS/3589
-
-    Also helps for:
-    - IS:2062; E250BR
-    - IS:2062, E250BR
-    - IS 2062 E250BR
-    """
     if s is None:
         return ""
 
     s = str(s).strip().upper()
     s = s.replace("\n", " ")
-
-    # Keep only letters and digits; ignore punctuation and spaces
     s = re.sub(r"[^A-Z0-9]+", "", s)
-
     return s
 
 
 ALIASES = {
     "item_description": [
-        "item description", "item", "description", "member", "profile",
-        "section", "main section", "material", "item desc", "item-description"
+        "item description",
+        "item desc",
+        "item-description",
+        "member",
+        "profile",
+        "material description",
     ],
-
     "grade": [
-        "grade", "material grade", "mat grade", "steel grade",
-        "item grade", "grade name"
+        "grade",
+        "material grade",
+        "mat grade",
+        "steel grade",
+        "item grade",
+        "grade name",
     ],
-
     "mark_no": [
-        "mark no", "mark", "mark_no", "mark number",
-        "fabrication mark no", "fab mark no",
-        "member mark", "m/c mark", "mc mark"
+        "mark no",
+        "mark",
+        "mark_no",
+        "mark number",
+        "fabrication mark no",
+        "fab mark no",
+        "member mark",
+        "m/c mark",
+        "mc mark",
     ],
-
     "item_no": [
-        "item no", "item number", "item_no", "itm no",
-        "sr no", "s.no", "sno"
+        "item no",
+        "item number",
+        "item_no",
+        "itm no",
+        "sr no",
+        "s.no",
+        "sno",
     ],
-
     "qty_all": [
-        "qty all", "unit qty", "qty", "quantity",
-        "nos", "no.", "no's", "total qty"
+        "qty all",
+        "unit qty",
+        "qty",
+        "quantity",
+        "nos",
+        "no.",
+        "no's",
+        "total qty",
+        "erc qty",
     ],
-
     "length": [
-        "length", "len", "cut length", "lg",
-        "l (mm)", "length (mm)"
+        "length",
+        "len",
+        "cut length",
+        "lg",
+        "l (mm)",
+        "length (mm)",
     ],
-
     "width": [
-        "width", "w", "wd",
-        "b (mm)", "width (mm)"
+        "width",
+        "w",
+        "wd",
+        "b (mm)",
+        "width (mm)",
     ],
-
     "thk": [
-        "thickness", "thk", "p thk",
-        "plate thk", "t (mm)", "thickness (mm)"
+        "thickness",
+        "thk",
+        "p thk",
+        "plate thk",
+        "t (mm)",
+        "thickness (mm)",
     ],
-
     "unit_wt": [
-        "unit wt", "unit weight",
-        "wt", "weight", "unit-wt", "unitweight"
+        "unit wt",
+        "unit weight",
+        "wt",
+        "weight",
+        "unit-wt",
+        "unitweight",
     ],
-
     "drawing_no": [
-        "drawing no", "dwg no", "drg no",
-        "drawing", "dwg", "drg"
+        "drawing no",
+        "dwg no",
+        "drg no",
+        "drawing",
+        "dwg",
+        "drg",
     ],
 }
 
@@ -128,7 +145,7 @@ IGNORE_SHEET_NAME_CONTAINS = [
     "summary",
     "notes",
     "index",
-    "cover"
+    "cover",
 ]
 
 
@@ -136,15 +153,12 @@ IGNORE_SHEET_NAME_CONTAINS = [
 class ExtractedRow:
     sheet_name: str
     excel_row: int
-
     mark_no: str
     drawing_no: str
     item_no: str
-
     item_description_raw: str
     grade_raw: str
     item_id: int
-
     qty_all: Decimal
     length_mm: Optional[Decimal]
     width_mm: Optional[Decimal]
@@ -155,20 +169,16 @@ class ExtractedRow:
 def detect_header_row(ws, max_scan_rows: int = 40):
     for r_index, row in enumerate(
         ws.iter_rows(min_row=1, max_row=max_scan_rows, values_only=True),
-        start=1
+        start=1,
     ):
         headers = [_h(v) for v in row]
 
-        has_item_desc = any(
-            h in ALIASES["item_description"] for h in headers
-        )
-
+        has_item_desc = any(h in ALIASES["item_description"] for h in headers)
         if not has_item_desc:
             continue
 
         other_hits = 0
-
-        for key in ("grade", "mark_no", "qty_all", "item_no", "unit_wt", "length"):
+        for key in ("grade", "mark_no", "qty_all", "item_no", "length"):
             if any(h in ALIASES[key] for h in headers):
                 other_hits += 1
 
@@ -185,8 +195,24 @@ def build_col_map(headers: List[str]) -> Dict[str, int]:
         for canonical, aliases in ALIASES.items():
             if canonical in col_map:
                 continue
-
             if htxt in aliases:
+                col_map[canonical] = idx
+                break
+
+    return col_map
+
+
+def build_user_col_map(headers: List[str], user_mapping: Dict[str, str]) -> Dict[str, int]:
+    col_map: Dict[str, int] = {}
+    normalized_headers = [_h(h) for h in headers]
+
+    for canonical, selected_header in user_mapping.items():
+        if not selected_header:
+            continue
+
+        selected_norm = _h(selected_header)
+        for idx, header_norm in enumerate(normalized_headers):
+            if header_norm == selected_norm:
                 col_map[canonical] = idx
                 break
 
@@ -198,18 +224,53 @@ def get_cell(row: Tuple[Any], col_map: Dict[str, int], key: str):
 
     if idx is None:
         return None
-
     if idx >= len(row):
         return None
 
     return row[idx]
 
 
-def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
+def workbook_sheet_headers(xlsx_path: str, max_scan_rows: int = 40) -> Dict[str, Any]:
     wb = openpyxl.load_workbook(
         xlsx_path,
         data_only=True,
-        read_only=True
+        read_only=True,
+    )
+
+    result = {}
+
+    for sheet_name in wb.sheetnames:
+        if any(x in sheet_name.lower() for x in IGNORE_SHEET_NAME_CONTAINS):
+            continue
+
+        ws = wb[sheet_name]
+        header_row, headers = detect_header_row(ws, max_scan_rows=max_scan_rows)
+
+        if not header_row or not headers:
+            result[sheet_name] = {
+                "detected": False,
+                "header_row": None,
+                "headers": [],
+            }
+            continue
+
+        result[sheet_name] = {
+            "detected": True,
+            "header_row": header_row,
+            "headers": headers,
+        }
+
+    return result
+
+
+def validate_and_extract_workbook(
+    xlsx_path: str,
+    user_sheet_mappings: Optional[Dict[str, Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    wb = openpyxl.load_workbook(
+        xlsx_path,
+        data_only=True,
+        read_only=True,
     )
 
     items = list(
@@ -219,6 +280,7 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
             "id",
             "section_name",
             "item_description",
+            "grade__code",
             "grade__name",
         )
     )
@@ -227,10 +289,16 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
 
     for it in items:
         section_norm = normalize_item_description(it.section_name or "")
-        grade_norm = normalize_grade_name(it.grade.name if it.grade else "")
+        if not section_norm or not it.grade:
+            continue
 
-        if section_norm and grade_norm:
-            item_by_section_grade[(section_norm, grade_norm)] = it
+        grade_code_norm = normalize_grade_name(it.grade.code or "")
+        grade_name_norm = normalize_grade_name(it.grade.name or "")
+
+        if grade_code_norm:
+            item_by_section_grade[(section_norm, grade_code_norm)] = it
+        if grade_name_norm:
+            item_by_section_grade[(section_norm, grade_name_norm)] = it
 
     extracted: List[ExtractedRow] = []
     errors: List[Dict[str, Any]] = []
@@ -243,29 +311,33 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
             continue
 
         ws = wb[sheet_name]
-
         header_row, headers = detect_header_row(ws)
 
         if not header_row or not headers:
             detected[sheet_name] = {
                 "skipped": True,
-                "reason": "header_not_detected"
+                "reason": "header_not_detected",
             }
             continue
 
-        col_map = build_col_map(headers)
+        sheet_mapping = (user_sheet_mappings or {}).get(sheet_name, {})
+
+        if sheet_mapping:
+            col_map = build_user_col_map(headers, sheet_mapping)
+        else:
+            col_map = build_col_map(headers)
 
         if "item_description" not in col_map:
             detected[sheet_name] = {
                 "skipped": True,
-                "reason": "item_description_column_not_found"
+                "reason": "item_description_column_not_found",
             }
             continue
 
         if "grade" not in col_map:
             detected[sheet_name] = {
                 "skipped": True,
-                "reason": "grade_column_not_found"
+                "reason": "grade_column_not_found",
             }
             continue
 
@@ -281,11 +353,8 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
         last_drawing = ""
 
         for excel_r, row_vals in enumerate(
-            ws.iter_rows(
-                min_row=header_row + 1,
-                values_only=True
-            ),
-            start=header_row + 1
+            ws.iter_rows(min_row=header_row + 1, values_only=True),
+            start=header_row + 1,
         ):
             if not row_vals:
                 continue
@@ -318,7 +387,6 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
             item_no = get_cell(row_vals, col_map, "item_no")
-
             qty_all = get_cell(row_vals, col_map, "qty_all")
             length_mm = get_cell(row_vals, col_map, "length")
             width_mm = get_cell(row_vals, col_map, "width")
@@ -332,7 +400,6 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
                 last_drawing = str(drawing_no).strip()
 
             item_no_final = str(item_no).strip() if item_no else ""
-
             qty_dec = _to_decimal(qty_all) or Decimal("1")
 
             section_norm = normalize_item_description(item_desc_raw)
@@ -348,7 +415,9 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
 
                 if section_matches:
                     possible_grades = sorted({
-                        x.grade.name for x in section_matches if x.grade and x.grade.name
+                        (x.grade.code or x.grade.name)
+                        for x in section_matches
+                        if x.grade and (x.grade.code or x.grade.name)
                     })
                     errors.append({
                         "type": "GRADE_MISMATCH",
@@ -370,8 +439,10 @@ def validate_and_extract_workbook(xlsx_path: str) -> Dict[str, Any]:
                     for x in items:
                         section_name = x.section_name or ""
                         if section_name and hint in normalize_item_description(section_name):
-                            grade_name = x.grade.name if x.grade else ""
-                            sugg.append(f"{section_name} | {grade_name}")
+                            grade_text = ""
+                            if x.grade:
+                                grade_text = x.grade.code or x.grade.name or ""
+                            sugg.append(f"{section_name} | {grade_text}")
 
                     errors.append({
                         "type": "ITEM_GRADE_MISMATCH",

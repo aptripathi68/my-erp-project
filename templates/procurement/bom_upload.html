@@ -2,16 +2,13 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>BOM Upload</title>
+    <title>BOM Upload Wizard</title>
     <style>
         body{
             font-family:Arial, Helvetica, sans-serif;
             margin:24px;
             background:#f7f9fb;
             color:#24313d;
-        }
-        h2, h3{
-            margin-bottom:10px;
         }
         .card{
             background:#fff;
@@ -21,18 +18,7 @@
             margin-bottom:20px;
             box-shadow:0 2px 8px rgba(0,0,0,0.05);
         }
-        label{
-            font-weight:600;
-        }
-        input[type="text"], input[type="file"]{
-            margin-top:6px;
-        }
-        input[type="text"]{
-            width:420px;
-            padding:8px 10px;
-            border:1px solid #cfd8df;
-            border-radius:6px;
-        }
+        h2, h3{ margin-bottom:10px; }
         .btn{
             display:inline-block;
             padding:10px 16px;
@@ -42,28 +28,9 @@
             font-weight:600;
             text-decoration:none;
         }
-        .btn-primary{
-            background:#5f839d;
-            color:#fff;
-        }
-        .btn-success{
-            background:#2e7d32;
-            color:#fff;
-        }
-        .btn-secondary{
-            background:#fff;
-            color:#24313d;
-            border:1px solid #cfd8df;
-        }
-        .mt-12{ margin-top:12px; }
-        .mt-16{ margin-top:16px; }
-        .ok{
-            color:green;
-            font-weight:700;
-        }
-        .error-head{
-            color:#b00020;
-        }
+        .btn-primary{ background:#5f839d; color:#fff; }
+        .btn-success{ background:#2e7d32; color:#fff; }
+        .btn-secondary{ background:#fff; color:#24313d; border:1px solid #cfd8df; }
         table{
             width:100%;
             border-collapse:collapse;
@@ -74,63 +41,197 @@
             padding:8px 10px;
             vertical-align:top;
             text-align:left;
-            font-size:14px;
         }
-        th{
-            background:#eef3f7;
-        }
-        pre{
-            background:#f3f6f9;
-            border:1px solid #d9e2ec;
+        th{ background:#eef3f7; }
+        select, input[type="text"], input[type="file"]{
+            padding:8px 10px;
+            border:1px solid #cfd8df;
             border-radius:6px;
-            padding:12px;
-            overflow:auto;
         }
-        .small{
-            font-size:13px;
-            color:#5b6875;
-        }
+        .error-head{ color:#b00020; }
+        .ok{ color:green; font-weight:700; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>BOM Upload (Validate → Import)</h2>
+    <h2>BOM Upload Wizard</h2>
+
+    {% if error %}
+        <p style="color:red;"><strong>{{ error }}</strong></p>
+    {% endif %}
 
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-
         <div>
-            <label>BOM Name (optional):</label><br>
-            <input type="text" name="bom_name" value="{{ bom_name|default:'' }}">
+            <label><strong>BOM Name</strong></label><br>
+            <input type="text" name="bom_name" value="{{ bom_name|default:'' }}" style="width:420px;">
         </div>
-
-        <div class="mt-12">
-            <label>Select BOM Excel File:</label><br>
+        <div style="margin-top:12px;">
+            <label><strong>Select BOM Excel File</strong></label><br>
             <input type="file" name="file" required>
         </div>
+        <div style="margin-top:16px;">
+            <button class="btn btn-primary" type="submit">Upload & Detect Columns</button>
+        </div>
+    </form>
+</div>
 
-        <div class="mt-16">
+{% if mapping_step and headers_info %}
+<div class="card">
+    <h3>Step 2: Map BOM columns</h3>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% for sheet_name, info in headers_info.items %}
+            <div class="card">
+                <h3>Sheet: {{ sheet_name }}</h3>
+
+                {% if not info.detected %}
+                    <p style="color:red;">Header row not detected for this sheet.</p>
+                {% else %}
+                    <p><strong>Detected Header Row:</strong> {{ info.header_row }}</p>
+
+                    <table>
+                        <tr>
+                            <th>ERP Field</th>
+                            <th>Select BOM Column</th>
+                        </tr>
+                        <tr>
+                            <td>Item Master Section Name</td>
+                            <td>
+                                <select name="{{ sheet_name }}__item_description" required>
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Item Master Grade</td>
+                            <td>
+                                <select name="{{ sheet_name }}__grade" required>
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Mark No</td>
+                            <td>
+                                <select name="{{ sheet_name }}__mark_no">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Drawing No</td>
+                            <td>
+                                <select name="{{ sheet_name }}__drawing_no">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Item No</td>
+                            <td>
+                                <select name="{{ sheet_name }}__item_no">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Qty</td>
+                            <td>
+                                <select name="{{ sheet_name }}__qty_all">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Length</td>
+                            <td>
+                                <select name="{{ sheet_name }}__length">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Width</td>
+                            <td>
+                                <select name="{{ sheet_name }}__width">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Thickness</td>
+                            <td>
+                                <select name="{{ sheet_name }}__thk">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Unit Weight</td>
+                            <td>
+                                <select name="{{ sheet_name }}__unit_wt">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <div style="margin-top:20px;">
             <button class="btn btn-primary" type="submit" name="action" value="validate">Validate</button>
-
             {% if result and result.ok %}
                 <button class="btn btn-success" type="submit" name="action" value="import">Import</button>
             {% endif %}
         </div>
     </form>
 </div>
+{% endif %}
 
 {% if result %}
 <div class="card">
-    <h3>Summary</h3>
-    <pre>{{ result.summary }}</pre>
+    <h3>Validation Summary</h3>
 
     {% if result.errors %}
         <h3 class="error-head">Errors (Fix Item Master or BOM and re-upload)</h3>
-
         <p>
             <strong>{{ result.summary.errors }}</strong> validation errors found.
-            <a class="btn btn-secondary" href="{% url 'procurement:download_bom_validation_errors' %}" style="margin-left:12px;">
+            <a class="btn btn-secondary" href="{% url 'procurement:download_bom_validation_errors' %}">
                 Download Validation Errors (Excel)
             </a>
         </p>
@@ -147,7 +248,6 @@
                 <th>Message</th>
                 <th>Possible Grades / Suggestions</th>
             </tr>
-
             {% for e in result.errors %}
             <tr>
                 <td>{{ e.type }}</td>
@@ -157,24 +257,12 @@
                 <td>{{ e.item_no }}</td>
                 <td>{{ e.item_description_in_bom }}</td>
                 <td>{{ e.grade_in_bom }}</td>
-                <td>
-                    {{ e.message }}
-                    {% if e.normalized_section or e.normalized_grade %}
-                        <div class="small mt-12">
-                            Normalized Section: {{ e.normalized_section }}<br>
-                            Normalized Grade: {{ e.normalized_grade }}
-                        </div>
-                    {% endif %}
-                </td>
+                <td>{{ e.message }}</td>
                 <td>
                     {% if e.possible_grades_for_section %}
-                        <strong>Possible Grades:</strong><br>
                         {{ e.possible_grades_for_section|join:", " }}
                     {% endif %}
-
                     {% if e.suggestions %}
-                        {% if e.possible_grades_for_section %}<br><br>{% endif %}
-                        <strong>Suggestions:</strong><br>
                         {{ e.suggestions|join:", " }}
                     {% endif %}
                 </td>
@@ -183,7 +271,6 @@
         </table>
     {% else %}
         <h3 class="ok">Validation OK ✅</h3>
-        <p>All BOM rows matched successfully with Item Master using Section Name + Grade.</p>
     {% endif %}
 </div>
 {% endif %}
