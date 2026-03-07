@@ -14,7 +14,6 @@ def env_bool(name: str, default: bool = False) -> bool:
         return default
     return v.strip().lower() in ("1", "true", "yes", "y", "on")
 
-
 # -------------------------------------------------------------------
 # CORE
 # -------------------------------------------------------------------
@@ -42,7 +41,6 @@ CSRF_TRUSTED_ORIGINS = [
     "http://www.kalpadeep.in",
     "https://www.kalpadeep.in",
 ]
-
 
 # -------------------------------------------------------------------
 # APPLICATIONS
@@ -96,7 +94,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-
 # -------------------------------------------------------------------
 # DATABASE
 # -------------------------------------------------------------------
@@ -125,7 +122,6 @@ else:
         }
     }
 
-
 # -------------------------------------------------------------------
 # PASSWORD VALIDATION
 # -------------------------------------------------------------------
@@ -144,7 +140,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # -------------------------------------------------------------------
 # INTERNATIONALIZATION
 # -------------------------------------------------------------------
@@ -152,7 +147,6 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
 USE_TZ = True
-
 
 # -------------------------------------------------------------------
 # R2 SETTINGS FOR MEDIA ONLY
@@ -171,11 +165,10 @@ AWS_DEFAULT_ACL = None
 
 MEDIA_BUCKET_NAME = "inventory-erp-offcuts"
 
-
 # -------------------------------------------------------------------
 # STATIC FILES -> LOCAL
 # -------------------------------------------------------------------
-STATIC_URL = "/static/"
+STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 if (BASE_DIR / "static").exists():
@@ -183,11 +176,10 @@ if (BASE_DIR / "static").exists():
 else:
     STATICFILES_DIRS = []
 
-
 # -------------------------------------------------------------------
 # MEDIA FILES -> R2
 # -------------------------------------------------------------------
-MEDIA_URL = "/erp/media/"
+MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 STORAGES = {
@@ -204,7 +196,6 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-
 
 # -------------------------------------------------------------------
 # PROJECT SETTINGS
