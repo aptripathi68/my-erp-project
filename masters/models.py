@@ -22,20 +22,46 @@ def normalize_item_description(text: str) -> str:
     - × → x
     - collapse whitespace
     - lowercase
-    - remove all spaces (so 'ISA 50x50x6' == 'ISA50x50x6')
+    - remove plate 'mm' thickness suffix for PL items
+    - remove all spaces
     """
     text = (text or "").strip()
     text = text.replace("×", "x")
     text = _ws_re.sub(" ", text)
     text = text.lower()
+
+    if text.startswith("pl"):
+        text = re.sub(r"(?<=\d)\s*mm\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bmm\b", "", text, flags=re.IGNORECASE)
+        text = _ws_re.sub(" ", text).strip()
+
     text = text.replace(" ", "")
     return text
+
+
+def clean_section_name(section: str) -> str:
+    """
+    Clean Section Name before saving.
+
+    Removes 'MM' suffix from plate thickness.
+    Example:
+        PL10MM → PL10
+        PL 10 MM → PL 10
+    """
+    section = (section or "").strip().upper()
+    section = _ws_re.sub(" ", section)
+
+    if section.startswith("PL"):
+        section = re.sub(r"(?<=\d)\s*MM\b", "", section, flags=re.IGNORECASE)
+        section = re.sub(r"\bMM\b", "", section, flags=re.IGNORECASE)
+        section = _ws_re.sub(" ", section).strip()
+
+    return section
 
 
 def is_plate_description(item_description: str) -> bool:
     """
     Heuristic: treat descriptions starting with 'PL' as steel plates.
-    Adjust if your Item Master uses different naming patterns.
     """
     d = (item_description or "").strip().upper()
     return d.startswith("PL") or d.startswith("PLT")
@@ -84,8 +110,6 @@ class Item(models.Model):
     Important project rule:
     - For plates: unit_weight is kg per square meter (kg/m²)
     - For remaining sections: unit_weight is kg per meter (kg/m)
-
-    We store unit_weight_basis to make this explicit and safe.
     """
 
     class UnitWeightBasis(models.TextChoices):
@@ -148,7 +172,6 @@ class Item(models.Model):
     def clean(self) -> None:
         """
         Extra safety: ensure norm is computed and unique.
-        Django will enforce unique constraint, but this gives a clearer message.
         """
         norm = normalize_item_description(self.item_description)
         if not norm:
@@ -159,6 +182,7 @@ class Item(models.Model):
         qs = Item.objects.filter(item_description_norm=norm)
         if self.pk:
             qs = qs.exclude(pk=self.pk)
+
         if qs.exists():
             clash = qs.first()
             raise ValidationError({
@@ -170,7 +194,8 @@ class Item(models.Model):
             })
 
     def save(self, *args, **kwargs):
-        # Auto-generate system item_master_id if blank
+
+        # Auto-generate system item_master_id
         if not self.item_master_id:
             while True:
                 generated_id = secrets.token_hex(6)
@@ -178,10 +203,13 @@ class Item(models.Model):
                     self.item_master_id = generated_id
                     break
 
-        # Always compute normalized description
+        # Clean section name (remove MM for plates)
+        self.section_name = clean_section_name(self.section_name)
+
+        # Normalize description
         self.item_description_norm = normalize_item_description(self.item_description)
 
-        # Auto-set basis based on description
+        # Set weight basis automatically
         if is_plate_description(self.item_description):
             self.unit_weight_basis = self.UnitWeightBasis.KG_PER_SQM
         else:
