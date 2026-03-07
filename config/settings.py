@@ -58,18 +58,33 @@ def env_bool(name: str, default: bool = False) -> bool:
 DEBUG = env_bool("DEBUG", default=False)
 
 # Allowed Hosts
-ALLOWED_HOSTS = ['89.167.104.64', 'localhost', '127.0.0.1', '10.0.9.196']
+#- modified as per deepseek suggestions for routing domain--> ALLOWED_HOSTS = ['89.167.104.64', 'localhost', '127.0.0.1', '10.0.9.196']
+
+ALLOWED_HOSTS = [
+    '89.167.104.64', 
+    'localhost', 
+    '127.0.0.1', 
+    '10.0.9.196',
+    'kalpadeep.in',           # ADD THIS LINE
+    'www.kalpadeep.in'        # ADD THIS LINE (optional)
+]
 
 # Required for Coolify / Traefik HTTPS proxy
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
+# ADD THIS NEW LINE - Tells Django to generate URLs with /erp prefix
+FORCE_SCRIPT_NAME = '/erp'
+
 # CSRF (important for admin)
-CSRF_TRUSTED_ORIGINS = []
-for h in ALLOWED_HOSTS:
-    hh = h.lstrip(".")
-    if "." in hh:
-        CSRF_TRUSTED_ORIGINS += [f"https://{hh}", f"http://{hh}"]
+CSRF_TRUSTED_ORIGINS = [
+    'http://89.167.104.64:8001',
+    'http://89.167.104.64:8000',
+    'http://kalpadeep.in',
+    'https://kalpadeep.in',
+    'http://www.kalpadeep.in',
+    'https://www.kalpadeep.in',
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -155,14 +170,14 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
-
-STATIC_URL = '/static/'
+STATIC_URL = '/erp/static/'           # CHANGED: added /erp prefix
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
 # Media files
-MEDIA_URL = '/media/'
+MEDIA_URL = '/erp/media/'              # CHANGED: added /erp prefix
 MEDIA_ROOT = BASE_DIR / 'media'
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
@@ -202,8 +217,11 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Login URL
-LOGIN_URL = '/admin/login/'
-LOGIN_REDIRECT_URL = '/'
+LOGIN_URL = '/erp/login/'              # CHANGED: added /erp prefix
+LOGIN_REDIRECT_URL = '/erp/'            # CHANGED: added /erp prefix
+
+# Add this new line for logout
+LOGOUT_REDIRECT_URL = '/erp/'           # ADD THIS LINE
 
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
