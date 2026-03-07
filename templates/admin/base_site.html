@@ -18,21 +18,25 @@
     color: #fff;
 }
 
+/* Branding layout */
 #branding {
     float: none;
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 20px;
     padding: 16px 0;
 }
 
+/* Logo style */
 #branding img {
     height: 90px;
     width: auto;
     background: #fff;
     padding: 6px;
+    border-radius: 4px;
 }
 
+/* Company name */
 #branding h1 {
     margin: 0;
     font-size: 34px;
@@ -40,6 +44,7 @@
     color: #f0d76b;
 }
 
+/* User tools */
 #user-tools {
     float: none;
     text-align: center;
@@ -54,9 +59,12 @@
 </style>
 {% endblock %}
 
+
 {% block branding %}
-<img src="{% static 'logo/kalpadeep_logo.jpg' %}" alt="Kalpadeep Logo">
-<h1 id="site-name">Kalpadeep Industries Private Limited</h1>
+<h1 id="site-name">
+    <img src="{% static 'logo/kalpadeep_logo.jpg' %}" alt="Kalpadeep Logo">
+    Kalpadeep Industries Private Limited
+</h1>
 {% endblock %}
 
 {% block nav-global %}{% endblock %}
