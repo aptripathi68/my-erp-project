@@ -43,13 +43,28 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
 
 
 def normalize_grade_name(s: Any) -> str:
+    """
+    Normalize grade text for robust matching.
+
+    Examples that should all match:
+    - IS 3589
+    - IS:3589
+    - IS-3589
+    - IS;3589
+    - IS/3589
+
+    Also helps for:
+    - IS:2062; E250BR
+    - IS:2062, E250BR
+    - IS 2062 E250BR
+    """
     if s is None:
         return ""
 
     s = str(s).strip().upper()
     s = s.replace("\n", " ")
 
-    # remove all punctuation/separators and spaces
+    # Keep only letters and digits; ignore punctuation and spaces
     s = re.sub(r"[^A-Z0-9]+", "", s)
 
     return s
