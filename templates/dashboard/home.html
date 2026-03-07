@@ -43,11 +43,14 @@
         }
 
         .brand-row img{
+            display:block;
             height:110px;
             width:auto;
+            max-width:220px;
             background:#fff;
             padding:6px;
             border-radius:4px;
+            object-fit:contain;
         }
 
         .brand-text h1{
@@ -239,12 +242,12 @@
             <img src="{% static 'logo/kalpadeeplogo.png' %}" alt="Kalpadeep Logo">
             <div class="brand-text">
                 <h1>Kalpadeep Industries Private Limited</h1>
-                <p>Steel Inventory & Fabrication ERP</p>
+                <p>Steel Inventory &amp; Fabrication ERP</p>
             </div>
         </div>
 
         <div class="top-links">
-            WELCOME, {{ request.user.username|upper }}.
+            WELCOME, {{ request.user.username|default:"USER"|upper }}.
             <a href="/">HOME</a> /
             <a href="/admin/password_change/">CHANGE PASSWORD</a> /
             <a href="/admin/logout/">LOG OUT</a>
