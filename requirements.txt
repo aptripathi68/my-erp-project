@@ -3,6 +3,7 @@ asgiref==3.11.1
 Django==6.0.2
 sqlparse==0.5.5
 gunicorn==25.1.0
+whitenoise==6.6.0
 
 # Database
 mysqlclient==2.2.4
@@ -32,5 +33,5 @@ crispy-bootstrap5==2024.10
 # API and AJAX (optional, for future)
 django-cors-headers==4.6.0
 djangorestframework==3.15.2
-python-dotenv
+
 python-dotenv
