@@ -9,7 +9,9 @@ import openpyxl
 
 from masters.models import Item, normalize_item_description
 
-
+DEFAULT_GRADE_CODE = "IS:2062"
+DEFAULT_GRADE_NAME = "E250BR"
+DEFAULT_GRADE_DISPLAY = f"{DEFAULT_GRADE_CODE}, {DEFAULT_GRADE_NAME}"
 def _h(s: Any) -> str:
     if s is None:
         return ""
@@ -312,32 +314,53 @@ def validate_and_extract_workbook(
     )
 
     items = list(
-        Item.objects.select_related("grade")
-        .filter(is_active=True)
-        .only(
-            "id",
-            "section_name",
-            "item_description",
-            "grade__code",
-            "grade__name",
-        )
+    Item.objects.select_related("grade")
+    .filter(is_active=True)
+    .only(
+        "id",
+        "section_name",
+        "item_description",
+        "grade__code",
+        "grade__name",
     )
+)
 
-    item_by_section_grade: Dict[Tuple[str, str], Item] = {}
+items = list(
+    Item.objects.select_related("grade")
+    .filter(is_active=True)
+    .only(
+        "id",
+        "section_name",
+        "item_description",
+        "grade__code",
+        "grade__name",
+    )
+)
 
-    for it in items:
-        section_norm = normalize_item_description(it.section_name or "")
-        if not section_norm or not it.grade:
-            continue
+item_by_section_grade: Dict[Tuple[str, str], Item] = {}
 
-        grade_code_norm = normalize_grade_name(it.grade.code or "")
-        grade_name_norm = normalize_grade_name(it.grade.name or "")
+for it in items:
+    section_norm = normalize_item_description(it.section_name or "")
+    if not section_norm or not it.grade:
+        continue
 
-        if grade_code_norm:
-            item_by_section_grade[(section_norm, grade_code_norm)] = it
-        if grade_name_norm:
-            item_by_section_grade[(section_norm, grade_name_norm)] = it
+    grade_code = it.grade.code or ""
+    grade_name = it.grade.name or ""
 
+    grade_code_norm = normalize_grade_name(grade_code)
+    grade_name_norm = normalize_grade_name(grade_name)
+    grade_combined_norm = normalize_grade_name(f"{grade_code} {grade_name}")
+
+    if grade_code_norm:
+        item_by_section_grade[(section_norm, grade_code_norm)] = it
+
+    if grade_name_norm:
+        item_by_section_grade[(section_norm, grade_name_norm)] = it
+
+    if grade_combined_norm:
+        item_by_section_grade[(section_norm, grade_combined_norm)] = it
+
+    
     extracted: List[ExtractedRow] = []
     errors: List[Dict[str, Any]] = []
     detected: Dict[str, Any] = {}
@@ -420,8 +443,7 @@ def validate_and_extract_workbook(
             # -------------------------------------------------
 
             if not grade_raw or grade_raw.strip() == "":
-                grade_raw = "IS:2062"
-                grade_name_raw = "E250BR"
+                grade_raw = "IS:2062 E250BR"
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
