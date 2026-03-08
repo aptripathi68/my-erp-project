@@ -421,6 +421,7 @@ def validate_and_extract_workbook(
 
             if not grade_raw or grade_raw.strip() == "":
                 grade_raw = "IS:2062"
+                grade_name_raw = "E250BR"
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
