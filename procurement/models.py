@@ -248,3 +248,101 @@ class BOMComponent(models.Model):
 
     def __str__(self):
         return f"{self.bom_mark.erc_mark} - {self.part_mark or self.section_name}"
+    
+class FabricationJob(models.Model):
+    """
+    One generated fabrication job from one engineering mark.
+    Example:
+    ERC Mark A11 with ERC Qty 2
+    => jobs: A11-1, A11-2
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        HOLD = "HOLD", "Hold"
+
+    bom_mark = models.ForeignKey(
+        BOMMark,
+        on_delete=models.CASCADE,
+        related_name="fabrication_jobs",
+    )
+
+    job_mark = models.CharField(max_length=120, unique=True)
+    job_sequence = models.PositiveIntegerField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.OPEN,
+    )
+
+    class Meta:
+        ordering = ["job_mark"]
+        indexes = [
+            models.Index(fields=["job_mark"]),
+            models.Index(fields=["bom_mark", "job_sequence"]),
+        ]
+        unique_together = [("bom_mark", "job_sequence")]
+
+    def __str__(self):
+        return self.job_mark
+
+
+class FabricationJobComponent(models.Model):
+    """
+    Replicated child part rows for each generated fabrication job.
+    Example:
+    A11-1 -> P110
+    A11-2 -> P110
+    """
+
+    fabrication_job = models.ForeignKey(
+        FabricationJob,
+        on_delete=models.CASCADE,
+        related_name="components",
+    )
+
+    part_mark = models.CharField(max_length=100, blank=True)
+    section_name = models.CharField(max_length=255, blank=True, default="")
+    grade_name = models.CharField(max_length=255, blank=True)
+
+    part_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        default=1,
+    )
+
+    length_mm = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    width_mm = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    engg_weight_kg = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+    )
+
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        related_name="fabrication_job_components",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.fabrication_job.job_mark} - {self.part_mark or self.section_name}"
