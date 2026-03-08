@@ -57,10 +57,6 @@ class GRNItemAdmin(admin.ModelAdmin):
     search_fields = ["item__item_description", "batch_number"]
 
 
-# ===============================
-# BOM ADMIN REGISTRATION
-# ===============================
-
 @admin.register(BOMHeader)
 class BOMHeaderAdmin(admin.ModelAdmin):
     list_display = (
@@ -80,19 +76,21 @@ class BOMHeaderAdmin(admin.ModelAdmin):
         "purchase_order_no",
     )
 
-    ordering = ("-uploaded_at",)
-
     list_filter = (
         "uploaded_at",
         "client_name",
         "project_name",
     )
 
+    ordering = ("-uploaded_at",)
+
 
 @admin.register(BOMMark)
 class BOMMarkAdmin(admin.ModelAdmin):
     list_display = (
-        "mark_no",
+        "erc_mark",
+        "erc_quantity",
+        "main_section",
         "sheet_name",
         "drawing_no",
         "revision_no",
@@ -101,7 +99,8 @@ class BOMMarkAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        "mark_no",
+        "erc_mark",
+        "main_section",
         "drawing_no",
         "revision_no",
         "area_of_supply",
@@ -118,32 +117,33 @@ class BOMMarkAdmin(admin.ModelAdmin):
 @admin.register(BOMComponent)
 class BOMComponentAdmin(admin.ModelAdmin):
     list_display = (
-        "mark",
-        "item",
-        "item_no",
-        "item_description_raw",
-        "grade_raw",
-        "item_part_quantity",
+        "bom_mark",
+        "part_mark",
+        "section_name",
+        "grade_name",
+        "part_quantity_per_assy",
         "length_mm",
         "width_mm",
-        "line_weight_kg",
+        "engg_weight_kg",
+        "item",
         "excel_row",
     )
 
     search_fields = (
+        "bom_mark__erc_mark",
+        "part_mark",
+        "section_name",
+        "grade_name",
         "item_description_raw",
-        "grade_raw",
-        "item_no",
-        "mark__mark_no",
         "item__item_description",
     )
 
     list_filter = (
+        "grade_name",
         "item",
-        "grade_raw",
     )
 
     list_select_related = (
-        "mark",
+        "bom_mark",
         "item",
     )
