@@ -17,11 +17,51 @@ from .models import BOMHeader, BOMMark, BOMComponent
 from .services.bom_importer import validate_and_extract_workbook, workbook_sheet_headers
 
 
+def _session_safe_errors(errors):
+    safe = []
+    for err in errors:
+        row = {}
+        for k, v in err.items():
+            if isinstance(v, list):
+                row[k] = [str(x) for x in v]
+            elif v is None:
+                row[k] = ""
+            else:
+                row[k] = str(v)
+        safe.append(row)
+    return safe
+
+
+def _build_user_sheet_mappings(request, headers_info):
+    user_sheet_mappings = {}
+
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+
+        user_sheet_mappings[sheet_name] = {
+            "item_description": request.POST.get(f"{sheet_name}__item_description", ""),
+            "grade": request.POST.get(f"{sheet_name}__grade", ""),
+            "mark_no": request.POST.get(f"{sheet_name}__mark_no", ""),
+            "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", ""),
+            "item_no": request.POST.get(f"{sheet_name}__item_no", ""),
+            "qty_all": request.POST.get(f"{sheet_name}__qty_all", ""),
+            "length": request.POST.get(f"{sheet_name}__length", ""),
+            "width": request.POST.get(f"{sheet_name}__width", ""),
+            "thk": request.POST.get(f"{sheet_name}__thk", ""),
+            "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", ""),
+            "revision_no": request.POST.get(f"{sheet_name}__revision_no", ""),
+            "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", ""),
+        }
+
+    return user_sheet_mappings
+
+
 @staff_member_required
 def bom_upload(request):
     context = {}
 
-    # Step 1: upload file and detect headers
+    # STEP 1: Upload file -> detect headers -> show mapping screen
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
 
@@ -45,18 +85,28 @@ def bom_upload(request):
         request.session["purchase_order_no"] = purchase_order_no
         request.session["purchase_order_date"] = purchase_order_date
 
+        # Save auto-detected mappings as initial defaults
+        auto_mappings = {}
+        for sheet_name, info in headers_info.items():
+            if not info.get("detected"):
+                continue
+            auto_mappings[sheet_name] = info.get("mapping", {}) if "mapping" in info else {}
+
+        request.session["bom_selected_mappings"] = auto_mappings
+
         context["bom_name"] = bom_name
         context["project_name"] = project_name
         context["client_name"] = client_name
         context["purchase_order_no"] = purchase_order_no
         context["purchase_order_date"] = purchase_order_date
         context["headers_info"] = headers_info
+        context["selected_mappings"] = auto_mappings
         context["mapping_step"] = True
         context["result"] = None
 
         return render(request, "procurement/bom_upload.html", context)
 
-    # Step 2: validate or import using user mapping
+    # STEP 2: Validate / Import using selected mapping
     if request.method == "POST" and request.POST.get("action") in ["validate", "import"]:
         tmp_path = request.session.get("bom_tmp_path")
         bom_name = request.session.get("bom_name", "Uploaded BOM")
@@ -70,48 +120,17 @@ def bom_upload(request):
             return render(request, "procurement/bom_upload.html", context)
 
         headers_info = workbook_sheet_headers(tmp_path)
+        user_sheet_mappings = _build_user_sheet_mappings(request, headers_info)
 
-        user_sheet_mappings = {}
-
-        for sheet_name, info in headers_info.items():
-            if not info.get("detected"):
-                continue
-
-            user_sheet_mappings[sheet_name] = {
-                "item_description": request.POST.get(f"{sheet_name}__item_description", ""),
-                "grade": request.POST.get(f"{sheet_name}__grade", ""),
-                "mark_no": request.POST.get(f"{sheet_name}__mark_no", ""),
-                "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", ""),
-                "item_no": request.POST.get(f"{sheet_name}__item_no", ""),
-                "qty_all": request.POST.get(f"{sheet_name}__qty_all", ""),
-                "length": request.POST.get(f"{sheet_name}__length", ""),
-                "width": request.POST.get(f"{sheet_name}__width", ""),
-                "thk": request.POST.get(f"{sheet_name}__thk", ""),
-                "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", ""),
-                "revision_no": request.POST.get(f"{sheet_name}__revision_no", ""),
-                "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", ""),
-            }
+        # Remember mapping after Validate so Import does not ask again
+        request.session["bom_selected_mappings"] = user_sheet_mappings
 
         result = validate_and_extract_workbook(
             tmp_path,
             user_sheet_mappings=user_sheet_mappings,
         )
 
-        def _session_safe_errors(errors):
-            safe = []
-            for err in errors:
-                row = {}
-                for k, v in err.items():
-                    if isinstance(v, list):
-                        row[k] = [str(x) for x in v]
-                    elif v is None:
-                        row[k] = ""
-                    else:
-                        row[k] = str(v)
-                safe.append(row)
-            return safe
         request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
-    
 
         context["result"] = result
         context["bom_name"] = bom_name
@@ -120,10 +139,10 @@ def bom_upload(request):
         context["purchase_order_no"] = purchase_order_no
         context["purchase_order_date"] = purchase_order_date_raw
         context["headers_info"] = headers_info
+        context["selected_mappings"] = user_sheet_mappings
         context["mapping_step"] = True
 
         if request.POST.get("action") == "import" and result["ok"]:
-            # Convert purchase order date string to python date
             purchase_order_date = None
             if purchase_order_date_raw:
                 try:
@@ -142,7 +161,6 @@ def bom_upload(request):
                     uploaded_at=timezone.now(),
                 )
 
-                # create marks
                 mark_map = {}
                 for row in result["extracted"]:
                     key = (
@@ -194,8 +212,13 @@ def bom_upload(request):
 
             context["imported_bom_id"] = header.id
 
+            # Clear temp validation errors after successful import if you want
+            # request.session.pop("bom_validation_errors", None)
+
         return render(request, "procurement/bom_upload.html", context)
 
+    # Initial GET
+    context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
     return render(request, "procurement/bom_upload.html", context)
 
 

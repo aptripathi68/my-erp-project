@@ -50,6 +50,7 @@
         }
         .error-head{ color:#b00020; }
         .ok{ color:green; font-weight:700; }
+        .small{ font-size:13px; color:#667786; }
     </style>
 </head>
 <body>
@@ -103,9 +104,17 @@
 {% if mapping_step and headers_info %}
 <div class="card">
     <h3>Step 2: Map BOM columns</h3>
+    <p class="small">Detected mappings are pre-selected. Adjust only if needed, then click Validate. Import will reuse the same mapping.</p>
 
     <form method="post">
         {% csrf_token %}
+
+        <!-- keep header data during validate/import -->
+        <input type="hidden" name="bom_name" value="{{ bom_name|default:'' }}">
+        <input type="hidden" name="project_name" value="{{ project_name|default:'' }}">
+        <input type="hidden" name="client_name" value="{{ client_name|default:'' }}">
+        <input type="hidden" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}">
+        <input type="hidden" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}">
 
         {% for sheet_name, info in headers_info.items %}
             <div class="card">
@@ -121,17 +130,22 @@
                             <th>Our Standard BOM Field</th>
                             <th>Select BOM Column</th>
                         </tr>
+
                         <tr>
                             <td>Section Name (for Item Master match)</td>
                             <td>
                                 <select name="{{ sheet_name }}__item_description" required>
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}"
+                                            {% if selected_mappings and selected_mappings.sheet_name.item_description == h %}{% endif %}>
+                                            {{ h }}
+                                        </option>
                                     {% endfor %}
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Grade (for Item Master match)</td>
                             <td>
@@ -143,6 +157,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Mark No</td>
                             <td>
@@ -154,6 +169,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Drawing No</td>
                             <td>
@@ -165,6 +181,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Revision No</td>
                             <td>
@@ -176,6 +193,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Area of Supply</td>
                             <td>
@@ -187,6 +205,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Item No</td>
                             <td>
@@ -198,6 +217,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Item Part Quantity</td>
                             <td>
@@ -209,6 +229,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Length (mm)</td>
                             <td>
@@ -220,6 +241,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Width (mm)</td>
                             <td>
@@ -231,6 +253,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Thickness (mm)</td>
                             <td>
@@ -242,6 +265,7 @@
                                 </select>
                             </td>
                         </tr>
+
                         <tr>
                             <td>Line Weight (kg)</td>
                             <td>
@@ -289,8 +313,8 @@
                 <th>Mark</th>
                 <th>Item No</th>
                 <th>BOM Section Name</th>
-                <td>{{ e.unit_weight_in_bom }}</td>
                 <th>BOM Grade</th>
+                <th>BOM Unit Weight</th>
                 <th>Message</th>
                 <th>Possible Grades / Suggestions</th>
             </tr>
@@ -303,12 +327,14 @@
                 <td>{{ e.item_no }}</td>
                 <td>{{ e.item_description_in_bom }}</td>
                 <td>{{ e.grade_in_bom }}</td>
+                <td>{{ e.unit_weight_in_bom }}</td>
                 <td>{{ e.message }}</td>
                 <td>
                     {% if e.possible_grades_for_section %}
                         {{ e.possible_grades_for_section|join:", " }}
                     {% endif %}
                     {% if e.suggestions %}
+                        {% if e.possible_grades_for_section %}<br><br>{% endif %}
                         {{ e.suggestions|join:", " }}
                     {% endif %}
                 </td>
