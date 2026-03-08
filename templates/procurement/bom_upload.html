@@ -43,7 +43,7 @@
             text-align:left;
         }
         th{ background:#eef3f7; }
-        select, input[type="text"], input[type="file"]{
+        select, input[type="text"], input[type="file"], input[type="date"]{
             padding:8px 10px;
             border:1px solid #cfd8df;
             border-radius:6px;
@@ -63,14 +63,37 @@
 
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
+
         <div>
             <label><strong>BOM Name</strong></label><br>
             <input type="text" name="bom_name" value="{{ bom_name|default:'' }}" style="width:420px;">
         </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Project Name</strong></label><br>
+            <input type="text" name="project_name" value="{{ project_name|default:'' }}" style="width:420px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Client Name</strong></label><br>
+            <input type="text" name="client_name" value="{{ client_name|default:'' }}" style="width:420px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Purchase Order No</strong></label><br>
+            <input type="text" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}" style="width:420px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Purchase Order Date</strong></label><br>
+            <input type="date" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}" style="width:220px;">
+        </div>
+
         <div style="margin-top:12px;">
             <label><strong>Select BOM Excel File</strong></label><br>
             <input type="file" name="file" required>
         </div>
+
         <div style="margin-top:16px;">
             <button class="btn btn-primary" type="submit">Upload & Detect Columns</button>
         </div>
@@ -95,11 +118,11 @@
 
                     <table>
                         <tr>
-                            <th>ERP Field</th>
+                            <th>Our Standard BOM Field</th>
                             <th>Select BOM Column</th>
                         </tr>
                         <tr>
-                            <td>Item Master Section Name</td>
+                            <td>Section Name (for Item Master match)</td>
                             <td>
                                 <select name="{{ sheet_name }}__item_description" required>
                                     <option value="">Select column</option>
@@ -110,7 +133,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Item Master Grade</td>
+                            <td>Grade (for Item Master match)</td>
                             <td>
                                 <select name="{{ sheet_name }}__grade" required>
                                     <option value="">Select column</option>
@@ -143,6 +166,28 @@
                             </td>
                         </tr>
                         <tr>
+                            <td>Revision No</td>
+                            <td>
+                                <select name="{{ sheet_name }}__revision_no">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Area of Supply</td>
+                            <td>
+                                <select name="{{ sheet_name }}__area_of_supply">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}">{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
                             <td>Item No</td>
                             <td>
                                 <select name="{{ sheet_name }}__item_no">
@@ -154,7 +199,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Qty</td>
+                            <td>Item Part Quantity</td>
                             <td>
                                 <select name="{{ sheet_name }}__qty_all">
                                     <option value="">Select column</option>
@@ -165,7 +210,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Length</td>
+                            <td>Length (mm)</td>
                             <td>
                                 <select name="{{ sheet_name }}__length">
                                     <option value="">Select column</option>
@@ -176,7 +221,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Width</td>
+                            <td>Width (mm)</td>
                             <td>
                                 <select name="{{ sheet_name }}__width">
                                     <option value="">Select column</option>
@@ -187,7 +232,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Thickness</td>
+                            <td>Thickness (mm)</td>
                             <td>
                                 <select name="{{ sheet_name }}__thk">
                                     <option value="">Select column</option>
@@ -198,7 +243,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>Unit Weight</td>
+                            <td>Line Weight (kg)</td>
                             <td>
                                 <select name="{{ sheet_name }}__unit_wt">
                                     <option value="">Select column</option>
@@ -243,7 +288,8 @@
                 <th>Row</th>
                 <th>Mark</th>
                 <th>Item No</th>
-                <th>BOM Item Description</th>
+                <th>BOM Section Name</th>
+                <td>{{ e.unit_weight_in_bom }}</td>
                 <th>BOM Grade</th>
                 <th>Message</th>
                 <th>Possible Grades / Suggestions</th>
