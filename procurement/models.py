@@ -199,40 +199,48 @@ class BOMComponent(models.Model):
     mark = models.ForeignKey(
         BOMMark,
         on_delete=models.CASCADE,
-        related_name="components"
+        related_name="components",
     )
 
-    item_no = models.CharField(
-        max_length=20,
-        blank=True
-    )
+    item_no = models.CharField(max_length=20, blank=True)
 
     item = models.ForeignKey(
         Item,
         on_delete=models.PROTECT,
-        related_name="bom_components"
+        related_name="bom_components",
     )
 
-    # Raw description from Excel
     item_description_raw = models.CharField(max_length=255)
 
-    qty_all = models.DecimalField(
-        max_digits=10,
-        decimal_places=3
+    grade_raw = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    item_part_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
     )
 
     length_mm = models.DecimalField(
-        max_digits=10,
+        max_digits=12,
         decimal_places=2,
         null=True,
-        blank=True
+        blank=True,
+    )
+
+    width_mm = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
     )
 
     line_weight_kg = models.DecimalField(
-        max_digits=10,
+        max_digits=12,
         decimal_places=3,
         null=True,
-        blank=True
+        blank=True,
     )
 
     excel_row = models.IntegerField()
