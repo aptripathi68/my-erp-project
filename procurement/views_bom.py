@@ -15,7 +15,8 @@ from openpyxl.utils import get_column_letter
 
 from .models import BOMHeader, BOMMark, BOMComponent
 from .services.bom_importer import validate_and_extract_workbook, workbook_sheet_headers
-
+from django.contrib import messages
+from django.shortcuts import redirect
 
 def _session_safe_errors(errors):
     safe = []
@@ -349,3 +350,25 @@ def bom_export_master(request, bom_id: int):
     resp["Content-Disposition"] = f'attachment; filename="BOM_MASTER_{header.id}.xlsx"'
     wb.save(resp)
     return resp
+@staff_member_required
+def bom_delete(request, bom_id: int):
+    header = get_object_or_404(BOMHeader, id=bom_id)
+
+    if header.is_locked:
+        messages.error(
+            request,
+            f"BOM cannot be deleted because it is locked. Reason: {header.locked_reason or 'Downstream process started.'}"
+        )
+        return redirect("procurement:bom_upload")
+
+    if request.method == "POST":
+        bom_name = header.bom_name
+        header.delete()
+        messages.success(request, f"BOM '{bom_name}' deleted successfully.")
+        return redirect("procurement:bom_upload")
+
+    return render(
+        request,
+        "procurement/bom_delete_confirm.html",
+        {"header": header},
+    )

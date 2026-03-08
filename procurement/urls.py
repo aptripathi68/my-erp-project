@@ -15,4 +15,7 @@ urlpatterns = [
         views_bom.bom_export_master,
         name="bom_export_master",
     ),
+    path("bom/<int:bom_id>/delete/", 
+         views_bom.bom_delete, 
+         name="bom_delete"),
 ]
