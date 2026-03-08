@@ -48,7 +48,6 @@ def _build_user_sheet_mappings(request, headers_info):
             "qty_all": request.POST.get(f"{sheet_name}__qty_all", ""),
             "length": request.POST.get(f"{sheet_name}__length", ""),
             "width": request.POST.get(f"{sheet_name}__width", ""),
-            "thk": request.POST.get(f"{sheet_name}__thk", ""),
             "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", ""),
             "revision_no": request.POST.get(f"{sheet_name}__revision_no", ""),
             "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", ""),
@@ -85,7 +84,6 @@ def bom_upload(request):
         request.session["purchase_order_no"] = purchase_order_no
         request.session["purchase_order_date"] = purchase_order_date
 
-        # Save auto-detected mappings as initial defaults
         auto_mappings = {}
         for sheet_name, info in headers_info.items():
             if not info.get("detected"):
@@ -122,7 +120,6 @@ def bom_upload(request):
         headers_info = workbook_sheet_headers(tmp_path)
         user_sheet_mappings = _build_user_sheet_mappings(request, headers_info)
 
-        # Remember mapping after Validate so Import does not ask again
         request.session["bom_selected_mappings"] = user_sheet_mappings
 
         result = validate_and_extract_workbook(
@@ -175,7 +172,9 @@ def bom_upload(request):
                         mark_map[key] = BOMMark.objects.create(
                             bom=header,
                             sheet_name=row.sheet_name,
-                            mark_no=row.mark_no or "",
+                            erc_mark=row.mark_no or "",
+                            erc_quantity=1,
+                            main_section=row.item_description_raw or "",
                             drawing_no=row.drawing_no or "",
                             revision_no=getattr(row, "revision_no", "") or "",
                             area_of_supply=getattr(row, "area_of_supply", "") or "",
@@ -191,19 +190,20 @@ def bom_upload(request):
                         getattr(row, "area_of_supply", "") or "",
                     )
 
-                    m = mark_map[key]
+                    bom_mark = mark_map[key]
 
                     comps.append(
                         BOMComponent(
-                            mark=m,
-                            item_no=row.item_no or "",
-                            item_id=row.item_id,
-                            item_description_raw=row.item_description_raw,
-                            grade_raw=getattr(row, "grade_raw", "") or "",
-                            item_part_quantity=row.qty_all,
+                            bom_mark=bom_mark,
+                            part_mark=row.item_no or "",
+                            section_name=row.item_description_raw or "",
+                            grade_name=getattr(row, "grade_raw", "") or "",
+                            part_quantity_per_assy=row.qty_all,
                             length_mm=row.length_mm,
                             width_mm=row.width_mm,
-                            line_weight_kg=row.line_weight_kg,
+                            engg_weight_kg=row.line_weight_kg,
+                            item_id=row.item_id,
+                            item_description_raw=row.item_description_raw or "",
                             excel_row=row.excel_row,
                         )
                     )
@@ -212,12 +212,8 @@ def bom_upload(request):
 
             context["imported_bom_id"] = header.id
 
-            # Clear temp validation errors after successful import if you want
-            # request.session.pop("bom_validation_errors", None)
-
         return render(request, "procurement/bom_upload.html", context)
 
-    # Initial GET
     context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
     return render(request, "procurement/bom_upload.html", context)
 
@@ -234,11 +230,11 @@ def download_bom_validation_errors(request):
         "Error Type",
         "Sheet Name",
         "Excel Row",
-        "Mark No",
-        "Item No",
-        "BOM Item Description",
-        "BOM Grade",
-        "BOM Unit Weight",
+        "Erc Mark",
+        "Part Mark",
+        "Section Name",
+        "Grade Name",
+        "Engg Weight (kg)",
         "Message",
         "Normalized Section",
         "Normalized Grade",
@@ -302,44 +298,48 @@ def bom_export_master(request, bom_id: int):
         "purchase_order_no",
         "purchase_order_date",
         "sheet_name",
-        "mark_no",
+        "erc_mark",
+        "erc_quantity",
+        "main_section",
         "drawing_no",
         "revision_no",
         "area_of_supply",
-        "item_no",
-        "item_description_raw",
-        "grade_raw",
+        "part_mark",
+        "section_name",
+        "grade_name",
         "item_description_master",
-        "item_part_quantity",
+        "part_quantity_per_assy",
         "length_mm",
         "width_mm",
-        "line_weight_kg",
+        "engg_weight_kg",
         "excel_row",
     ])
 
-    marks = header.marks.select_related().prefetch_related("components", "components__item").all()
+    marks = header.marks.prefetch_related("components", "components__item").all()
 
     for m in marks:
         for c in m.components.all():
             ws.append([
                 header.bom_name,
-                getattr(header, "project_name", "") or "",
-                getattr(header, "client_name", "") or "",
-                getattr(header, "purchase_order_no", "") or "",
-                header.purchase_order_date.isoformat() if getattr(header, "purchase_order_date", None) else "",
+                header.project_name or "",
+                header.client_name or "",
+                header.purchase_order_no or "",
+                header.purchase_order_date.isoformat() if header.purchase_order_date else "",
                 m.sheet_name,
-                m.mark_no,
+                m.erc_mark,
+                float(m.erc_quantity),
+                m.main_section or "",
                 m.drawing_no or "",
-                getattr(m, "revision_no", "") or "",
-                getattr(m, "area_of_supply", "") or "",
-                c.item_no,
-                c.item_description_raw,
-                getattr(c, "grade_raw", "") or "",
+                m.revision_no or "",
+                m.area_of_supply or "",
+                c.part_mark or "",
+                c.section_name or "",
+                c.grade_name or "",
                 c.item.item_description if c.item_id else "",
-                float(c.item_part_quantity),
+                float(c.part_quantity_per_assy),
                 float(c.length_mm) if c.length_mm is not None else "",
                 float(c.width_mm) if c.width_mm is not None else "",
-                float(c.line_weight_kg) if c.line_weight_kg is not None else "",
+                float(c.engg_weight_kg) if c.engg_weight_kg is not None else "",
                 c.excel_row,
             ])
 
