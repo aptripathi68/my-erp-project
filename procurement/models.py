@@ -204,7 +204,7 @@ class BOMComponent(models.Model):
 
     part_mark = models.CharField(max_length=100, blank=True)
 
-    section_name = models.CharField(max_length=255)
+    section_name = models.CharField(max_length=255, blank=True, default="")
     grade_name = models.CharField(max_length=255, blank=True)
 
     part_quantity_per_assy = models.DecimalField(
