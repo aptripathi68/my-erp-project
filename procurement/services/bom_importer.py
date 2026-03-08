@@ -55,6 +55,8 @@ def normalize_grade_name(s: Any) -> str:
         return ""
 
     s = str(s).strip().upper()
+    # remove punctuation
+    s = re.sub(r"[^A-Z0-9]", "", s)
     s = s.replace("\n", " ")
     s = re.sub(r"[^A-Z0-9]+", "", s)
     return s
@@ -412,15 +414,13 @@ def validate_and_extract_workbook(
             if not item_desc_raw:
                 continue
 
-            if not grade_raw:
-                errors.append({
-                    "type": "GRADE_MISSING",
-                    "sheet_name": sheet_name,
-                    "excel_row": excel_r,
-                    "item_description_in_bom": item_desc_raw,
-                    "message": "BOM Grade is blank, so Item Master matching cannot be done.",
-                })
-                continue
+            # -------------------------------------------------
+            # Default grade logic
+            # If BOM grade is blank assume IS:2062 E250BR
+            # -------------------------------------------------
+
+            if not grade_raw or grade_raw.strip() == "":
+            grade_raw = "IS:2062"
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
