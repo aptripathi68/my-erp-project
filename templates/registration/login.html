@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,87 +6,189 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERP Login</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        :root{
+            --brand:#5f839d;
+            --brand-dark:#49697f;
+            --brand-accent:#f0d76b;
+            --bg:#f4f6f8;
+            --card:#ffffff;
+            --text:#24313d;
+            --border:#dbe3ea;
+            --shadow:0 10px 30px rgba(0,0,0,0.10);
         }
-        .login-container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            width: 300px;
+
+        *{box-sizing:border-box}
+
+        body{
+            margin:0;
+            min-height:100vh;
+            font-family:Arial, Helvetica, sans-serif;
+            background:var(--bg);
+            color:var(--text);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:24px;
         }
-        h2 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 1.5rem;
+
+        .login-wrap{
+            width:100%;
+            max-width:560px;
         }
-        .form-group {
-            margin-bottom: 1rem;
+
+        .brand-header{
+            background:var(--brand);
+            color:#fff;
+            border-radius:16px 16px 0 0;
+            padding:24px 28px;
+            text-align:center;
         }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: #555;
+
+        .brand-row{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:18px;
+            flex-wrap:wrap;
         }
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            box-sizing: border-box;
+
+        .brand-row img{
+            display:block;
+            height:90px;
+            width:auto;
+            max-width:180px;
+            background:#fff;
+            padding:6px;
+            border-radius:6px;
+            object-fit:contain;
         }
-        button {
-            width: 100%;
-            padding: 0.75rem;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 1rem;
+
+        .brand-text h1{
+            margin:0;
+            font-size:30px;
+            line-height:1.2;
+            color:var(--brand-accent);
         }
-        button:hover {
-            background-color: #0056b3;
+
+        .brand-text p{
+            margin:8px 0 0;
+            font-size:15px;
+            color:#eef4f7;
         }
-        .error {
-            color: red;
-            margin-bottom: 1rem;
-            text-align: center;
+
+        .login-card{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-top:none;
+            border-radius:0 0 16px 16px;
+            box-shadow:var(--shadow);
+            padding:32px;
+        }
+
+        .login-card h2{
+            margin:0 0 24px;
+            text-align:center;
+            font-size:24px;
+        }
+
+        .form-row{
+            margin-bottom:18px;
+        }
+
+        .form-row label{
+            display:block;
+            margin-bottom:8px;
+            font-size:15px;
+            font-weight:700;
+        }
+
+        .form-row input{
+            width:100%;
+            padding:14px 16px;
+            border:1px solid #cfd8df;
+            border-radius:10px;
+            font-size:16px;
+        }
+
+        .btn{
+            width:100%;
+            border:none;
+            border-radius:10px;
+            padding:14px 16px;
+            font-size:18px;
+            font-weight:700;
+            color:#fff;
+            background:#1f7aec;
+            cursor:pointer;
+        }
+
+        .btn:hover{
+            opacity:.95;
+        }
+
+        .errorlist,
+        .errornote{
+            color:#b42318;
+            background:#fef3f2;
+            border:1px solid #fecdca;
+            border-radius:10px;
+            padding:12px 14px;
+            margin:0 0 18px;
+            list-style:none;
+        }
+
+        @media (max-width: 640px){
+            .brand-text h1{
+                font-size:24px;
+            }
+
+            .login-card{
+                padding:24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>ERP Login</h2>
-        
-        {% if form.errors %}
-            <div class="error">
-                Invalid username or password. Please try again.
+    <div class="login-wrap">
+        <div class="brand-header">
+            <div class="brand-row">
+                <img src="{% static 'logo/kalpadeeplogo.png' %}" alt="Kalpadeep Logo">
+                <div class="brand-text">
+                    <h1>Kalpadeep Industries Private Limited</h1>
+                    <p>Steel Inventory &amp; Fabrication ERP</p>
+                </div>
             </div>
-        {% endif %}
-        
-        <form method="post" action="{% url 'login' %}">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="id_username">Username:</label>
-                <input type="text" name="username" id="id_username" required>
-            </div>
-            <div class="form-group">
-                <label for="id_password">Password:</label>
-                <input type="password" name="password" id="id_password" required>
-            </div>
-            <button type="submit">Login</button>
-            <input type="hidden" name="next" value="{{ next }}">
-        </form>
+        </div>
+
+        <div class="login-card">
+            <h2>ERP Login</h2>
+
+            {% if form.errors %}
+                <div class="errornote">
+                    Please enter a correct username and password.
+                </div>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="form-row">
+                    <label for="{{ form.username.id_for_label }}">Username</label>
+                    {{ form.username }}
+                </div>
+
+                <div class="form-row">
+                    <label for="{{ form.password.id_for_label }}">Password</label>
+                    {{ form.password }}
+                </div>
+
+                <button class="btn" type="submit">Login</button>
+
+                {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+            </form>
+        </div>
     </div>
 </body>
 </html>
