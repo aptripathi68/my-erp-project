@@ -192,10 +192,6 @@ class BOMMark(models.Model):
 
 
 class BOMComponent(models.Model):
-    """
-    Child parts under each MARK
-    """
-
     mark = models.ForeignKey(
         BOMMark,
         on_delete=models.CASCADE,
@@ -211,15 +207,12 @@ class BOMComponent(models.Model):
     )
 
     item_description_raw = models.CharField(max_length=255)
-
-    grade_raw = models.CharField(
-        max_length=255,
-        blank=True,
-    )
+    grade_raw = models.CharField(max_length=255, blank=True)
 
     item_part_quantity = models.DecimalField(
         max_digits=12,
         decimal_places=3,
+        default=0,
     )
 
     length_mm = models.DecimalField(
@@ -247,6 +240,3 @@ class BOMComponent(models.Model):
 
     class Meta:
         ordering = ["excel_row"]
-
-    def __str__(self):
-        return f"{self.mark.mark_no} - {self.item_description_raw}"
