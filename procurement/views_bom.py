@@ -97,7 +97,21 @@ def bom_upload(request):
             user_sheet_mappings=user_sheet_mappings,
         )
 
-        request.session["bom_validation_errors"] = result.get("errors", [])
+        def _session_safe_errors(errors):
+            safe = []
+            for err in errors:
+                row = {}
+                for k, v in err.items():
+                    if isinstance(v, list):
+                        row[k] = [str(x) for x in v]
+                    elif v is None:
+                        row[k] = ""
+                    else:
+                        row[k] = str(v)
+                safe.append(row)
+            return safe
+        request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
+    
 
         context["result"] = result
         context["bom_name"] = bom_name
