@@ -42,6 +42,15 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
 
 
 def normalize_grade_name(s: Any) -> str:
+    """
+    Normalize grade text for robust matching.
+    Example:
+    - IS 3589
+    - IS:3589
+    - IS-3589
+    - IS;3589
+    -> IS3589
+    """
     if s is None:
         return ""
 
@@ -59,6 +68,8 @@ ALIASES = {
         "member",
         "profile",
         "material description",
+        "material desc",
+        "section name",
     ],
     "grade": [
         "grade",
@@ -67,6 +78,8 @@ ALIASES = {
         "steel grade",
         "item grade",
         "grade name",
+        "spec",
+        "material spec",
     ],
     "mark_no": [
         "mark no",
@@ -79,6 +92,27 @@ ALIASES = {
         "m/c mark",
         "mc mark",
     ],
+    "drawing_no": [
+        "drawing no",
+        "dwg no",
+        "drg no",
+        "drawing",
+        "dwg",
+        "drg",
+    ],
+    "revision_no": [
+        "revision no",
+        "rev no",
+        "revision",
+        "rev",
+        "rev.",
+    ],
+    "area_of_supply": [
+        "area of supply",
+        "supply area",
+        "area",
+        "area/supply",
+    ],
     "item_no": [
         "item no",
         "item number",
@@ -90,9 +124,12 @@ ALIASES = {
     ],
     "qty_all": [
         "qty all",
-        "unit qty",
         "qty",
         "quantity",
+        "unit qty",
+        "part qty",
+        "item qty",
+        "required qty",
         "nos",
         "no.",
         "no's",
@@ -125,18 +162,12 @@ ALIASES = {
     "unit_wt": [
         "unit wt",
         "unit weight",
+        "line wt",
+        "line weight",
         "wt",
         "weight",
         "unit-wt",
         "unitweight",
-    ],
-    "drawing_no": [
-        "drawing no",
-        "dwg no",
-        "drg no",
-        "drawing",
-        "dwg",
-        "drg",
     ],
 }
 
@@ -153,12 +184,17 @@ IGNORE_SHEET_NAME_CONTAINS = [
 class ExtractedRow:
     sheet_name: str
     excel_row: int
+
     mark_no: str
     drawing_no: str
+    revision_no: str
+    area_of_supply: str
     item_no: str
+
     item_description_raw: str
     grade_raw: str
     item_id: int
+
     qty_all: Decimal
     length_mm: Optional[Decimal]
     width_mm: Optional[Decimal]
@@ -351,6 +387,8 @@ def validate_and_extract_workbook(
 
         last_mark = ""
         last_drawing = ""
+        last_revision = ""
+        last_area_of_supply = ""
 
         for excel_r, row_vals in enumerate(
             ws.iter_rows(min_row=header_row + 1, values_only=True),
@@ -386,6 +424,8 @@ def validate_and_extract_workbook(
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
+            revision_no = get_cell(row_vals, col_map, "revision_no")
+            area_of_supply = get_cell(row_vals, col_map, "area_of_supply")
             item_no = get_cell(row_vals, col_map, "item_no")
             qty_all = get_cell(row_vals, col_map, "qty_all")
             length_mm = get_cell(row_vals, col_map, "length")
@@ -398,6 +438,12 @@ def validate_and_extract_workbook(
 
             if drawing_no and str(drawing_no).strip():
                 last_drawing = str(drawing_no).strip()
+
+            if revision_no and str(revision_no).strip():
+                last_revision = str(revision_no).strip()
+
+            if area_of_supply and str(area_of_supply).strip():
+                last_area_of_supply = str(area_of_supply).strip()
 
             item_no_final = str(item_no).strip() if item_no else ""
             qty_dec = _to_decimal(qty_all) or Decimal("1")
@@ -466,6 +512,8 @@ def validate_and_extract_workbook(
                     excel_row=excel_r,
                     mark_no=last_mark,
                     drawing_no=last_drawing,
+                    revision_no=last_revision,
+                    area_of_supply=last_area_of_supply,
                     item_no=item_no_final,
                     item_description_raw=item_desc_raw,
                     grade_raw=grade_raw,
