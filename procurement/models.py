@@ -136,12 +136,15 @@ class BOMHeader(models.Model):
     )
     uploaded_at = models.DateTimeField()
 
+    is_locked = models.BooleanField(default=False)
+    locked_reason = models.CharField(max_length=255, blank=True)
+
     class Meta:
         ordering = ["-uploaded_at", "bom_name"]
 
     def __str__(self):
         return self.bom_name
-
+    
 
 class BOMMark(models.Model):
     """
