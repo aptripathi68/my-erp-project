@@ -109,7 +109,6 @@
     <form method="post">
         {% csrf_token %}
 
-        <!-- keep header data during validate/import -->
         <input type="hidden" name="bom_name" value="{{ bom_name|default:'' }}">
         <input type="hidden" name="project_name" value="{{ project_name|default:'' }}">
         <input type="hidden" name="client_name" value="{{ client_name|default:'' }}">
@@ -137,17 +136,14 @@
                                 <select name="{{ sheet_name }}__item_description" required>
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}"
-                                            {% if selected_mappings and selected_mappings.sheet_name.item_description == h %}{% endif %}>
-                                            {{ h }}
-                                        </option>
+                                        <option value="{{ h }}">{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
                         </tr>
 
                         <tr>
-                            <td>Grade (for Item Master match)</td>
+                            <td>Grade Name (for Item Master match)</td>
                             <td>
                                 <select name="{{ sheet_name }}__grade" required>
                                     <option value="">Select column</option>
@@ -159,7 +155,7 @@
                         </tr>
 
                         <tr>
-                            <td>Mark No</td>
+                            <td>ERC Mark</td>
                             <td>
                                 <select name="{{ sheet_name }}__mark_no">
                                     <option value="">Select column</option>
@@ -207,7 +203,7 @@
                         </tr>
 
                         <tr>
-                            <td>Item No</td>
+                            <td>Part Mark</td>
                             <td>
                                 <select name="{{ sheet_name }}__item_no">
                                     <option value="">Select column</option>
@@ -219,7 +215,7 @@
                         </tr>
 
                         <tr>
-                            <td>Item Part Quantity</td>
+                            <td>Part Quantity per Assy</td>
                             <td>
                                 <select name="{{ sheet_name }}__qty_all">
                                     <option value="">Select column</option>
@@ -255,19 +251,7 @@
                         </tr>
 
                         <tr>
-                            <td>Thickness (mm)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__thk">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Line Weight (kg)</td>
+                            <td>Engg Weight (kg)</td>
                             <td>
                                 <select name="{{ sheet_name }}__unit_wt">
                                     <option value="">Select column</option>
@@ -310,11 +294,11 @@
                 <th>Error Type</th>
                 <th>Sheet</th>
                 <th>Row</th>
-                <th>Mark</th>
-                <th>Item No</th>
-                <th>BOM Section Name</th>
-                <th>BOM Grade</th>
-                <th>BOM Unit Weight</th>
+                <th>ERC Mark</th>
+                <th>Part Mark</th>
+                <th>Section Name</th>
+                <th>Grade Name</th>
+                <th>Engg Weight (kg)</th>
                 <th>Message</th>
                 <th>Possible Grades / Suggestions</th>
             </tr>
