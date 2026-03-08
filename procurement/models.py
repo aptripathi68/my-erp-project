@@ -152,35 +152,43 @@ class BOMHeader(models.Model):
 
 
 class BOMMark(models.Model):
-    """
-    Each fabrication MARK number
-    Example: SPS-204
-    """
-
     bom = models.ForeignKey(
         BOMHeader,
         on_delete=models.CASCADE,
-        related_name="marks"
+        related_name="marks",
     )
 
     sheet_name = models.CharField(max_length=200)
-
     mark_no = models.CharField(max_length=100)
 
     drawing_no = models.CharField(
         max_length=100,
         blank=True,
-        null=True
+        null=True,
+    )
+
+    revision_no = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+    )
+
+    area_of_supply = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
     )
 
     class Meta:
-        ordering = ["mark_no"]
+        ordering = ["sheet_name", "mark_no"]
         indexes = [
             models.Index(fields=["mark_no"]),
+            models.Index(fields=["sheet_name", "mark_no"]),
         ]
 
     def __str__(self):
-        return f"{self.mark_no}"
+        return self.mark_no
+
 
 
 class BOMComponent(models.Model):
