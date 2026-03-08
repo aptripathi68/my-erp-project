@@ -128,20 +128,25 @@ class BOMHeader(models.Model):
     Example: JK Cement / Frigate / Wonder
     """
 
-    bom_name = models.CharField(max_length=200)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    from django.conf import settings
+from django.db import models
+
+class BOMHeader(models.Model):
+    bom_name = models.CharField(max_length=255)
+    project_name = models.CharField(max_length=255, blank=True)
+    client_name = models.CharField(max_length=255, blank=True)
+    purchase_order_no = models.CharField(max_length=100, blank=True)
+    purchase_order_date = models.DateField(null=True, blank=True)
+
     uploaded_by = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="uploaded_boms",
-        null=True,
-        blank=True
     )
-
-    notes = models.TextField(blank=True)
+    uploaded_at = models.DateTimeField()
 
     class Meta:
-        ordering = ["-uploaded_at"]
+        ordering = ["-uploaded_at", "bom_name"]
 
     def __str__(self):
         return self.bom_name
