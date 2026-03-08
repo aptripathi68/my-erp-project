@@ -9,9 +9,12 @@ import openpyxl
 
 from masters.models import Item, normalize_item_description
 
+
 DEFAULT_GRADE_CODE = "IS:2062"
 DEFAULT_GRADE_NAME = "E250BR"
-DEFAULT_GRADE_DISPLAY = f"{DEFAULT_GRADE_CODE}, {DEFAULT_GRADE_NAME}"
+DEFAULT_GRADE_DISPLAY = f"{DEFAULT_GRADE_CODE} {DEFAULT_GRADE_NAME}"
+
+
 def _h(s: Any) -> str:
     if s is None:
         return ""
@@ -44,21 +47,9 @@ def _to_decimal(v: Any) -> Optional[Decimal]:
 
 
 def normalize_grade_name(s: Any) -> str:
-    """
-    Normalize grade text for robust matching.
-    Example:
-    - IS 3589
-    - IS:3589
-    - IS-3589
-    - IS;3589
-    -> IS3589
-    """
     if s is None:
         return ""
-
     s = str(s).strip().upper()
-    # remove punctuation
-    s = re.sub(r"[^A-Z0-9]", "", s)
     s = s.replace("\n", " ")
     s = re.sub(r"[^A-Z0-9]+", "", s)
     return s
@@ -188,17 +179,14 @@ IGNORE_SHEET_NAME_CONTAINS = [
 class ExtractedRow:
     sheet_name: str
     excel_row: int
-
     mark_no: str
     drawing_no: str
     revision_no: str
     area_of_supply: str
     item_no: str
-
     item_description_raw: str
     grade_raw: str
     item_id: int
-
     qty_all: Decimal
     length_mm: Optional[Decimal]
     width_mm: Optional[Decimal]
@@ -261,12 +249,10 @@ def build_user_col_map(headers: List[str], user_mapping: Dict[str, str]) -> Dict
 
 def get_cell(row: Tuple[Any], col_map: Dict[str, int], key: str):
     idx = col_map.get(key)
-
     if idx is None:
         return None
     if idx >= len(row):
         return None
-
     return row[idx]
 
 
@@ -314,53 +300,38 @@ def validate_and_extract_workbook(
     )
 
     items = list(
-    Item.objects.select_related("grade")
-    .filter(is_active=True)
-    .only(
-        "id",
-        "section_name",
-        "item_description",
-        "grade__code",
-        "grade__name",
+        Item.objects.select_related("grade")
+        .filter(is_active=True)
+        .only(
+            "id",
+            "section_name",
+            "item_description",
+            "grade__code",
+            "grade__name",
+        )
     )
-)
 
-items = list(
-    Item.objects.select_related("grade")
-    .filter(is_active=True)
-    .only(
-        "id",
-        "section_name",
-        "item_description",
-        "grade__code",
-        "grade__name",
-    )
-)
+    item_by_section_grade: Dict[Tuple[str, str], Item] = {}
 
-item_by_section_grade: Dict[Tuple[str, str], Item] = {}
+    for it in items:
+        section_norm = normalize_item_description(it.section_name or "")
+        if not section_norm or not it.grade:
+            continue
 
-for it in items:
-    section_norm = normalize_item_description(it.section_name or "")
-    if not section_norm or not it.grade:
-        continue
+        grade_code = it.grade.code or ""
+        grade_name = it.grade.name or ""
 
-    grade_code = it.grade.code or ""
-    grade_name = it.grade.name or ""
+        grade_code_norm = normalize_grade_name(grade_code)
+        grade_name_norm = normalize_grade_name(grade_name)
+        grade_combined_norm = normalize_grade_name(f"{grade_code} {grade_name}")
 
-    grade_code_norm = normalize_grade_name(grade_code)
-    grade_name_norm = normalize_grade_name(grade_name)
-    grade_combined_norm = normalize_grade_name(f"{grade_code} {grade_name}")
+        if grade_code_norm:
+            item_by_section_grade[(section_norm, grade_code_norm)] = it
+        if grade_name_norm:
+            item_by_section_grade[(section_norm, grade_name_norm)] = it
+        if grade_combined_norm:
+            item_by_section_grade[(section_norm, grade_combined_norm)] = it
 
-    if grade_code_norm:
-        item_by_section_grade[(section_norm, grade_code_norm)] = it
-
-    if grade_name_norm:
-        item_by_section_grade[(section_norm, grade_name_norm)] = it
-
-    if grade_combined_norm:
-        item_by_section_grade[(section_norm, grade_combined_norm)] = it
-
-    
     extracted: List[ExtractedRow] = []
     errors: List[Dict[str, Any]] = []
     detected: Dict[str, Any] = {}
@@ -437,13 +408,8 @@ for it in items:
             if not item_desc_raw:
                 continue
 
-            # -------------------------------------------------
-            # Default grade logic
-            # If BOM grade is blank assume IS:2062 E250BR
-            # -------------------------------------------------
-
             if not grade_raw or grade_raw.strip() == "":
-                grade_raw = "IS:2062 E250BR"
+                grade_raw = DEFAULT_GRADE_DISPLAY
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
@@ -458,13 +424,10 @@ for it in items:
 
             if mark_no and str(mark_no).strip():
                 last_mark = str(mark_no).strip()
-
             if drawing_no and str(drawing_no).strip():
                 last_drawing = str(drawing_no).strip()
-
             if revision_no and str(revision_no).strip():
                 last_revision = str(revision_no).strip()
-
             if area_of_supply and str(area_of_supply).strip():
                 last_area_of_supply = str(area_of_supply).strip()
 
@@ -484,7 +447,7 @@ for it in items:
 
                 if section_matches:
                     possible_grades = sorted({
-                        (x.grade.code or x.grade.name)
+                        f"{x.grade.code}, {x.grade.name}".strip(", ")
                         for x in section_matches
                         if x.grade and (x.grade.code or x.grade.name)
                     })
@@ -511,7 +474,7 @@ for it in items:
                         if section_name and hint in normalize_item_description(section_name):
                             grade_text = ""
                             if x.grade:
-                                grade_text = x.grade.code or x.grade.name or ""
+                                grade_text = f"{x.grade.code}, {x.grade.name}".strip(", ")
                             sugg.append(f"{section_name} | {grade_text}")
 
                     errors.append({
@@ -528,7 +491,6 @@ for it in items:
                         "message": "No Item Master row found matching both Section Name and Grade.",
                         "suggestions": sugg[:8],
                     })
-
                 continue
 
             extracted.append(
