@@ -5,9 +5,10 @@ from io import BytesIO
 from datetime import date
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib import messages
 from django.db import transaction
 from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 
 import openpyxl
@@ -15,8 +16,7 @@ from openpyxl.utils import get_column_letter
 
 from .models import BOMHeader, BOMMark, BOMComponent
 from .services.bom_importer import validate_and_extract_workbook, workbook_sheet_headers
-from django.contrib import messages
-from django.shortcuts import redirect
+
 
 def _session_safe_errors(errors):
     safe = []
@@ -41,20 +41,30 @@ def _build_user_sheet_mappings(request, headers_info):
             continue
 
         user_sheet_mappings[sheet_name] = {
-            "item_description": request.POST.get(f"{sheet_name}__item_description", ""),
-            "grade": request.POST.get(f"{sheet_name}__grade", ""),
-            "mark_no": request.POST.get(f"{sheet_name}__mark_no", ""),
-            "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", ""),
-            "item_no": request.POST.get(f"{sheet_name}__item_no", ""),
-            "qty_all": request.POST.get(f"{sheet_name}__qty_all", ""),
-            "length": request.POST.get(f"{sheet_name}__length", ""),
-            "width": request.POST.get(f"{sheet_name}__width", ""),
-            "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", ""),
-            "revision_no": request.POST.get(f"{sheet_name}__revision_no", ""),
-            "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", ""),
+            "item_description": request.POST.get(f"{sheet_name}__item_description", "").strip(),
+            "grade": request.POST.get(f"{sheet_name}__grade", "").strip(),
+            "mark_no": request.POST.get(f"{sheet_name}__mark_no", "").strip(),
+            "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", "").strip(),
+            "item_no": request.POST.get(f"{sheet_name}__item_no", "").strip(),
+            "qty_all": request.POST.get(f"{sheet_name}__qty_all", "").strip(),
+            "length": request.POST.get(f"{sheet_name}__length", "").strip(),
+            "width": request.POST.get(f"{sheet_name}__width", "").strip(),
+            "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", "").strip(),
+            "revision_no": request.POST.get(f"{sheet_name}__revision_no", "").strip(),
+            "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", "").strip(),
         }
 
     return user_sheet_mappings
+
+
+def _has_any_mapping(sheet_mappings):
+    if not sheet_mappings:
+        return False
+
+    for sheet_map in sheet_mappings.values():
+        if any(v for v in sheet_map.values()):
+            return True
+    return False
 
 
 @staff_member_required
@@ -119,9 +129,18 @@ def bom_upload(request):
             return render(request, "procurement/bom_upload.html", context)
 
         headers_info = workbook_sheet_headers(tmp_path)
-        user_sheet_mappings = _build_user_sheet_mappings(request, headers_info)
 
-        request.session["bom_selected_mappings"] = user_sheet_mappings
+        posted_mappings = _build_user_sheet_mappings(request, headers_info)
+        session_mappings = request.session.get("bom_selected_mappings", {})
+
+        # IMPORTANT:
+        # If current POST has no mapping (or incomplete re-post from import flow),
+        # reuse the validated mapping stored in session.
+        if _has_any_mapping(posted_mappings):
+            user_sheet_mappings = posted_mappings
+            request.session["bom_selected_mappings"] = user_sheet_mappings
+        else:
+            user_sheet_mappings = session_mappings
 
         result = validate_and_extract_workbook(
             tmp_path,
@@ -213,6 +232,10 @@ def bom_upload(request):
 
             context["imported_bom_id"] = header.id
 
+            # optional cleanup after successful import
+            # request.session.pop("bom_selected_mappings", None)
+            # request.session.pop("bom_validation_errors", None)
+
         return render(request, "procurement/bom_upload.html", context)
 
     context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
@@ -231,7 +254,7 @@ def download_bom_validation_errors(request):
         "Error Type",
         "Sheet Name",
         "Excel Row",
-        "Erc Mark",
+        "ERC Mark",
         "Part Mark",
         "Section Name",
         "Grade Name",
@@ -350,25 +373,16 @@ def bom_export_master(request, bom_id: int):
     resp["Content-Disposition"] = f'attachment; filename="BOM_MASTER_{header.id}.xlsx"'
     wb.save(resp)
     return resp
+
+
 @staff_member_required
-def bom_delete(request, bom_id: int):
-    header = get_object_or_404(BOMHeader, id=bom_id)
+def bom_delete(request, bom_id):
+    bom = get_object_or_404(BOMHeader, id=bom_id)
 
-    if header.is_locked:
-        messages.error(
-            request,
-            f"BOM cannot be deleted because it is locked. Reason: {header.locked_reason or 'Downstream process started.'}"
-        )
-        return redirect("procurement:bom_upload")
+    if bom.is_locked:
+        messages.error(request, "This BOM cannot be deleted. Process already started.")
+        return redirect("procurement:bom_records")
 
-    if request.method == "POST":
-        bom_name = header.bom_name
-        header.delete()
-        messages.success(request, f"BOM '{bom_name}' deleted successfully.")
-        return redirect("procurement:bom_upload")
-
-    return render(
-        request,
-        "procurement/bom_delete_confirm.html",
-        {"header": header},
-    )
+    bom.delete()
+    messages.success(request, "BOM deleted successfully.")
+    return redirect("procurement:bom_records")

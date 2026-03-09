@@ -1,3 +1,5 @@
+{% load procurement_extras %}
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -54,6 +56,7 @@
     </style>
 </head>
 <body>
+{% load procurement_extras %}
 
 <div class="card">
     <h2>BOM Upload Wizard</h2>
@@ -124,6 +127,7 @@
                 {% else %}
                     <p><strong>Detected Header Row:</strong> {{ info.header_row }}</p>
 
+                    {% with sheet_selected=selected_mappings|get_item:sheet_name %}
                     <table>
                         <tr>
                             <th>Our Standard BOM Field</th>
@@ -136,7 +140,7 @@
                                 <select name="{{ sheet_name }}__item_description" required>
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"item_description" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -148,7 +152,7 @@
                                 <select name="{{ sheet_name }}__grade" required>
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"grade" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -160,7 +164,7 @@
                                 <select name="{{ sheet_name }}__mark_no">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"mark_no" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -172,7 +176,7 @@
                                 <select name="{{ sheet_name }}__drawing_no">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"drawing_no" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -184,7 +188,7 @@
                                 <select name="{{ sheet_name }}__revision_no">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"revision_no" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -196,7 +200,7 @@
                                 <select name="{{ sheet_name }}__area_of_supply">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"area_of_supply" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -208,7 +212,7 @@
                                 <select name="{{ sheet_name }}__item_no">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"item_no" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -220,7 +224,7 @@
                                 <select name="{{ sheet_name }}__qty_all">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"qty_all" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -232,7 +236,7 @@
                                 <select name="{{ sheet_name }}__length">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"length" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -244,7 +248,7 @@
                                 <select name="{{ sheet_name }}__width">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"width" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -256,12 +260,13 @@
                                 <select name="{{ sheet_name }}__unit_wt">
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
-                                        <option value="{{ h }}">{{ h }}</option>
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"unit_wt" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
                         </tr>
                     </table>
+                    {% endwith %}
                 {% endif %}
             </div>
         {% endfor %}
@@ -338,11 +343,6 @@
     <p>
         <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">
             Download Master BOM Excel
-        </a>
-    </p>
-    <p style="margin-top:10px;">
-        <a class="btn btn-secondary" href="{% url 'procurement:bom_delete' imported_bom_id %}">
-            Delete this BOM
         </a>
     </p>
 </div>
