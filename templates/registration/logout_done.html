@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logged Out</title>
+
+    <style>
+        body{
+            font-family: Arial;
+            background:#f4f6f8;
+            text-align:center;
+            padding-top:100px;
+        }
+
+        .card{
+            background:white;
+            width:600px;
+            margin:auto;
+            padding:40px;
+            border-radius:10px;
+            box-shadow:0 6px 25px rgba(0,0,0,0.15);
+        }
+
+        img{
+            height:80px;
+        }
+
+        h1{
+            color:#5f839d;
+        }
+
+        p{
+            font-size:18px;
+            margin-top:15px;
+        }
+
+        a{
+            display:inline-block;
+            margin-top:25px;
+            padding:10px 20px;
+            background:#5f839d;
+            color:white;
+            text-decoration:none;
+            border-radius:6px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<img src="{% static 'logo/kalpadeeplogo.png' %}">
+
+<h1>Kalpadeep Industries Private Limited</h1>
+
+<p>
+Thank You for visiting ERP Project of Kalpadeep Industries Private Limited.
+</p>
+
+<p>
+We are looking forward to meet you again.
+</p>
+
+<a href="/login/">Login Again</a>
+
+</div>
+
+</body>
+</html>

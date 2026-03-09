@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
 from django.shortcuts import render
 
 from masters.models import Item
@@ -15,4 +16,10 @@ def dashboard_home(request):
         "site_count": Site.objects.filter(is_active=True).count(),
         "ledger_count": StockLedgerEntry.objects.count(),
     }
+
     return render(request, "dashboard/home.html", context)
+
+
+def user_logout(request):
+    logout(request)
+    return render(request, "registration/logout_done.html")

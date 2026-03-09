@@ -3,7 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
-from config.views import dashboard_home
+from config.views import dashboard_home, user_logout
 
 urlpatterns = [
     path("", dashboard_home, name="dashboard_home"),
@@ -18,7 +18,7 @@ urlpatterns = [
 
     path(
         "logout/",
-        auth_views.LogoutView.as_view(next_page="/login/"),
+        user_logout,
         name="logout"
     ),
 
