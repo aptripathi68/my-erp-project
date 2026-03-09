@@ -27,6 +27,7 @@ ALLOWED_HOSTS = [
     "10.0.9.196",
     "kalpadeep.in",
     "www.kalpadeep.in",
+    "erp.kalpadeep.in",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
