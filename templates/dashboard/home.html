@@ -265,25 +265,26 @@
                 <a class="nav-link" href="/admin/masters/grade/">Grades</a>
             </div>
 
-            <div class="nav-group">
-                <div class="nav-group-title">Procurement</div>
-                <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
-                <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
-                <a class="nav-link" href="/admin/procurement/grn/">GRN Management</a>
+                       <div class="nav-group">
+                <div class="nav-group-title">Masters</div>
+                <a class="nav-link" href="/admin/masters/item/">Item Master</a>
+                <a class="nav-link" href="/admin/masters/group2/">Groups 2</a>
+                <a class="nav-link" href="/admin/masters/grade/">Grades</a>
                 <a class="nav-link" href="/admin/procurement/site/">Sites</a>
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">Inventory</div>
-                <a class="nav-link" href="/admin/ledger/stockledgerentry/">Stock Ledger</a>
-                <a class="nav-link" href="/admin/ledger/stocklocation/">Stock Locations</a>
-                <a class="nav-link" href="/admin/ledger/stocktxn/">Stock Transactions</a>
+                <div class="nav-group-title">Planning</div>
+                <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
+                <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">Administration</div>
-                <a class="nav-link" href="/admin/">Admin Panel</a>
-                <a class="nav-link" href="/admin/users/user/">Users</a>
+                <div class="nav-group-title">Inventory</div>
+                <a class="nav-link" href="/admin/procurement/grn/">GRN Management</a>
+                <a class="nav-link" href="/admin/ledger/stockledgerentry/">Stock Ledger</a>
+                <a class="nav-link" href="/admin/ledger/stocklocation/">Stock Locations</a>
+                <a class="nav-link" href="/admin/ledger/stocktxn/">Stock Transactions</a>
             </div>
         </aside>
 
@@ -291,30 +292,45 @@
             <section class="hero">
                 <h2>ERP Dashboard</h2>
                 <p>
-                    Control item master, BOM validation, GRN, stock movement, and fabrication workflow from one place.
+                    Control masters, planning, GRN, stock movement, and fabrication workflow from one place.
                 </p>
             </section>
 
-            <section class="stats">
-                <div class="stat-card">
-                    <div class="label">Active Items</div>
-                    <div class="value">{{ item_count }}</div>
+            <section class="module-grid">
+                <div class="module-card">
+                    <h3>Item Master</h3>
+                    <p>Maintain steel sections, plates, pipes, consumables, paint, electrodes and other inventory items.</p>
+                    <a href="/admin/masters/item/">Open Item Master</a>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Uploaded BOMs</div>
-                    <div class="value">{{ bom_count }}</div>
+
+                <div class="module-card">
+                    <h3>BOM Upload</h3>
+                    <p>Upload and validate multi-sheet BOM files against Item Master using section name matching.</p>
+                    <a href="/procurement/bom/upload/">Open BOM Upload</a>
                 </div>
-                <div class="stat-card">
-                    <div class="label">GRNs</div>
-                    <div class="value">{{ grn_count }}</div>
+
+                <div class="module-card">
+                    <h3>BOM Records</h3>
+                    <p>Review BOM headers, marks and components after validation and import.</p>
+                    <a href="/admin/procurement/bomheader/">Open BOM Records</a>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Sites</div>
-                    <div class="value">{{ site_count }}</div>
+
+                <div class="module-card">
+                    <h3>GRN Management</h3>
+                    <p>Create and monitor goods receipt notes and incoming inventory records.</p>
+                    <a href="/admin/procurement/grn/">Open GRN</a>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Ledger Entries</div>
-                    <div class="value">{{ ledger_count }}</div>
+
+                <div class="module-card">
+                    <h3>Stock Ledger</h3>
+                    <p>Track stock movement entries and maintain complete inventory traceability.</p>
+                    <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>Administration</h3>
+                    <p>Access admin maintenance for users, permissions and advanced ERP configuration.</p>
+                    <a href="/admin/">Open Admin Panel</a>
                 </div>
             </section>
 
