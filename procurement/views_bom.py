@@ -62,7 +62,6 @@ def _build_user_sheet_mappings(request, headers_info):
             "length": request.POST.get(f"{sheet_name}__length", "").strip(),
             "width": request.POST.get(f"{sheet_name}__width", "").strip(),
             "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", "").strip(),
-            "revision_no": request.POST.get(f"{sheet_name}__revision_no", "").strip(),
         }
 
     return user_sheet_mappings
@@ -223,7 +222,7 @@ def bom_upload(request):
                         row.sheet_name,
                         row.mark_no or "",
                         getattr(row, "drawing_no", "") or "",
-                        getattr(row, "revision_no", "") or "",
+                    
                     )
 
                     if key not in mark_map:
@@ -234,7 +233,6 @@ def bom_upload(request):
                             erc_quantity=getattr(row, "erc_quantity", None) or 1,
                             main_section=row.item_description_raw or "",
                             drawing_no=row.drawing_no or "",
-                            revision_no=getattr(row, "revision_no", "") or "",
                         )
 
                 comps = []
@@ -243,7 +241,6 @@ def bom_upload(request):
                         row.sheet_name,
                         row.mark_no or "",
                         getattr(row, "drawing_no", "") or "",
-                        getattr(row, "revision_no", "") or "",
                     )
 
                     bom_mark = mark_map[key]
@@ -373,7 +370,6 @@ def bom_export_master(request, bom_id: int):
         "erc_quantity",
         "main_section",
         "drawing_no",
-        "revision_no",
         "part_mark",
         "section_name",
         "grade_name",
@@ -403,7 +399,6 @@ def bom_export_master(request, bom_id: int):
                 float(m.erc_quantity),
                 m.main_section or "",
                 m.drawing_no or "",
-                m.revision_no or "",
                 c.part_mark or "",
                 c.section_name or "",
                 c.grade_name or "",

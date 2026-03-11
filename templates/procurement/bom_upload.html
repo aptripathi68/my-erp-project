@@ -218,17 +218,6 @@
                             </td>
                         </tr>
 
-                        <tr>
-                            <td>Revision No</td>
-                            <td>
-                                <select name="{{ sheet_name }}__revision_no">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"revision_no" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
 
                         <tr>
                             <td>Part Mark</td>
