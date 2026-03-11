@@ -59,6 +59,14 @@
 <div class="card">
     <h2>BOM Upload Wizard</h2>
 
+<div class="card">
+    <h2>BOM Upload Wizard</h2>
+
+    <p style="margin-bottom:16px;">
+        <a class="btn btn-secondary" href="{% url 'export_item_master' %}">
+            Download Current Item Master
+        </a>
+    </p>    
     {% if error %}
         <p style="color:red;"><strong>{{ error }}</strong></p>
     {% endif %}

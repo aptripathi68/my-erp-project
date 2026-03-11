@@ -1,15 +1,15 @@
 import secrets
 
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.db.models import Q
-from .models import Group2, Grade, Item
-from django.http import HttpResponse
 import openpyxl
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
 
+from .models import Grade, Group2, Item
 
 
 @require_GET
@@ -213,14 +213,11 @@ def item_master_edit(request, item_id):
     return render(request, "masters/item_master_edit_form.html", context)
 
 
-# Item_Master downlaod button addition
-
+@staff_member_required
 def export_item_master(request):
-    from .models import Item
-
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Item_Master"
+    ws.title = "Item Master"
 
     ws.append([
         "Item ID",
@@ -235,15 +232,12 @@ def export_item_master(request):
     items = Item.objects.select_related("grade").all().order_by("section_name")
 
     for item in items:
-        grade_code = item.grade.code if item.grade else ""
-        grade_name = item.grade.name if item.grade else ""
-
         ws.append([
             item.id,
             item.section_name,
             item.item_description,
-            grade_code,
-            grade_name,
+            item.grade.code if item.grade else "",
+            item.grade.name if item.grade else "",
             item.unit_weight,
             item.is_active,
         ])
@@ -251,9 +245,6 @@ def export_item_master(request):
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
     response["Content-Disposition"] = 'attachment; filename="item_master.xlsx"'
-
     wb.save(response)
-
     return response
