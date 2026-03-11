@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 from io import BytesIO
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
@@ -33,6 +34,16 @@ def _session_safe_errors(errors):
     return safe
 
 
+def _parse_decimal(value: str):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return Decimal(value)
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _build_user_sheet_mappings(request, headers_info):
     user_sheet_mappings = {}
 
@@ -44,6 +55,7 @@ def _build_user_sheet_mappings(request, headers_info):
             "item_description": request.POST.get(f"{sheet_name}__item_description", "").strip(),
             "grade": request.POST.get(f"{sheet_name}__grade", "").strip(),
             "mark_no": request.POST.get(f"{sheet_name}__mark_no", "").strip(),
+            "erc_quantity": request.POST.get(f"{sheet_name}__erc_quantity", "").strip(),
             "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", "").strip(),
             "item_no": request.POST.get(f"{sheet_name}__item_no", "").strip(),
             "qty_all": request.POST.get(f"{sheet_name}__qty_all", "").strip(),
@@ -51,7 +63,6 @@ def _build_user_sheet_mappings(request, headers_info):
             "width": request.POST.get(f"{sheet_name}__width", "").strip(),
             "unit_wt": request.POST.get(f"{sheet_name}__unit_wt", "").strip(),
             "revision_no": request.POST.get(f"{sheet_name}__revision_no", "").strip(),
-            "area_of_supply": request.POST.get(f"{sheet_name}__area_of_supply", "").strip(),
         }
 
     return user_sheet_mappings
@@ -80,6 +91,9 @@ def bom_upload(request):
         client_name = (request.POST.get("client_name") or "").strip()
         purchase_order_no = (request.POST.get("purchase_order_no") or "").strip()
         purchase_order_date = (request.POST.get("purchase_order_date") or "").strip()
+        delivery_date = (request.POST.get("delivery_date") or "").strip()
+        order_rate = (request.POST.get("order_rate") or "").strip()
+        order_value = (request.POST.get("order_value") or "").strip()
 
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
             for chunk in f.chunks():
@@ -94,6 +108,9 @@ def bom_upload(request):
         request.session["client_name"] = client_name
         request.session["purchase_order_no"] = purchase_order_no
         request.session["purchase_order_date"] = purchase_order_date
+        request.session["delivery_date"] = delivery_date
+        request.session["order_rate"] = order_rate
+        request.session["order_value"] = order_value
 
         auto_mappings = {}
         for sheet_name, info in headers_info.items():
@@ -108,6 +125,9 @@ def bom_upload(request):
         context["client_name"] = client_name
         context["purchase_order_no"] = purchase_order_no
         context["purchase_order_date"] = purchase_order_date
+        context["delivery_date"] = delivery_date
+        context["order_rate"] = order_rate
+        context["order_value"] = order_value
         context["headers_info"] = headers_info
         context["selected_mappings"] = auto_mappings
         context["mapping_step"] = True
@@ -123,6 +143,9 @@ def bom_upload(request):
         client_name = request.session.get("client_name", "")
         purchase_order_no = request.session.get("purchase_order_no", "")
         purchase_order_date_raw = request.session.get("purchase_order_date", "")
+        delivery_date_raw = request.session.get("delivery_date", "")
+        order_rate_raw = request.session.get("order_rate", "")
+        order_value_raw = request.session.get("order_value", "")
 
         if not tmp_path:
             context["error"] = "Please upload the BOM file first."
@@ -155,6 +178,9 @@ def bom_upload(request):
         context["client_name"] = client_name
         context["purchase_order_no"] = purchase_order_no
         context["purchase_order_date"] = purchase_order_date_raw
+        context["delivery_date"] = delivery_date_raw
+        context["order_rate"] = order_rate_raw
+        context["order_value"] = order_value_raw
         context["headers_info"] = headers_info
         context["selected_mappings"] = user_sheet_mappings
         context["mapping_step"] = True
@@ -167,6 +193,16 @@ def bom_upload(request):
                 except ValueError:
                     purchase_order_date = None
 
+            delivery_date = None
+            if delivery_date_raw:
+                try:
+                    delivery_date = date.fromisoformat(delivery_date_raw)
+                except ValueError:
+                    delivery_date = None
+
+            order_rate = _parse_decimal(order_rate_raw)
+            order_value = _parse_decimal(order_value_raw)
+
             with transaction.atomic():
                 header = BOMHeader.objects.create(
                     bom_name=bom_name,
@@ -174,6 +210,9 @@ def bom_upload(request):
                     client_name=client_name,
                     purchase_order_no=purchase_order_no,
                     purchase_order_date=purchase_order_date,
+                    delivery_date=delivery_date,
+                    order_rate=order_rate,
+                    order_value=order_value,
                     uploaded_by=request.user,
                     uploaded_at=timezone.now(),
                 )
@@ -185,7 +224,6 @@ def bom_upload(request):
                         row.mark_no or "",
                         getattr(row, "drawing_no", "") or "",
                         getattr(row, "revision_no", "") or "",
-                        getattr(row, "area_of_supply", "") or "",
                     )
 
                     if key not in mark_map:
@@ -193,11 +231,10 @@ def bom_upload(request):
                             bom=header,
                             sheet_name=row.sheet_name,
                             erc_mark=row.mark_no or "",
-                            erc_quantity=1,
+                            erc_quantity=getattr(row, "erc_quantity", None) or 1,
                             main_section=row.item_description_raw or "",
                             drawing_no=row.drawing_no or "",
                             revision_no=getattr(row, "revision_no", "") or "",
-                            area_of_supply=getattr(row, "area_of_supply", "") or "",
                         )
 
                 comps = []
@@ -207,7 +244,6 @@ def bom_upload(request):
                         row.mark_no or "",
                         getattr(row, "drawing_no", "") or "",
                         getattr(row, "revision_no", "") or "",
-                        getattr(row, "area_of_supply", "") or "",
                     )
 
                     bom_mark = mark_map[key]
@@ -239,6 +275,14 @@ def bom_upload(request):
         return render(request, "procurement/bom_upload.html", context)
 
     context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
+    context["bom_name"] = request.session.get("bom_name", "")
+    context["project_name"] = request.session.get("project_name", "")
+    context["client_name"] = request.session.get("client_name", "")
+    context["purchase_order_no"] = request.session.get("purchase_order_no", "")
+    context["purchase_order_date"] = request.session.get("purchase_order_date", "")
+    context["delivery_date"] = request.session.get("delivery_date", "")
+    context["order_rate"] = request.session.get("order_rate", "")
+    context["order_value"] = request.session.get("order_value", "")
     return render(request, "procurement/bom_upload.html", context)
 
 
@@ -321,13 +365,15 @@ def bom_export_master(request, bom_id: int):
         "client_name",
         "purchase_order_no",
         "purchase_order_date",
+        "delivery_date",
+        "order_rate",
+        "order_value",
         "sheet_name",
         "erc_mark",
         "erc_quantity",
         "main_section",
         "drawing_no",
         "revision_no",
-        "area_of_supply",
         "part_mark",
         "section_name",
         "grade_name",
@@ -349,13 +395,15 @@ def bom_export_master(request, bom_id: int):
                 header.client_name or "",
                 header.purchase_order_no or "",
                 header.purchase_order_date.isoformat() if header.purchase_order_date else "",
+                header.delivery_date.isoformat() if getattr(header, "delivery_date", None) else "",
+                float(header.order_rate) if getattr(header, "order_rate", None) is not None else "",
+                float(header.order_value) if getattr(header, "order_value", None) is not None else "",
                 m.sheet_name,
                 m.erc_mark,
                 float(m.erc_quantity),
                 m.main_section or "",
                 m.drawing_no or "",
                 m.revision_no or "",
-                m.area_of_supply or "",
                 c.part_mark or "",
                 c.section_name or "",
                 c.grade_name or "",

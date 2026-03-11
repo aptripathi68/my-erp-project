@@ -87,6 +87,15 @@ ALIASES = {
         "m/c mark",
         "mc mark",
     ],
+    "erc_quantity": [
+        "erc mark quantity",
+        "erc quantity",
+        "erc qty",
+        "mark quantity",
+        "mark qty",
+        "assembly quantity",
+        "assy qty",
+    ],
     "drawing_no": [
         "drawing no",
         "dwg no",
@@ -101,12 +110,6 @@ ALIASES = {
         "revision",
         "rev",
         "rev.",
-    ],
-    "area_of_supply": [
-        "area of supply",
-        "supply area",
-        "area",
-        "area/supply",
     ],
     "item_no": [
         "item no",
@@ -129,7 +132,6 @@ ALIASES = {
         "no.",
         "no's",
         "total qty",
-        "erc qty",
     ],
     "length": [
         "length",
@@ -146,14 +148,6 @@ ALIASES = {
         "b (mm)",
         "width (mm)",
     ],
-    "thk": [
-        "thickness",
-        "thk",
-        "p thk",
-        "plate thk",
-        "t (mm)",
-        "thickness (mm)",
-    ],
     "unit_wt": [
         "unit wt",
         "unit weight",
@@ -163,6 +157,8 @@ ALIASES = {
         "weight",
         "unit-wt",
         "unitweight",
+        "engg weight",
+        "engg weight (kg)",
     ],
 }
 
@@ -180,9 +176,9 @@ class ExtractedRow:
     sheet_name: str
     excel_row: int
     mark_no: str
+    erc_quantity: Decimal
     drawing_no: str
     revision_no: str
-    area_of_supply: str
     item_no: str
     item_description_raw: str
     grade_raw: str
@@ -190,7 +186,6 @@ class ExtractedRow:
     qty_all: Decimal
     length_mm: Optional[Decimal]
     width_mm: Optional[Decimal]
-    thk_mm: Optional[Decimal]
     line_weight_kg: Optional[Decimal]
 
 
@@ -382,9 +377,9 @@ def validate_and_extract_workbook(
         }
 
         last_mark = ""
+        last_erc_quantity = Decimal("1")
         last_drawing = ""
         last_revision = ""
-        last_area_of_supply = ""
 
         for excel_r, row_vals in enumerate(
             ws.iter_rows(min_row=header_row + 1, values_only=True),
@@ -412,24 +407,27 @@ def validate_and_extract_workbook(
                 grade_raw = DEFAULT_GRADE_DISPLAY
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
+            erc_quantity = get_cell(row_vals, col_map, "erc_quantity")
             drawing_no = get_cell(row_vals, col_map, "drawing_no")
             revision_no = get_cell(row_vals, col_map, "revision_no")
-            area_of_supply = get_cell(row_vals, col_map, "area_of_supply")
             item_no = get_cell(row_vals, col_map, "item_no")
             qty_all = get_cell(row_vals, col_map, "qty_all")
             length_mm = get_cell(row_vals, col_map, "length")
             width_mm = get_cell(row_vals, col_map, "width")
-            thk_mm = get_cell(row_vals, col_map, "thk")
             unit_wt = get_cell(row_vals, col_map, "unit_wt")
 
             if mark_no and str(mark_no).strip():
                 last_mark = str(mark_no).strip()
+
+            erc_qty_dec = _to_decimal(erc_quantity)
+            if erc_qty_dec is not None and erc_qty_dec > 0:
+                last_erc_quantity = erc_qty_dec
+
             if drawing_no and str(drawing_no).strip():
                 last_drawing = str(drawing_no).strip()
+
             if revision_no and str(revision_no).strip():
                 last_revision = str(revision_no).strip()
-            if area_of_supply and str(area_of_supply).strip():
-                last_area_of_supply = str(area_of_supply).strip()
 
             item_no_final = str(item_no).strip() if item_no else ""
             qty_dec = _to_decimal(qty_all) or Decimal("1")
@@ -498,9 +496,9 @@ def validate_and_extract_workbook(
                     sheet_name=sheet_name,
                     excel_row=excel_r,
                     mark_no=last_mark,
+                    erc_quantity=last_erc_quantity,
                     drawing_no=last_drawing,
                     revision_no=last_revision,
-                    area_of_supply=last_area_of_supply,
                     item_no=item_no_final,
                     item_description_raw=item_desc_raw,
                     grade_raw=grade_raw,
@@ -508,7 +506,6 @@ def validate_and_extract_workbook(
                     qty_all=qty_dec,
                     length_mm=_to_decimal(length_mm),
                     width_mm=_to_decimal(width_mm),
-                    thk_mm=_to_decimal(thk_mm),
                     line_weight_kg=_to_decimal(unit_wt),
                 )
             )

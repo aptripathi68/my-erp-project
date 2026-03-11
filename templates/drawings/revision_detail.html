@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Drawing Revision Verification</h2>
+
+<p><strong>Drawing:</strong> {{ revision.drawing_sheet.drawing.drawing_no }}</p>
+<p><strong>Sheet:</strong> {{ revision.drawing_sheet.sheet_no }}</p>
+<p><strong>Revision:</strong> {{ revision.revision_no }}</p>
+<p><strong>Status:</strong> {{ revision.verification_status }}</p>
+
+<hr>
+
+{% if preview_url %}
+<h3>Preview</h3>
+
+<iframe src="{{ preview_url }}" width="100%" height="600px"></iframe>
+
+<br><br>
+{% endif %}
+
+{% if revision.verification_status == "PENDING" %}
+
+<a href="{% url 'drawings:confirm_revision' revision.pk %}">
+<button style="background-color:green;color:white;padding:10px;">
+Confirm Drawing
+</button>
+</a>
+
+<a href="{% url 'drawings:reject_revision' revision.pk %}">
+<button style="background-color:red;color:white;padding:10px;">
+Reject / Re-upload
+</button>
+</a>
+
+{% endif %}
+
+{% if download_url %}
+<br><br>
+<a href="{{ download_url }}">Download Drawing</a>
+{% endif %}
+
+{% endblock %}

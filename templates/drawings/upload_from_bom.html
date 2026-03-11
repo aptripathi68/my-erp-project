@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Upload Drawing from BOM</h2>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <table>
+        {{ form.as_table }}
+    </table>
+
+    <br>
+
+    <button type="submit">Upload Drawing</button>
+
+</form>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function() {
+
+    const bomField = document.getElementById("id_bom");
+    const drawingField = document.getElementById("id_drawing_no");
+
+    bomField.addEventListener("change", function() {
+
+        const bomId = this.value;
+
+        if (!bomId) return;
+
+        fetch(`/drawings/ajax/bom-drawing-numbers/?bom_id=${bomId}`)
+        .then(response => response.json())
+        .then(data => {
+
+            drawingField.innerHTML = "";
+
+            data.drawing_numbers.forEach(function(item){
+
+                const option = document.createElement("option");
+                option.value = item.value;
+                option.text = item.label;
+
+                drawingField.appendChild(option);
+
+            });
+
+        });
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

@@ -128,16 +128,20 @@ class BOMHeader(models.Model):
     client_name = models.CharField(max_length=255, blank=True)
     purchase_order_no = models.CharField(max_length=100, blank=True)
     purchase_order_date = models.DateField(null=True, blank=True)
+    delivery_date = models.DateField(null=True, blank=True)
+    order_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    order_value = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="uploaded_boms",
     )
-    uploaded_at = models.DateTimeField()
+    uploaded_at = models.DateTimeField(default=timezone.now)
 
     is_locked = models.BooleanField(default=False)
-    locked_reason = models.CharField(max_length=255, blank=True)
+
+    
 
     class Meta:
         ordering = ["-uploaded_at", "bom_name"]

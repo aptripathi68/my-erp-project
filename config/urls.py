@@ -25,6 +25,7 @@ urlpatterns = [
     path("", include("masters.urls")),
     path("api/", include("ledger.urls")),
     path("procurement/", include("procurement.urls")),
+    path("drawings/", include("drawings.urls")),
 ]
 
 if settings.DEBUG:

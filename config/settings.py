@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "masters",
     "procurement",
     "ledger",
+    "drawings",
 ]
 
 MIDDLEWARE = [
@@ -165,7 +166,7 @@ AWS_QUERYSTRING_EXPIRE = 3600
 AWS_DEFAULT_ACL = None
 
 MEDIA_BUCKET_NAME = "inventory-erp-offcuts"
-
+DRAWINGS_BUCKET_NAME = "inventory-erp-drawings"
 # -------------------------------------------------------------------
 # STATIC FILES -> LOCAL
 # -------------------------------------------------------------------

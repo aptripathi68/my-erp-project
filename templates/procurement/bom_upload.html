@@ -1,5 +1,3 @@
-{% load procurement_extras %}
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -45,7 +43,7 @@
             text-align:left;
         }
         th{ background:#eef3f7; }
-        select, input[type="text"], input[type="file"], input[type="date"]{
+        select, input[type="text"], input[type="file"], input[type="date"], input[type="number"]{
             padding:8px 10px;
             border:1px solid #cfd8df;
             border-radius:6px;
@@ -69,7 +67,7 @@
         {% csrf_token %}
 
         <div>
-            <label><strong>BOM Name</strong></label><br>
+            <label><strong>WO Number</strong></label><br>
             <input type="text" name="bom_name" value="{{ bom_name|default:'' }}" style="width:420px;">
         </div>
 
@@ -91,6 +89,21 @@
         <div style="margin-top:12px;">
             <label><strong>Purchase Order Date</strong></label><br>
             <input type="date" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}" style="width:220px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Delivery Date</strong></label><br>
+            <input type="date" name="delivery_date" value="{{ delivery_date|default:'' }}" style="width:220px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Order Rate</strong></label><br>
+            <input type="text" name="order_rate" value="{{ order_rate|default:'' }}" style="width:220px;">
+        </div>
+
+        <div style="margin-top:12px;">
+            <label><strong>Order Value</strong></label><br>
+            <input type="text" name="order_value" value="{{ order_value|default:'' }}" style="width:220px;">
         </div>
 
         <div style="margin-top:12px;">
@@ -117,6 +130,9 @@
         <input type="hidden" name="client_name" value="{{ client_name|default:'' }}">
         <input type="hidden" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}">
         <input type="hidden" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}">
+        <input type="hidden" name="delivery_date" value="{{ delivery_date|default:'' }}">
+        <input type="hidden" name="order_rate" value="{{ order_rate|default:'' }}">
+        <input type="hidden" name="order_value" value="{{ order_value|default:'' }}">
 
         {% for sheet_name, info in headers_info.items %}
             <div class="card">
@@ -171,6 +187,18 @@
                         </tr>
 
                         <tr>
+                            <td>ERC Mark Quantity</td>
+                            <td>
+                                <select name="{{ sheet_name }}__erc_quantity">
+                                    <option value="">Select column</option>
+                                    {% for h in info.headers %}
+                                        <option value="{{ h }}" {% if sheet_selected|get_item:"erc_quantity" == h %}selected{% endif %}>{{ h }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+
+                        <tr>
                             <td>Drawing No</td>
                             <td>
                                 <select name="{{ sheet_name }}__drawing_no">
@@ -189,18 +217,6 @@
                                     <option value="">Select column</option>
                                     {% for h in info.headers %}
                                         <option value="{{ h }}" {% if sheet_selected|get_item:"revision_no" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Area of Supply</td>
-                            <td>
-                                <select name="{{ sheet_name }}__area_of_supply">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"area_of_supply" == h %}selected{% endif %}>{{ h }}</option>
                                     {% endfor %}
                                 </select>
                             </td>

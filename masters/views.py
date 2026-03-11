@@ -6,8 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
-
 from .models import Group2, Grade, Item
+from django.http import HttpResponse
+import openpyxl
+
 
 
 @require_GET
@@ -209,3 +211,49 @@ def item_master_edit(request, item_id):
         "unit_weight_basis_choices": Item.UnitWeightBasis.choices,
     }
     return render(request, "masters/item_master_edit_form.html", context)
+
+
+# Item_Master downlaod button addition
+
+def export_item_master(request):
+    from .models import Item
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Item_Master"
+
+    ws.append([
+        "Item ID",
+        "Section Name",
+        "Item Description",
+        "Grade Code",
+        "Grade Name",
+        "Unit Weight",
+        "Is Active",
+    ])
+
+    items = Item.objects.select_related("grade").all().order_by("section_name")
+
+    for item in items:
+        grade_code = item.grade.code if item.grade else ""
+        grade_name = item.grade.name if item.grade else ""
+
+        ws.append([
+            item.id,
+            item.section_name,
+            item.item_description,
+            grade_code,
+            grade_name,
+            item.unit_weight,
+            item.is_active,
+        ])
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    response["Content-Disposition"] = 'attachment; filename="item_master.xlsx"'
+
+    wb.save(response)
+
+    return response

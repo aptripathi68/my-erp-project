@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .views import export_item_master
 
 urlpatterns = [
     path("api/group2/", views.api_group2),
@@ -9,4 +10,5 @@ urlpatterns = [
     path("item-master/", views.item_master_list, name="item_master_list"),
     path("item-master/add/", views.item_master_add, name="item_master_add"),
     path("item-master/<int:item_id>/edit/", views.item_master_edit, name="item_master_edit"),
+    path("export-items/", export_item_master, name="export_item_master"),
 ]
