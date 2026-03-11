@@ -226,14 +226,30 @@ def bom_upload(request):
                     )
 
                     if key not in mark_map:
-                        mark_map[key] = BOMMark.objects.create(
-                            bom=header,
-                            sheet_name=row.sheet_name,
-                            erc_mark=row.mark_no or "",
-                            erc_quantity=getattr(row, "erc_quantity", None) or 1,
-                            main_section=row.item_description_raw or "",
-                            drawing_no=row.drawing_no or "",
-                        )
+
+    drawing_obj = None
+
+    from drawings.models import Drawing
+
+if key not in mark_map:
+
+    drawing_obj = None
+
+    if row.drawing_no:
+        drawing_obj, _ = Drawing.objects.get_or_create(
+            project=header,
+            drawing_no=row.drawing_no.strip()
+        )
+
+    mark_map[key] = BOMMark.objects.create(
+        bom=header,
+        sheet_name=row.sheet_name,
+        erc_mark=row.mark_no or "",
+        erc_quantity=getattr(row, "erc_quantity", None) or 1,
+        main_section=row.item_description_raw or "",
+        drawing_no=row.drawing_no or "",
+        drawing=drawing_obj,
+    )
 
                 comps = []
                 for row in result["extracted"]:
