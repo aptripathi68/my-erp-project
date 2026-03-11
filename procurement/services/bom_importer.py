@@ -422,7 +422,7 @@ def validate_and_extract_workbook(
 
             section_norm = normalize_item_description(item_desc_raw)
             
-grade_norm = normalize_grade_name(grade_raw)
+            grade_norm = normalize_grade_name(grade_raw)
             grade_norm = normalize_grade_name(grade_raw.replace(";", " ").replace(",", " "))
 
             if not it:
