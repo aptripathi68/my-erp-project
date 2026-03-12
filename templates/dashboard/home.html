@@ -7,14 +7,14 @@
     <title>Kalpadeep ERP Dashboard</title>
     <style>
         :root{
-            --brand:#5f839d;
-            --brand-dark:#49697f;
-            --brand-accent:#f0d76b;
-            --bg:#f4f6f8;
+            --brand:#2d686f;
+            --brand-dark:#176193;
+            --brand-accent:#b0f06b;
+            --bg:#f5f4f8;
             --card:#ffffff;
-            --text:#24313d;
+            --text:#082037;
             --muted:#667786;
-            --border:#dbe3ea;
+            --border:#e7dbea;
             --shadow:0 4px 18px rgba(0,0,0,0.08);
         }
 
@@ -270,6 +270,9 @@
                 <div class="nav-group-title">Planning</div>
                 <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
                 <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
+                <a class="nav-link" href="/drawings/upload-from-bom/">Drawing Upload</a>
+                <a class="nav-link" href="/admin/drawings/drawing/">Drawing Records</a>
+                <a class="nav-link" href="/admin/drawings/drawingsheetrevision/">Drawing Revisions</a>
             </div>
 
             <div class="nav-group">
@@ -291,7 +294,7 @@
             <section class="hero">
                 <h2>ERP Dashboard</h2>
                 <p>
-                    Control masters, planning, GRN, stock movement, and fabrication workflow from one place.
+                    Control masters, planning, drawings, GRN, stock movement, and fabrication workflow from one place.
                 </p>
             </section>
 
@@ -334,9 +337,21 @@
                 </div>
 
                 <div class="module-card">
+                    <h3>Drawing Upload</h3>
+                    <p>Upload fabrication drawings linked with BOM drawing numbers and manage sheet-wise revisions.</p>
+                    <a href="/drawings/upload-from-bom/">Open Drawing Upload</a>
+                </div>
+
+                <div class="module-card">
                     <h3>BOM Records</h3>
                     <p>Review BOM headers, marks and components after validation and import.</p>
                     <a href="/admin/procurement/bomheader/">Open BOM Records</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>Drawing Records</h3>
+                    <p>View uploaded drawing numbers, open revision history, and manage drawing sheets and revisions.</p>
+                    <a href="/admin/drawings/drawing/">Open Drawing Records</a>
                 </div>
 
                 <div class="module-card">
