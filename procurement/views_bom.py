@@ -274,13 +274,13 @@ with transaction.atomic():
 
     BOMComponent.objects.bulk_create(comps, batch_size=2000)
 
-    context["imported_bom_id"] = header.id
+            context["imported_bom_id"] = header.id
 
             # optional cleanup after successful import
             # request.session.pop("bom_selected_mappings", None)
             # request.session.pop("bom_validation_errors", None)
 
-        return render(request, "procurement/bom_upload.html", context)
+            return render(request, "procurement/bom_upload.html", context)
 
     context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
     context["bom_name"] = request.session.get("bom_name", "")
