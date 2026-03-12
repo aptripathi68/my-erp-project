@@ -83,6 +83,13 @@ class DrawingAdmin(admin.ModelAdmin):
     list_filter = ("project",)
 
     def upload_button(self, obj):
+        has_revisions = DrawingSheetRevision.objects.filter(
+            drawing_sheet__drawing=obj
+        ).exists()
+
+        if has_revisions:
+            return "-"
+
         url = reverse("drawings:upload_from_bom")
         return format_html(
             '<a class="button" href="{}?bom={}&drawing_no={}">Upload Drawing</a>',
