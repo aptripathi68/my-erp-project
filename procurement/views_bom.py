@@ -5,6 +5,7 @@ from io import BytesIO
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from botocore import context
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.db import transaction
@@ -202,55 +203,80 @@ def bom_upload(request):
             order_rate = _parse_decimal(order_rate_raw)
             order_value = _parse_decimal(order_value_raw)
 
-            with transaction.atomic():
-                header = BOMHeader.objects.create(
-                    bom_name=bom_name,
-                    project_name=project_name,
-                    client_name=client_name,
-                    purchase_order_no=purchase_order_no,
-                    purchase_order_date=purchase_order_date,
-                    delivery_date=delivery_date,
-                    order_rate=order_rate,
-                    order_value=order_value,
-                    uploaded_by=request.user,
-                    uploaded_at=timezone.now(),
-                )
-
-                mark_map = {}
-                for row in result["extracted"]:
-                    key = (
-                        row.sheet_name,
-                        row.mark_no or "",
-                        getattr(row, "drawing_no", "") or "",
-                    
-                    )
-
-if key not in mark_map:
-
-    drawing_obj = None
-
-    from drawings.models import Drawing
-
-if key not in mark_map:
-    drawing_obj = None
-
-    if row.drawing_no:
-        drawing_obj, _ = Drawing.objects.get_or_create(
-            project=header,
-            drawing_no=row.drawing_no.strip()
-        )
-
-    mark_map[key] = BOMMark.objects.create(
-        bom=header,
-        sheet_name=row.sheet_name,
-        erc_mark=row.mark_no or "",
-        erc_quantity=getattr(row, "erc_quantity", None) or 1,
-        main_section=row.item_description_raw or "",
-        drawing_no=row.drawing_no or "",
-        drawing=drawing_obj,
+with transaction.atomic():
+    header = BOMHeader.objects.create(
+        bom_name=bom_name,
+        project_name=project_name,
+        client_name=client_name,
+        purchase_order_no=purchase_order_no,
+        purchase_order_date=purchase_order_date,
+        delivery_date=delivery_date,
+        order_rate=order_rate,
+        order_value=order_value,
+        uploaded_by=request.user,
+        uploaded_at=timezone.now(),
     )
 
+    mark_map = {}
+    for row in result["extracted"]:
+        key = (
+            row.sheet_name,
+            row.mark_no or "",
+            getattr(row, "drawing_no", "") or "",
+        )
+
+        if key not in mark_map:
+            drawing_obj = None
+
+            from drawings.models import Drawing
+
+            if row.drawing_no:
+                drawing_obj, _ = Drawing.objects.get_or_create(
+                    project=header,
+                    drawing_no=row.drawing_no.strip()
+                )
+
+            mark_map[key] = BOMMark.objects.create(
+                bom=header,
+                sheet_name=row.sheet_name,
+                erc_mark=row.mark_no or "",
+                erc_quantity=getattr(row, "erc_quantity", None) or 1,
+                main_section=row.item_description_raw or "",
+                drawing_no=row.drawing_no or "",
+                drawing=drawing_obj,
+            )
+
+    comps = []
+for row in result["extracted"]:
+    key = (
+        row.sheet_name,
+        row.mark_no or "",
+        getattr(row, "drawing_no", "") or "",
+    )
+
+    if key not in mark_map:
+        drawing_obj = None
+
+        from drawings.models import Drawing
+
+        if row.drawing_no:
+            drawing_obj, _ = Drawing.objects.get_or_create(
+                project=header,
+                drawing_no=row.drawing_no.strip()
+            )
+
+        mark_map[key] = BOMMark.objects.create(
+            bom=header,
+            sheet_name=row.sheet_name,
+            erc_mark=row.mark_no or "",
+            erc_quantity=getattr(row, "erc_quantity", None) or 1,
+            main_section=row.item_description_raw or "",
+            drawing_no=row.drawing_no or "",
+            drawing=drawing_obj,
+        )
+
 comps = []
+
 for row in result["extracted"]:
     key = (
         row.sheet_name,
@@ -276,9 +302,9 @@ for row in result["extracted"]:
         )
     )
 
-BOMComponent.objects.bulk_create(comps, batch_size=2000)
+BOMComponent.objects.bulk_create(comps, batch_size=2000)            
 
-            context["imported_bom_id"] = header.id
+    context["imported_bom_id"] = header.id
 
             # optional cleanup after successful import
             # request.session.pop("bom_selected_mappings", None)
