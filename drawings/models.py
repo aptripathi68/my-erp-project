@@ -65,7 +65,7 @@ class DrawingSheet(models.Model):
             models.Index(fields=["sheet_no"]),
         ]
         verbose_name = "Add Drawing Sheet"
-        verbose_name_plural: str = "Add Drawing Sheet"
+        verbose_name_plural = "Add Drawing Sheets"
 
     def __str__(self):
         return f"{self.drawing.drawing_no} / Sheet {self.sheet_no}"
@@ -147,28 +147,6 @@ class DrawingSheetRevision(models.Model):
                 self.is_current = False
 
             if self.is_current and self.verification_status == self.STATUS_VERIFIED:
-                DrawingSheetRevision.objects.filter(
-                    drawing_sheet=self.drawing_sheet,
-                    is_current=True,
-                ).exclude(pk=self.pk).update(is_current=False)
-
-            super().save(*args, **kwargs)
-    class Meta:
-        ordering = ["drawing_sheet", "-uploaded_at"]
-        unique_together: list[tuple[str, str]] = [("drawing_sheet", "revision_no")]
-        indexes = [
-            models.Index(fields=["is_current"]),
-            models.Index(fields=["revision_no"]),
-        ]
-        verbose_name = "Add Drawing Sheet Revision"
-        verbose_name_plural = "Add Drawing Sheet Revisions"
-
-    def __str__(self):
-        return f"{self.drawing_sheet} Rev {self.revision_no}"
-
-    def save(self, *args, **kwargs):
-        with transaction.atomic():
-            if self.is_current:
                 DrawingSheetRevision.objects.filter(
                     drawing_sheet=self.drawing_sheet,
                     is_current=True,

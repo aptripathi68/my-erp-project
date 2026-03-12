@@ -174,6 +174,14 @@ class BOMMark(models.Model):
         blank=True,
         null=True,
     )
+
+    drawing = models.ForeignKey(
+        "drawings.Drawing",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bom_marks",
+    )
     revision_no = models.CharField(
         max_length=100,
         blank=True,
