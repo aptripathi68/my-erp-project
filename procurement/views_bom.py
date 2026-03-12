@@ -272,9 +272,9 @@ with transaction.atomic():
             )
         )
 
-    BOMComponent.objects.bulk_create(comps, batch_size=2000)
+        BOMComponent.objects.bulk_create(comps, batch_size=2000)
 
-            context["imported_bom_id"] = header.id
+        context["imported_bom_id"] = header.id
 
             # optional cleanup after successful import
             # request.session.pop("bom_selected_mappings", None)
