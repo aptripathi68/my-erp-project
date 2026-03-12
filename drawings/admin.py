@@ -90,9 +90,9 @@ class DrawingAdmin(admin.ModelAdmin):
         if has_revisions:
             url = reverse("admin:drawings_drawingsheetrevision_changelist")
             return format_html(
-                '<a class="button" href="{}?drawing_sheet__drawing__id__exact={}">View Revisions</a>',
+                '<a class="button" href="{}?q={}">View Revisions</a>',
                 url,
-                obj.id,
+                obj.drawing_no,
             )
 
         url = reverse("drawings:upload_from_bom")
