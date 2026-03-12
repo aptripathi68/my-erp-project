@@ -225,14 +225,13 @@ def bom_upload(request):
                     
                     )
 
-                    if key not in mark_map:
+if key not in mark_map:
 
     drawing_obj = None
 
     from drawings.models import Drawing
 
 if key not in mark_map:
-
     drawing_obj = None
 
     if row.drawing_no:
@@ -251,33 +250,33 @@ if key not in mark_map:
         drawing=drawing_obj,
     )
 
-                comps = []
-                for row in result["extracted"]:
-                    key = (
-                        row.sheet_name,
-                        row.mark_no or "",
-                        getattr(row, "drawing_no", "") or "",
-                    )
+comps = []
+for row in result["extracted"]:
+    key = (
+        row.sheet_name,
+        row.mark_no or "",
+        getattr(row, "drawing_no", "") or "",
+    )
 
-                    bom_mark = mark_map[key]
+    bom_mark = mark_map[key]
 
-                    comps.append(
-                        BOMComponent(
-                            bom_mark=bom_mark,
-                            part_mark=row.item_no or "",
-                            section_name=row.item_description_raw or "",
-                            grade_name=getattr(row, "grade_raw", "") or "",
-                            part_quantity_per_assy=row.qty_all,
-                            length_mm=row.length_mm,
-                            width_mm=row.width_mm,
-                            engg_weight_kg=row.line_weight_kg,
-                            item_id=row.item_id,
-                            item_description_raw=row.item_description_raw or "",
-                            excel_row=row.excel_row,
-                        )
-                    )
+    comps.append(
+        BOMComponent(
+            bom_mark=bom_mark,
+            part_mark=row.item_no or "",
+            section_name=row.item_description_raw or "",
+            grade_name=getattr(row, "grade_raw", "") or "",
+            part_quantity_per_assy=row.qty_all,
+            length_mm=row.length_mm,
+            width_mm=row.width_mm,
+            engg_weight_kg=row.line_weight_kg,
+            item_id=row.item_id,
+            item_description_raw=row.item_description_raw or "",
+            excel_row=row.excel_row,
+        )
+    )
 
-                BOMComponent.objects.bulk_create(comps, batch_size=2000)
+BOMComponent.objects.bulk_create(comps, batch_size=2000)
 
             context["imported_bom_id"] = header.id
 
