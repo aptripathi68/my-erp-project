@@ -5,18 +5,18 @@ from io import BytesIO
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from botocore import context
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-from .models import BOMHeader, BOMMark, BOMComponent
+from drawings.models import Drawing
+from .models import BOMComponent, BOMHeader, BOMMark
 from .services.bom_importer import validate_and_extract_workbook, workbook_sheet_headers
 
 
@@ -156,9 +156,6 @@ def bom_upload(request):
         posted_mappings = _build_user_sheet_mappings(request, headers_info)
         session_mappings = request.session.get("bom_selected_mappings", {})
 
-        # IMPORTANT:
-        # If current POST has no mapping (or incomplete re-post from import flow),
-        # reuse the validated mapping stored in session.
         if _has_any_mapping(posted_mappings):
             user_sheet_mappings = posted_mappings
             request.session["bom_selected_mappings"] = user_sheet_mappings
@@ -185,109 +182,109 @@ def bom_upload(request):
         context["selected_mappings"] = user_sheet_mappings
         context["mapping_step"] = True
 
-if request.POST.get("action") == "import" and result["ok"]:
-    purchase_order_date = None
-    if purchase_order_date_raw:
-        try:
-            purchase_order_date = date.fromisoformat(purchase_order_date_raw)
-        except ValueError:
+        if request.POST.get("action") == "import" and result["ok"]:
             purchase_order_date = None
+            if purchase_order_date_raw:
+                try:
+                    purchase_order_date = date.fromisoformat(purchase_order_date_raw)
+                except ValueError:
+                    purchase_order_date = None
 
-    delivery_date = None
-    if delivery_date_raw:
-        try:
-            delivery_date = date.fromisoformat(delivery_date_raw)
-        except ValueError:
             delivery_date = None
+            if delivery_date_raw:
+                try:
+                    delivery_date = date.fromisoformat(delivery_date_raw)
+                except ValueError:
+                    delivery_date = None
 
-    order_rate = _parse_decimal(order_rate_raw)
-    order_value = _parse_decimal(order_value_raw)
+            order_rate = _parse_decimal(order_rate_raw)
+            order_value = _parse_decimal(order_value_raw)
 
-    with transaction.atomic():
-        header = BOMHeader.objects.create(
-            bom_name=bom_name,
-            project_name=project_name,
-            client_name=client_name,
-            purchase_order_no=purchase_order_no,
-            purchase_order_date=purchase_order_date,
-            delivery_date=delivery_date,
-            order_rate=order_rate,
-            order_value=order_value,
-            uploaded_by=request.user,
-            uploaded_at=timezone.now(),
-        )
+            with transaction.atomic():
+                header = BOMHeader.objects.create(
+                    bom_name=bom_name,
+                    project_name=project_name,
+                    client_name=client_name,
+                    purchase_order_no=purchase_order_no,
+                    purchase_order_date=purchase_order_date,
+                    delivery_date=delivery_date,
+                    order_rate=order_rate,
+                    order_value=order_value,
+                    uploaded_by=request.user,
+                    uploaded_at=timezone.now(),
+                )
 
-        mark_map = {}
-        for row in result["extracted"]:
-            key = (
-                row.sheet_name,
-                row.mark_no or "",
-                getattr(row, "drawing_no", "") or "",
-            )
+                mark_map = {}
 
-            if key not in mark_map:
-                drawing_obj = None
-
-                from drawings.models import Drawing
-
-                if row.drawing_no:
-                    drawing_obj, _ = Drawing.objects.get_or_create(
-                        project=header,
-                        drawing_no=row.drawing_no.strip()
+                for row in result["extracted"]:
+                    key = (
+                        row.sheet_name,
+                        row.mark_no or "",
+                        getattr(row, "drawing_no", "") or "",
                     )
 
-                mark_map[key] = BOMMark.objects.create(
-                    bom=header,
-                    sheet_name=row.sheet_name,
-                    erc_mark=row.mark_no or "",
-                    erc_quantity=getattr(row, "erc_quantity", None) or 1,
-                    main_section=row.item_description_raw or "",
-                    drawing_no=row.drawing_no or "",
-                    drawing=drawing_obj,
-                )
+                    if key not in mark_map:
+                        drawing_obj = None
 
-        comps = []
-        for row in result["extracted"]:
-            key = (
-                row.sheet_name,
-                row.mark_no or "",
-                getattr(row, "drawing_no", "") or "",
-            )
+                        if row.drawing_no:
+                            drawing_obj, _ = Drawing.objects.get_or_create(
+                                project=header,
+                                drawing_no=row.drawing_no.strip(),
+                            )
 
-            bom_mark = mark_map[key]
+                        mark_map[key] = BOMMark.objects.create(
+                            bom=header,
+                            sheet_name=row.sheet_name,
+                            erc_mark=row.mark_no or "",
+                            erc_quantity=getattr(row, "erc_quantity", None) or 1,
+                            main_section=row.item_description_raw or "",
+                            drawing_no=row.drawing_no or "",
+                            drawing=drawing_obj,
+                        )
 
-            comps.append(
-                BOMComponent(
-                    bom_mark=bom_mark,
-                    part_mark=row.item_no or "",
-                    section_name=row.item_description_raw or "",
-                    grade_name=getattr(row, "grade_raw", "") or "",
-                    part_quantity_per_assy=row.qty_all,
-                    length_mm=row.length_mm,
-                    width_mm=row.width_mm,
-                    engg_weight_kg=row.line_weight_kg,
-                    item_id=row.item_id,
-                    item_description_raw=row.item_description_raw or "",
-                    excel_row=row.excel_row,
-                )
-            )
+                comps = []
 
-        BOMComponent.objects.bulk_create(comps, batch_size=2000)
+                for row in result["extracted"]:
+                    key = (
+                        row.sheet_name,
+                        row.mark_no or "",
+                        getattr(row, "drawing_no", "") or "",
+                    )
 
-        context["imported_bom_id"] = header.id
+                    bom_mark = mark_map[key]
 
+                    comps.append(
+                        BOMComponent(
+                            bom_mark=bom_mark,
+                            part_mark=row.item_no or "",
+                            section_name=row.item_description_raw or "",
+                            grade_name=getattr(row, "grade_raw", "") or "",
+                            part_quantity_per_assy=row.qty_all,
+                            length_mm=row.length_mm,
+                            width_mm=row.width_mm,
+                            engg_weight_kg=row.line_weight_kg,
+                            item_id=row.item_id,
+                            item_description_raw=row.item_description_raw or "",
+                            excel_row=row.excel_row,
+                        )
+                    )
+
+                BOMComponent.objects.bulk_create(comps, batch_size=2000)
+
+            context["imported_bom_id"] = header.id
+
+        return render(request, "procurement/bom_upload.html", context)
+
+    context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
+    context["bom_name"] = request.session.get("bom_name", "")
+    context["project_name"] = request.session.get("project_name", "")
+    context["client_name"] = request.session.get("client_name", "")
+    context["purchase_order_no"] = request.session.get("purchase_order_no", "")
+    context["purchase_order_date"] = request.session.get("purchase_order_date", "")
+    context["delivery_date"] = request.session.get("delivery_date", "")
+    context["order_rate"] = request.session.get("order_rate", "")
+    context["order_value"] = request.session.get("order_value", "")
     return render(request, "procurement/bom_upload.html", context)
-
-context["selected_mappings"] = request.session.get("bom_selected_mappings", {})
-context["bom_name"] = request.session.get("bom_name", "")
-context["project_name"] = request.session.get("project_name", "")
-context["client_name"] = request.session.get("client_name", "")
-context["purchase_order_no"] = request.session.get("purchase_order_no", "")
-context["purchase_order_date"] = request.session.get("purchase_order_date", "")
-context["delivery_date"] = request.session.get("delivery_date", "")
-context["order_rate"] = request.session.get("order_rate", "")
-context["order_value"] = request.session.get("order_value", "")
-return render(request, "procurement/bom_upload.html", context)
 
 
 @staff_member_required
