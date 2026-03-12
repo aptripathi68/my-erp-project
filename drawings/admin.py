@@ -74,13 +74,28 @@ class DrawingAdmin(admin.ModelAdmin):
         "title",
         "project",
         "created_at",
+        "upload_button",
     )
     search_fields = (
         "drawing_no",
         "title",
     )
     list_filter = ("project",)
+
+    def upload_button(self, obj):
+        url = reverse("drawings:upload_from_bom")
+        return format_html(
+            '<a class="button" href="{}?bom={}&drawing_no={}">Upload Drawing</a>',
+            url,
+            obj.project_id or "",
+            obj.drawing_no,
+        )
+
+    upload_button.short_description = "Upload"
+
     inlines = [DrawingSheetInline]
+
+
 
 
 @admin.register(DrawingSheet)
