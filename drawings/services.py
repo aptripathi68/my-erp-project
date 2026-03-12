@@ -53,16 +53,33 @@ def create_or_update_sheet_revision(
         content_type=content_type,
     )
 
-    revision = DrawingSheetRevision.objects.create(
+    revision = DrawingSheetRevision.objects.filter(
         drawing_sheet=sheet,
         revision_no=revision_no,
-        file_key=object_key,
-        original_filename=original_filename,
-        content_type=content_type,
-        file_size=file_size,
-        is_current=False,
-        verification_status=DrawingSheetRevision.STATUS_PENDING,
-        uploaded_by=uploaded_by,
-    )
+    ).first()
+
+    if revision and revision.verification_status == DrawingSheetRevision.STATUS_REJECTED:
+        revision.file_key = object_key
+        revision.original_filename = original_filename
+        revision.content_type = content_type
+        revision.file_size = file_size
+        revision.is_current = False
+        revision.verification_status = DrawingSheetRevision.STATUS_PENDING
+        revision.uploaded_by = uploaded_by
+        revision.verified_by = None
+        revision.verified_at = None
+        revision.save()
+    else:
+        revision = DrawingSheetRevision.objects.create(
+            drawing_sheet=sheet,
+            revision_no=revision_no,
+            file_key=object_key,
+            original_filename=original_filename,
+            content_type=content_type,
+            file_size=file_size,
+            is_current=False,
+            verification_status=DrawingSheetRevision.STATUS_PENDING,
+            uploaded_by=uploaded_by,
+        )
 
     return revision
