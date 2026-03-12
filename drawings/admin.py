@@ -210,7 +210,7 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
 
         if obj.file_key:
             try:
-                preview_url = generate_presigned_download_url(obj.file_key)
+                preview_url = generate_presigned_preview_url(obj.file_key)
                 buttons.append(
                     format_html('<a class="button" href="{}" target="_blank">Preview</a>', preview_url)
                 )
