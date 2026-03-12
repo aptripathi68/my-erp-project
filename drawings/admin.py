@@ -9,6 +9,7 @@ from .models import Drawing, DrawingSheet, DrawingSheetRevision
 from .services import create_or_update_sheet_revision
 from .storage import generate_presigned_download_url
 from django.utils.html import format_html, format_html_join
+from .storage import generate_presigned_preview_url
 
 
 class DrawingSheetRevisionAdminForm(forms.ModelForm):
