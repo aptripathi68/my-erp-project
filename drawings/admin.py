@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect
 from .models import Drawing, DrawingSheet, DrawingSheetRevision
 from .services import create_or_update_sheet_revision
 from .storage import generate_presigned_download_url
+from django.utils.html import format_html, format_html_join
 
 
 class DrawingSheetRevisionAdminForm(forms.ModelForm):
@@ -232,7 +233,7 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
         if not buttons:
             return "-"
 
-        return format_html("{}", " ".join(buttons))
+        return format_html_join(" ", "{}", ((button,) for button in buttons))
 
     action_buttons.short_description = "Actions"
 
