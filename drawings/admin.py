@@ -212,7 +212,7 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
             try:
                 preview_url = generate_presigned_download_url(obj.file_key)
                 buttons.append(
-                    f'<a class="button" href="{preview_url}" target="_blank">Preview</a>'
+                    format_html('<a class="button" href="{}" target="_blank">Preview</a>', preview_url)
                 )
             except Exception:
                 pass
