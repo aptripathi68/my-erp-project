@@ -200,8 +200,8 @@ def bom_upload(request):
                 except ValueError:
                     delivery_date = None
 
-            order_rate = _parse_decimal(order_rate_raw)
-            order_value = _parse_decimal(order_value_raw)
+order_rate = _parse_decimal(order_rate_raw)
+order_value = _parse_decimal(order_value_raw)
 
 with transaction.atomic():
     header = BOMHeader.objects.create(
@@ -247,62 +247,32 @@ with transaction.atomic():
             )
 
     comps = []
-for row in result["extracted"]:
-    key = (
-        row.sheet_name,
-        row.mark_no or "",
-        getattr(row, "drawing_no", "") or "",
-    )
+    for row in result["extracted"]:
+        key = (
+            row.sheet_name,
+            row.mark_no or "",
+            getattr(row, "drawing_no", "") or "",
+        )
 
-    if key not in mark_map:
-        drawing_obj = None
+        bom_mark = mark_map[key]
 
-        from drawings.models import Drawing
-
-        if row.drawing_no:
-            drawing_obj, _ = Drawing.objects.get_or_create(
-                project=header,
-                drawing_no=row.drawing_no.strip()
+        comps.append(
+            BOMComponent(
+                bom_mark=bom_mark,
+                part_mark=row.item_no or "",
+                section_name=row.item_description_raw or "",
+                grade_name=getattr(row, "grade_raw", "") or "",
+                part_quantity_per_assy=row.qty_all,
+                length_mm=row.length_mm,
+                width_mm=row.width_mm,
+                engg_weight_kg=row.line_weight_kg,
+                item_id=row.item_id,
+                item_description_raw=row.item_description_raw or "",
+                excel_row=row.excel_row,
             )
-
-        mark_map[key] = BOMMark.objects.create(
-            bom=header,
-            sheet_name=row.sheet_name,
-            erc_mark=row.mark_no or "",
-            erc_quantity=getattr(row, "erc_quantity", None) or 1,
-            main_section=row.item_description_raw or "",
-            drawing_no=row.drawing_no or "",
-            drawing=drawing_obj,
         )
 
-comps = []
-
-for row in result["extracted"]:
-    key = (
-        row.sheet_name,
-        row.mark_no or "",
-        getattr(row, "drawing_no", "") or "",
-    )
-
-    bom_mark = mark_map[key]
-
-    comps.append(
-        BOMComponent(
-            bom_mark=bom_mark,
-            part_mark=row.item_no or "",
-            section_name=row.item_description_raw or "",
-            grade_name=getattr(row, "grade_raw", "") or "",
-            part_quantity_per_assy=row.qty_all,
-            length_mm=row.length_mm,
-            width_mm=row.width_mm,
-            engg_weight_kg=row.line_weight_kg,
-            item_id=row.item_id,
-            item_description_raw=row.item_description_raw or "",
-            excel_row=row.excel_row,
-        )
-    )
-
-BOMComponent.objects.bulk_create(comps, batch_size=2000)            
+    BOMComponent.objects.bulk_create(comps, batch_size=2000)
 
     context["imported_bom_id"] = header.id
 
