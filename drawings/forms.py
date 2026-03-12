@@ -1,5 +1,7 @@
 from django import forms
+from xlrd import sheet
 
+from drawings.models import DrawingSheetRevision
 from procurement.models import BOMHeader, BOMMark
 
 
@@ -88,15 +90,15 @@ class DrawingUploadSelectForm(forms.Form):
                 ).first()
 
                 if sheet:
-                    exists = DrawingSheetRevision.objects.filter(
+                    existing_revision = DrawingSheetRevision.objects.filter(
                         drawing_sheet=sheet,
                         revision_no=revision_no
-                    ).exists()
+                    ).first()
 
-                    if exists:
+                    if existing_revision and existing_revision.verification_status != DrawingSheetRevision.STATUS_REJECTED:
                         raise forms.ValidationError(
                             "This sheet revision already exists. Please upload a new revision number."
-                        )
+                    )
         if bom and drawing_no:
             exists = BOMMark.objects.filter(
                 bom=bom,
