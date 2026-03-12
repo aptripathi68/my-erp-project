@@ -69,7 +69,34 @@ class DrawingUploadSelectForm(forms.Form):
         cleaned_data = super().clean()
         bom = cleaned_data.get("bom")
         drawing_no = cleaned_data.get("drawing_no")
+        sheet_no = cleaned_data.get("sheet_no")
+        revision_no = cleaned_data.get("revision_no")
 
+        from drawings.models import Drawing, DrawingSheet, DrawingSheetRevision
+
+        if bom and drawing_no and sheet_no and revision_no:
+
+            drawing = Drawing.objects.filter(
+                project=bom,
+                drawing_no=drawing_no
+            ).first()
+
+            if drawing:
+                sheet = DrawingSheet.objects.filter(
+                    drawing=drawing,
+                    sheet_no=sheet_no
+                ).first()
+
+                if sheet:
+                    exists = DrawingSheetRevision.objects.filter(
+                        drawing_sheet=sheet,
+                        revision_no=revision_no
+                    ).exists()
+
+                    if exists:
+                        raise forms.ValidationError(
+                            "This sheet revision already exists. Please upload a new revision number."
+                        )
         if bom and drawing_no:
             exists = BOMMark.objects.filter(
                 bom=bom,
