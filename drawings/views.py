@@ -47,7 +47,21 @@ def upload_from_bom(request):
             )
             return redirect("drawings:revision_detail", pk=revision.pk)
     else:
-        form = DrawingUploadSelectForm()
+        initial = {}
+        bom_id = request.GET.get("bom")
+        drawing_no = request.GET.get("drawing_no")
+
+        if bom_id:
+            try:
+                bom = BOMHeader.objects.get(pk=bom_id)
+                initial["bom"] = bom
+            except BOMHeader.DoesNotExist:
+                pass
+
+        if drawing_no:
+            initial["drawing_no"] = drawing_no
+
+        form = DrawingUploadSelectForm(initial=initial)
 
     return render(
         request,
