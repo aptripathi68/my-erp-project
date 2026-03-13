@@ -354,5 +354,3 @@ class DrawingImportFileAdmin(admin.ModelAdmin):
     list_filter = ("status", "batch")
 
 
-admin.site.register(DrawingImportBatch)
-admin.site.register(DrawingImportFile)
