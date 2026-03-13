@@ -299,26 +299,27 @@
             </section>
 
             <section class="stats">
+
                 <div class="stat-card">
-                    <div class="label">Active Items</div>
-                    <div class="value">{{ item_count }}</div>
+                    <div class="label">Pending Drawing Approvals</div>
+                    <div class="value">{{ pending_drawing_approvals }}</div>
                 </div>
+
+                <div class="stat-card">
+                    <div class="label">Total Drawings Uploaded</div>
+                    <div class="value">{{ drawings_uploaded }}</div>
+                </div>
+
                 <div class="stat-card">
                     <div class="label">Uploaded BOMs</div>
                     <div class="value">{{ bom_count }}</div>
                 </div>
+
                 <div class="stat-card">
-                    <div class="label">GRNs</div>
-                    <div class="value">{{ grn_count }}</div>
+                    <div class="label">Total Marks</div>
+                    <div class="value">{{ total_marks }}</div>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Sites</div>
-                    <div class="value">{{ site_count }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Ledger Entries</div>
-                    <div class="value">{{ ledger_count }}</div>
-                </div>
+
             </section>
 
             <h3 class="section-title">Operational Modules</h3>

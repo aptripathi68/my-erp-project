@@ -5,16 +5,26 @@ from django.shortcuts import render
 from masters.models import Item
 from procurement.models import GRN, Site, BOMHeader
 from ledger.models import StockLedgerEntry
+from drawings.models import DrawingSheetRevision
+from procurement.models import BOMMark
 
 
 @login_required
 def dashboard_home(request):
+
+    drawings_uploaded = DrawingSheetRevision.objects.count()
+
+    pending_drawing_approvals = DrawingSheetRevision.objects.filter(
+        verification_status="PENDING"
+    ).count()
+
+    total_marks = BOMMark.objects.count()
+
     context = {
-        "item_count": Item.objects.filter(is_active=True).count(),
+        "drawings_uploaded": drawings_uploaded,
+        "pending_drawing_approvals": pending_drawing_approvals,
         "bom_count": BOMHeader.objects.count(),
-        "grn_count": GRN.objects.count(),
-        "site_count": Site.objects.filter(is_active=True).count(),
-        "ledger_count": StockLedgerEntry.objects.count(),
+        "total_marks": total_marks,
     }
 
     return render(request, "dashboard/home.html", context)
