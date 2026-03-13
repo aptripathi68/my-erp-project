@@ -8,9 +8,8 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('drawings', '0005_alter_drawingsheet_options_and_more'),
-        ('procurement', '0010_remove_bommark_procurement_mark_no_48c40f_idx_and_more'),
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ("drawings", "0005_alter_drawingsheet_options_and_more"),
+        ("procurement", "0009_add_production_status_to_bommark"),
     ]
 
     operations = [
