@@ -10,6 +10,7 @@ from .services import create_or_update_sheet_revision
 from .storage import generate_presigned_download_url
 from django.utils.html import format_html, format_html_join
 from .storage import generate_presigned_preview_url
+from .models import DrawingImportBatch, DrawingImportFile
 
 
 class DrawingSheetRevisionAdminForm(forms.ModelForm):
@@ -315,3 +316,37 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
             obj.uploaded_by = request.user
 
         super().save_model(request, obj, form, change)
+
+@admin.register(DrawingImportBatch)
+class DrawingImportBatchAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "bom",
+        "batch_name",
+        "source_filename",
+        "uploaded_by",
+        "uploaded_at",
+    )
+    search_fields = ("batch_name", "source_filename")
+    list_filter = ("bom", "uploaded_at")
+
+
+@admin.register(DrawingImportFile)
+class DrawingImportFileAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "batch",
+        "original_filename",
+        "page_number",
+        "detected_drawing_no",
+        "detected_revision_no",
+        "confirmed_drawing_no",
+        "confirmed_revision_no",
+        "status",
+    )
+    search_fields = (
+        "original_filename",
+        "detected_drawing_no",
+        "confirmed_drawing_no",
+    )
+    list_filter = ("status", "batch")
