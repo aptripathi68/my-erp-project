@@ -153,3 +153,76 @@ class DrawingSheetRevision(models.Model):
                 ).exclude(pk=self.pk).update(is_current=False)
 
             super().save(*args, **kwargs)
+class DrawingImportBatch(models.Model):
+    bom = models.ForeignKey(
+        "procurement.BOMHeader",
+        on_delete=models.CASCADE,
+        related_name="drawing_import_batches",
+    )
+    batch_name = models.CharField(max_length=255, blank=True, default="")
+    source_filename = models.CharField(max_length=255, blank=True, default="")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="uploaded_drawing_batches",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return self.batch_name or f"BOM {self.bom_id} Batch {self.id}"
+
+
+class DrawingImportFile(models.Model):
+    STATUS_ANALYZED = "ANALYZED"
+    STATUS_NEEDS_REVIEW = "NEEDS_REVIEW"
+    STATUS_CONFIRMED = "CONFIRMED"
+    STATUS_SKIPPED = "SKIPPED"
+    STATUS_IMPORTED = "IMPORTED"
+
+    STATUS_CHOICES = [
+        (STATUS_ANALYZED, "Analyzed"),
+        (STATUS_NEEDS_REVIEW, "Needs Review"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_SKIPPED, "Skipped"),
+        (STATUS_IMPORTED, "Imported"),
+    ]
+
+    batch = models.ForeignKey(
+        DrawingImportBatch,
+        on_delete=models.CASCADE,
+        related_name="files",
+    )
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+    page_number = models.PositiveIntegerField(default=1)
+
+    detected_drawing_no = models.CharField(max_length=255, blank=True, default="")
+    detected_revision_no = models.CharField(max_length=50, blank=True, default="")
+
+    confirmed_drawing_no = models.CharField(max_length=255, blank=True, default="")
+    confirmed_revision_no = models.CharField(max_length=50, blank=True, default="")
+
+    extracted_text = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_ANALYZED,
+    )
+
+    imported_revision = models.ForeignKey(
+        "drawings.DrawingSheetRevision",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="import_source_files",
+    )
+
+    class Meta:
+        ordering = ["batch", "page_number"]
+
+    def __str__(self):
+        return f"{self.original_filename} - Page {self.page_number}"
