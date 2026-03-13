@@ -322,6 +322,33 @@
 
             </section>
 
+            <h3 class="section-title">Project Production Status</h3>
+
+            <table style="width:100%;border-collapse:collapse;background:white;margin-bottom:30px;">
+            <tr style="background:#2d686f;color:white;">
+            <th style="padding:10px;">Project</th>
+            <th>Total Marks</th>
+            <th>Planning Pending</th>
+            <th>Fabrication</th>
+            <th>Painting</th>
+            <th>Dispatch Ready</th>
+            <th>Dispatched</th>
+            </tr>
+
+            {% for p in projects %}
+            <tr style="border-bottom:1px solid #ddd;">
+            <td style="padding:10px;"><b>{{ p.project }}</b></td>
+            <td align="center">{{ p.total }}</td>
+            <td align="center">{{ p.planning }}</td>
+            <td align="center">{{ p.fabrication }}</td>
+            <td align="center">{{ p.painting }}</td>
+            <td align="center">{{ p.ready }}</td>
+            <td align="center">{{ p.dispatched }}</td>
+            </tr>
+            {% endfor %}
+
+            </table>
+
             <h3 class="section-title">Operational Modules</h3>
 
             <section class="module-grid">
