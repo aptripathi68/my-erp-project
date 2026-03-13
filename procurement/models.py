@@ -203,6 +203,21 @@ class BOMMark(models.Model):
     def __str__(self):
         return self.erc_mark
 
+class ProductionStatus(models.TextChoices):
+    PLANNING_PENDING = "PLANNING_PENDING", "Planning Pending"
+    RELEASED_TO_PRODUCTION = "RELEASED_TO_PRODUCTION", "Released to Production"
+    IN_FABRICATION = "IN_FABRICATION", "In Fabrication"
+    FABRICATION_DONE = "FABRICATION_DONE", "Fabrication Done"
+    IN_PAINTING = "IN_PAINTING", "In Painting"
+    PAINTING_DONE = "PAINTING_DONE", "Painting Done"
+    DISPATCH_READY = "DISPATCH_READY", "Dispatch Ready"
+    DISPATCHED = "DISPATCHED", "Dispatched"
+
+production_status = models.CharField(
+    max_length=40,
+    choices=ProductionStatus.choices,
+    default=ProductionStatus.PLANNING_PENDING,
+)
 
 class BOMComponent(models.Model):
     """
