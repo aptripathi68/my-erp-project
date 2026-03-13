@@ -1,4 +1,6 @@
 from django.contrib import admin
+from .models import BOMMark
+
 
 from .models import (
     Site,
