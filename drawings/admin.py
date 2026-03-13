@@ -11,6 +11,8 @@ from .storage import generate_presigned_download_url
 from django.utils.html import format_html, format_html_join
 from .storage import generate_presigned_preview_url
 from .models import DrawingImportBatch, DrawingImportFile
+from django.contrib import admin
+from .models import *
 
 
 class DrawingSheetRevisionAdminForm(forms.ModelForm):
@@ -350,3 +352,7 @@ class DrawingImportFileAdmin(admin.ModelAdmin):
         "confirmed_drawing_no",
     )
     list_filter = ("status", "batch")
+
+
+admin.site.register(DrawingImportBatch)
+admin.site.register(DrawingImportFile)
