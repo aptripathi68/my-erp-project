@@ -10,6 +10,8 @@ from .storage import generate_presigned_preview_url, generate_presigned_download
 from django.http import JsonResponse
 from procurement.models import BOMHeader, BOMMark
 from .forms import DrawingUploadSelectForm, BulkDrawingUploadForm
+from .models import DrawingSheetRevision, DrawingImportBatch
+from .services import create_or_update_sheet_revision, process_drawing_bundle
 
 @login_required
 def home(request):
@@ -156,8 +158,24 @@ def bulk_upload(request):
     if request.method == "POST":
         form = BulkDrawingUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            messages.success(request, "Bulk drawing upload batch received. Analysis engine will be connected next.")
-            return redirect("drawings:bulk_upload")
+            bom = form.cleaned_data["bom"]
+            upload_file = form.cleaned_data["upload_file"]
+            batch_name = form.cleaned_data.get("batch_name") or ""
+
+            batch = DrawingImportBatch.objects.create(
+                bom=bom,
+                batch_name=batch_name,
+                source_filename=upload_file.name,
+                uploaded_by=request.user,
+            )
+
+            process_drawing_bundle(batch=batch, uploaded_file=upload_file)
+
+            messages.success(
+                request,
+                "Bulk drawing upload batch created successfully. File analysis records have been generated.",
+            )
+            return redirect("admin:drawings_drawingimportbatch_change", batch.pk)
     else:
         form = BulkDrawingUploadForm()
 
