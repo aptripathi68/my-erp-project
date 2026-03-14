@@ -46,5 +46,12 @@ urlpatterns = [
         views.bom_drawing_numbers,
         name="bom_drawing_numbers"
     ),
+        
+    # Bulk drawing upload (ZIP / PDF bundle)
+    path(
+        "bulk-upload/",
+        views.bulk_upload,
+        name="bulk_upload"
+    ),
 
 ]

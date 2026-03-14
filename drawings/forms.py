@@ -108,3 +108,22 @@ class DrawingUploadSelectForm(forms.Form):
                 raise forms.ValidationError("Selected drawing number does not belong to the selected BOM.")
 
         return cleaned_data
+    
+class BulkDrawingUploadForm(forms.Form):
+    bom = forms.ModelChoiceField(
+        queryset=BOMHeader.objects.all().order_by("-id"),
+        label="Select BOM Record",
+        help_text="Choose the BOM against which this drawing batch is being uploaded.",
+    )
+
+    upload_file = forms.FileField(
+        label="ZIP / PDF Bundle",
+        help_text="Upload one ZIP file or one multi-page PDF bundle.",
+    )
+
+    batch_name = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Batch Name",
+        help_text="Optional name for this upload batch.",
+    )

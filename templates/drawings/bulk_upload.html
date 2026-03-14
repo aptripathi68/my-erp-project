@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+
+<h1>Bulk Drawing Upload</h1>
+
+<div style="max-width:700px;margin-top:20px">
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <fieldset style="border:1px solid #ddd;padding:20px;border-radius:6px">
+
+        <div style="margin-bottom:15px">
+            <label><b>Select BOM</b></label><br>
+            {{ form.bom }}
+        </div>
+
+        <div style="margin-bottom:15px">
+            <label><b>Batch Name</b></label><br>
+            {{ form.batch_name }}
+        </div>
+
+        <div style="margin-bottom:15px">
+            <label><b>Upload ZIP / PDF Bundle</b></label><br>
+            {{ form.upload_file }}
+        </div>
+
+        <button type="submit" class="button default">
+            Upload Drawing Bundle
+        </button>
+
+    </fieldset>
+
+</form>
+
+</div>
+
+{% endblock %}

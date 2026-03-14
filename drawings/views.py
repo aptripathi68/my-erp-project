@@ -9,6 +9,7 @@ from .services import create_or_update_sheet_revision
 from .storage import generate_presigned_preview_url, generate_presigned_download_url
 from django.http import JsonResponse
 from procurement.models import BOMHeader, BOMMark
+from .forms import DrawingUploadSelectForm, BulkDrawingUploadForm
 
 @login_required
 def home(request):
@@ -150,3 +151,21 @@ def bom_drawing_numbers(request):
             results = []
 
     return JsonResponse({"drawing_numbers": results})
+@login_required
+def bulk_upload(request):
+    if request.method == "POST":
+        form = BulkDrawingUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            messages.success(request, "Bulk drawing upload batch received. Analysis engine will be connected next.")
+            return redirect("drawings:bulk_upload")
+    else:
+        form = BulkDrawingUploadForm()
+
+    return render(
+        request,
+        "drawings/bulk_upload.html",
+        {
+            "form": form,
+            "page_title": "Bulk Drawing Upload",
+        },
+    )
