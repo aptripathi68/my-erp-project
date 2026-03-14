@@ -134,5 +134,38 @@ def create_or_update_sheet_revision(
                 page_number=1,
                 status="UPLOADED"
             )
+    def process_drawing_bundle(batch: DrawingImportBatch, uploaded_file):
+        temp_dir = tempfile.mkdtemp()
+        file_path = os.path.join(temp_dir, uploaded_file.name)
 
+        with open(file_path, "wb+") as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        if uploaded_file.name.lower().endswith(".zip"):
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+
+            page_counter = 1
+
+            for root, dirs, files in os.walk(temp_dir):
+                for f in files:
+                    if not f.lower().endswith(".pdf"):
+                        continue
+
+                    DrawingImportFile.objects.create(
+                        batch=batch,
+                        original_filename=f,
+                        page_number=page_counter,
+                        status=DrawingImportFile.STATUS_ANALYZED,
+                    )
+                    page_counter += 1
+
+        elif uploaded_file.name.lower().endswith(".pdf"):
+            DrawingImportFile.objects.create(
+                batch=batch,
+                original_filename=uploaded_file.name,
+                page_number=1,
+                status=DrawingImportFile.STATUS_ANALYZED,
+            )
     return revision
