@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("sheet_name", models.CharField(max_length=200)),
-                ("header_signature", models.CharField(db_index=True, max_length=1000)),
+                ("header_signature", models.CharField(db_index=True, max_length=255)),
                 ("mapping", models.JSONField(default=dict)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
@@ -45,9 +45,5 @@ class Migration(migrations.Migration):
                 "ordering": ["-updated_at"],
                 "unique_together": {("sheet_name", "header_signature")},
             },
-        ),
-        migrations.AddIndex(
-            model_name="bomcolumnmapping",
-            index=models.Index(fields=["sheet_name", "header_signature"], name="procurement_b_sheet_n_0a36bc_idx"),
         ),
     ]

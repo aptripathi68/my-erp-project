@@ -385,7 +385,7 @@ class BOMColumnMapping(models.Model):
     """Reusable column mapping for recurring BOM formats."""
 
     sheet_name = models.CharField(max_length=200)
-    header_signature = models.CharField(max_length=1000, db_index=True)
+    header_signature = models.CharField(max_length=255, db_index=True)
     mapping = models.JSONField(default=dict)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
