@@ -16,8 +16,26 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 
 from drawings.models import Drawing
-from .models import BOMComponent, BOMHeader, BOMMark
-from .services.bom_importer import validate_and_extract_workbook, workbook_sheet_headers
+from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
+from .services.bom_importer import (
+    build_header_signature,
+    validate_and_extract_workbook,
+    workbook_sheet_headers,
+)
+
+
+MAPPING_FIELDS = (
+    "item_description",
+    "grade",
+    "mark_no",
+    "erc_quantity",
+    "drawing_no",
+    "item_no",
+    "qty_all",
+    "length",
+    "width",
+    "unit_wt",
+)
 
 
 def _session_safe_errors(errors):
@@ -78,6 +96,67 @@ def _has_any_mapping(sheet_mappings):
     return False
 
 
+def _clean_sheet_mapping(mapping):
+    if not isinstance(mapping, dict):
+        return {}
+    return {
+        field: (mapping.get(field) or "").strip()
+        for field in MAPPING_FIELDS
+    }
+
+
+def _load_persisted_mappings(headers_info):
+    loaded = {}
+
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+
+        signature = info.get("header_signature") or build_header_signature(info.get("headers", []))
+        if not signature:
+            continue
+
+        saved = (
+            BOMColumnMapping.objects
+            .filter(sheet_name=sheet_name, header_signature=signature)
+            .order_by("-updated_at")
+            .first()
+        )
+        if saved and saved.mapping:
+            loaded[sheet_name] = _clean_sheet_mapping(saved.mapping)
+
+    return loaded
+
+
+def _persist_sheet_mappings(headers_info, sheet_mappings, user):
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+
+        mapping = _clean_sheet_mapping((sheet_mappings or {}).get(sheet_name, {}))
+        if not any(mapping.values()):
+            continue
+
+        signature = info.get("header_signature") or build_header_signature(info.get("headers", []))
+        if not signature:
+            continue
+
+        obj, created = BOMColumnMapping.objects.get_or_create(
+            sheet_name=sheet_name,
+            header_signature=signature,
+            defaults={
+                "mapping": mapping,
+                "created_by": user,
+                "updated_by": user,
+            },
+        )
+
+        if not created:
+            obj.mapping = mapping
+            obj.updated_by = user
+            obj.save(update_fields=["mapping", "updated_by", "updated_at"])
+
+
 @staff_member_required
 def bom_upload(request):
     context = {}
@@ -117,6 +196,11 @@ def bom_upload(request):
             if not info.get("detected"):
                 continue
             auto_mappings[sheet_name] = info.get("mapping", {}) if "mapping" in info else {}
+
+        persisted_mappings = _load_persisted_mappings(headers_info)
+        for sheet_name, saved_mapping in persisted_mappings.items():
+            if any(saved_mapping.values()):
+                auto_mappings[sheet_name] = saved_mapping
 
         request.session["bom_selected_mappings"] = auto_mappings
 
@@ -161,6 +245,9 @@ def bom_upload(request):
             request.session["bom_selected_mappings"] = user_sheet_mappings
         else:
             user_sheet_mappings = session_mappings
+
+        if _has_any_mapping(user_sheet_mappings):
+            _persist_sheet_mappings(headers_info, user_sheet_mappings, request.user)
 
         result = validate_and_extract_workbook(
             tmp_path,

@@ -379,3 +379,37 @@ class FabricationJobComponent(models.Model):
 
     def __str__(self):
         return f"{self.fabrication_job.job_mark} - {self.part_mark or self.section_name}"
+
+
+class BOMColumnMapping(models.Model):
+    """Reusable column mapping for recurring BOM formats."""
+
+    sheet_name = models.CharField(max_length=200)
+    header_signature = models.CharField(max_length=1000, db_index=True)
+    mapping = models.JSONField(default=dict)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_bom_column_mappings",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_bom_column_mappings",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        unique_together = [("sheet_name", "header_signature")]
+        indexes = [
+            models.Index(fields=["sheet_name", "header_signature"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sheet_name} ({self.updated_at:%Y-%m-%d})"

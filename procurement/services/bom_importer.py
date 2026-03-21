@@ -235,6 +235,11 @@ def build_user_col_map(headers: List[str], user_mapping: Dict[str, str]) -> Dict
     return col_map
 
 
+def build_header_signature(headers: List[str]) -> str:
+    normalized = [_h(h) for h in headers if _h(h)]
+    return "|".join(normalized)
+
+
 def get_cell(row: Tuple[Any], col_map: Dict[str, int], key: str):
     idx = col_map.get(key)
     if idx is None:
@@ -268,10 +273,15 @@ def workbook_sheet_headers(xlsx_path: str, max_scan_rows: int = 40) -> Dict[str,
             }
             continue
 
+        auto_col_map = build_col_map(headers)
+        auto_mapping = {k: headers[idx] for k, idx in auto_col_map.items() if idx < len(headers)}
+
         result[sheet_name] = {
             "detected": True,
             "header_row": header_row,
             "headers": headers,
+            "header_signature": build_header_signature(headers),
+            "mapping": auto_mapping,
         }
 
     return result
@@ -424,6 +434,8 @@ def validate_and_extract_workbook(
             
             grade_norm = normalize_grade_name(grade_raw)
             grade_norm = normalize_grade_name(grade_raw.replace(";", " ").replace(",", " "))
+
+            it = item_by_section_grade.get((section_norm, grade_norm))
 
             if not it:
                 section_matches = [

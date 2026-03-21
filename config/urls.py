@@ -3,10 +3,24 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
-from config.views import dashboard_home, user_logout
+from config.views import (
+    admin_bom_upload,
+    admin_bulk_drawing_upload,
+    admin_drawing_upload,
+    dashboard_home,
+    user_logout,
+)
 
 urlpatterns = [
     path("", dashboard_home, name="dashboard_home"),
+
+    path("admin/bom-upload/", admin_bom_upload, name="admin_bom_upload"),
+    path("admin/drawing-upload/", admin_drawing_upload, name="admin_drawing_upload"),
+    path(
+        "admin/bulk-drawing-upload/",
+        admin_bulk_drawing_upload,
+        name="admin_bulk_drawing_upload",
+    ),
 
     path("admin/", admin.site.urls),
 

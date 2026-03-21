@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import logout
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 from masters.models import Item
 from procurement.models import GRN, Site, BOMHeader, BOMMark
@@ -52,3 +53,18 @@ def dashboard_home(request):
 def user_logout(request):
     logout(request)
     return render(request, "registration/logout_done.html")
+
+
+@staff_member_required
+def admin_bom_upload(request):
+    return redirect("procurement:bom_upload")
+
+
+@staff_member_required
+def admin_drawing_upload(request):
+    return redirect("drawings:upload_from_bom")
+
+
+@staff_member_required
+def admin_bulk_drawing_upload(request):
+    return redirect("drawings:bulk_upload")

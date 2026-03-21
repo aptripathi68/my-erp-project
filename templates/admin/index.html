@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.quick-actions {
+    margin: 0 0 24px;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.quick-actions h2 {
+    margin: 0;
+    padding: 12px 14px;
+    background: #eef3f7;
+    border-bottom: 1px solid #d9e2ec;
+    color: #24313d;
+}
+
+.quick-actions ul {
+    list-style: none;
+    margin: 0;
+    padding: 10px 14px;
+}
+
+.quick-actions li {
+    margin: 8px 0;
+}
+
+.quick-actions a {
+    font-weight: 600;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="quick-actions module">
+        <h2>Upload Shortcuts</h2>
+        <ul>
+            <li><a href="{% url 'admin_bom_upload' %}">BOM Upload</a></li>
+            <li><a href="{% url 'admin_drawing_upload' %}">Drawing Upload</a></li>
+            <li><a href="{% url 'admin_bulk_drawing_upload' %}">Bulk Drawing Upload</a></li>
+        </ul>
+    </div>
+
+    {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}
