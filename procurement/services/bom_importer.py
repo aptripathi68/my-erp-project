@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+import hashlib
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -237,7 +238,8 @@ def build_user_col_map(headers: List[str], user_mapping: Dict[str, str]) -> Dict
 
 def build_header_signature(headers: List[str]) -> str:
     normalized = [_h(h) for h in headers if _h(h)]
-    return "|".join(normalized)
+    raw = "|".join(normalized)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def get_cell(row: Tuple[Any], col_map: Dict[str, int], key: str):
