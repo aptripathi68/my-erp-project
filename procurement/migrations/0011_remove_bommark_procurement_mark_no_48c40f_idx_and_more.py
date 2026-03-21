@@ -4,6 +4,37 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def drop_legacy_bommark_indexes(apps, schema_editor):
+    connection = schema_editor.connection
+    if connection.vendor != "mysql":
+        return
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT index_name
+            FROM information_schema.statistics
+            WHERE table_schema = DATABASE()
+              AND table_name = 'procurement_bommark'
+              AND index_name IN (
+                'procurement_mark_no_48c40f_idx',
+                'procurement_sheet_n_4d86df_idx'
+              )
+            """
+        )
+        existing = {row[0] for row in cursor.fetchall()}
+
+        if "procurement_mark_no_48c40f_idx" in existing:
+            cursor.execute("DROP INDEX procurement_mark_no_48c40f_idx ON procurement_bommark")
+
+        if "procurement_sheet_n_4d86df_idx" in existing:
+            cursor.execute("DROP INDEX procurement_sheet_n_4d86df_idx ON procurement_bommark")
+
+
+def noop_reverse(apps, schema_editor):
+    return
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -12,14 +43,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveIndex(
-            model_name='bommark',
-            name='procurement_mark_no_48c40f_idx',
-        ),
-        migrations.RemoveIndex(
-            model_name='bommark',
-            name='procurement_sheet_n_4d86df_idx',
-        ),
+        migrations.RunPython(drop_legacy_bommark_indexes, noop_reverse),
         migrations.AddIndex(
             model_name='bomcolumnmapping',
             index=models.Index(fields=['sheet_name', 'header_signature'], name='procurement_sheet_n_1832c3_idx'),
