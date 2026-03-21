@@ -41,6 +41,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://kalpadeep.in",
     "http://www.kalpadeep.in",
     "https://www.kalpadeep.in",
+    "http://erp.kalpadeep.in",
+    "https://erp.kalpadeep.in",
 ]
 
 # -------------------------------------------------------------------
