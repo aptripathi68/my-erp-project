@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -475,6 +476,10 @@ def import_tentative_bom(request, project_id: int):
     headers_info = request.session.get(_tentative_key(project.id, "headers_info")) or {}
     if not tmp_path or not headers_info:
         messages.error(request, "Please upload the tentative BOM file first.")
+        return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
+    if not os.path.exists(tmp_path):
+        _clear_tentative_bom_session(request, project.id)
+        messages.error(request, "The uploaded tentative BOM file is no longer available on the server. Please upload it again.")
         return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
 
     posted_mappings = _build_tentative_user_sheet_mappings(request, headers_info)
