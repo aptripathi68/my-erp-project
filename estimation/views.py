@@ -525,6 +525,7 @@ def import_tentative_bom(request, project_id: int):
             return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
 
         project.raw_material_lines.all().delete()
+        created_count = 0
         for index, row in enumerate(result["aggregated_lines"], start=1):
             EstimateRawMaterialLine.objects.create(
                 project=project,
@@ -532,13 +533,14 @@ def import_tentative_bom(request, project_id: int):
                 quantity_mt=row["quantity_mt"],
                 sort_order=index,
             )
+            created_count += 1
         sync_project_supplier_rates(project)
         recalculate_cost_heads(project)
         project.status = EstimateProject.Status.RATE_FINALIZATION
         project.updated_by = request.user
         project.save(update_fields=["status", "updated_by", "updated_at"])
         _clear_tentative_bom_session(request, project.id)
-        messages.success(request, "Tentative BOM imported and raw material selection updated.")
+        messages.success(request, f"Tentative BOM imported and {created_count} raw material line(s) created.")
         return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
 
     if result["ok"]:

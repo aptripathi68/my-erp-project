@@ -460,6 +460,7 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(project.raw_material_lines.count(), 1)
         self.assertEqual(project.raw_material_lines.first().quantity_mt, Decimal("2.000"))
+        self.assertContains(response, "Tentative BOM imported and 1 raw material line(s) created.")
 
     def test_planning_cannot_add_supplier_column(self):
         project = EstimateProject.objects.create(
