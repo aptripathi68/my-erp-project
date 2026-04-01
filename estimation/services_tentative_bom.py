@@ -157,6 +157,31 @@ def get_cell(row: Tuple[Any], col_map: Dict[str, int], key: str):
     return row[idx]
 
 
+def _preferred_sheet_names(sheet_info: Dict[str, Any]) -> set[str]:
+    detected = {
+        sheet_name: info
+        for sheet_name, info in sheet_info.items()
+        if info.get("detected")
+    }
+    if not detected:
+        return set()
+
+    rich_weight_sheets = {
+        sheet_name
+        for sheet_name, info in detected.items()
+        if any(h in {"drg gross wt.", "drg gross wt", "drg wt.", "drg wt"} for h in info.get("headers", []))
+    }
+    if rich_weight_sheets:
+        return rich_weight_sheets
+
+    max_headers = max(sum(1 for h in info.get("headers", []) if h) for info in detected.values())
+    return {
+        sheet_name
+        for sheet_name, info in detected.items()
+        if sum(1 for h in info.get("headers", []) if h) == max_headers
+    }
+
+
 def workbook_sheet_headers(xlsx_path: str, max_scan_rows: int = 40) -> Dict[str, Any]:
     wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
     result: Dict[str, Any] = {}
@@ -177,6 +202,10 @@ def workbook_sheet_headers(xlsx_path: str, max_scan_rows: int = 40) -> Dict[str,
             "header_signature": build_header_signature(headers),
             "mapping": auto_mapping,
         }
+    preferred = _preferred_sheet_names(result)
+    if preferred:
+        for sheet_name, info in result.items():
+            info["preferred"] = sheet_name in preferred
     return result
 
 
@@ -185,6 +214,8 @@ def validate_and_extract_tentative_bom(
     user_sheet_mappings: Optional[Dict[str, Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    sheet_headers = workbook_sheet_headers(xlsx_path)
+    preferred = _preferred_sheet_names(sheet_headers)
 
     items = list(
         Item.objects.select_related("grade")
@@ -213,6 +244,9 @@ def validate_and_extract_tentative_bom(
 
     for sheet_name in wb.sheetnames:
         if any(x in sheet_name.lower() for x in IGNORE_SHEET_NAME_CONTAINS):
+            continue
+        if preferred and sheet_name not in preferred:
+            detected[sheet_name] = {"skipped": True, "reason": "ignored_in_favour_of_richer_bom_sheet"}
             continue
         ws = wb[sheet_name]
         header_row, headers = detect_header_row(ws)
