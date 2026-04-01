@@ -492,19 +492,19 @@ def import_tentative_bom(request, project_id: int):
         _persist_tentative_mappings(headers_info, selected_mappings, request.user)
 
     result = validate_and_extract_tentative_bom(tmp_path, user_sheet_mappings=selected_mappings)
+    total_quantity_mt = sum((row["quantity_mt"] for row in result.get("aggregated_lines", [])), Decimal("0"))
     request.session[_tentative_key(project.id, "result")] = {
         "ok": result["ok"],
         "errors": _session_safe_errors(result.get("errors", [])),
         "sheets_used": result.get("sheets_used", 0),
         "matched_rows": result.get("matched_rows", 0),
+        "total_quantity_mt": str(total_quantity_mt.quantize(Decimal("0.001"))),
         "aggregated_lines": [
             {
                 "item_description": row["item"].item_description,
                 "grade_name": row["item"].grade.name,
                 "section_name": row["item"].section_name,
-                "gross_weight_kg": str(row["gross_weight_kg"]),
                 "quantity_mt": str(row["quantity_mt"]),
-                "source_rows": row["source_rows"],
             }
             for row in result.get("aggregated_lines", [])
         ],

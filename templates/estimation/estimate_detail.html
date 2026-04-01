@@ -230,9 +230,7 @@
                             <th>Item Description</th>
                             <th>Grade Name</th>
                             <th>Section Name</th>
-                            <th>Total Gross Weight (KG)</th>
                             <th>Quantity in MT</th>
-                            <th>Source Rows</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -241,11 +239,13 @@
                             <td>{{ row.item_description }}</td>
                             <td>{{ row.grade_name }}</td>
                             <td>{{ row.section_name }}</td>
-                            <td>{{ row.gross_weight_kg }}</td>
                             <td>{{ row.quantity_mt }}</td>
-                            <td>{{ row.source_rows }}</td>
                         </tr>
                         {% endfor %}
+                        <tr>
+                            <td colspan="3"><strong>Total Quantity</strong></td>
+                            <td><strong>{{ tentative_result.total_quantity_mt }}</strong></td>
+                        </tr>
                     </tbody>
                 </table>
                 {% endif %}
