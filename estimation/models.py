@@ -104,6 +104,13 @@ class EstimateProject(models.Model):
             self.inquiry_no = f"{prefix}{last_number + 1:05d}"
         super().save(*args, **kwargs)
 
+    @property
+    def financial_year_label(self) -> str:
+        base_date = self.purchase_order_date or self.created_at.date()
+        start_year = base_date.year if base_date.month >= 4 else base_date.year - 1
+        end_year = start_year + 1
+        return f"FY {start_year}-{str(end_year)[-2:]}"
+
 
 class EstimateProjectSupplier(models.Model):
     project = models.ForeignKey(

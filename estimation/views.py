@@ -7,8 +7,8 @@ from pathlib import Path
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponse
 from django.utils import timezone
 from django.conf import settings
 
@@ -95,16 +95,65 @@ def _default_active_sheet(user) -> str:
     return "raw-material-selection"
 
 
+def _project_financial_year_label(project) -> str:
+    return project.financial_year_label
+
+
 @login_required
 def estimate_list(request):
-    projects = EstimateProject.objects.all().prefetch_related("project_suppliers")
+    projects = list(EstimateProject.objects.all().prefetch_related("project_suppliers"))
+    fy_choices = sorted({_project_financial_year_label(project) for project in projects}, reverse=True)
+    selected_fy = (request.GET.get("fy") or "").strip()
+    search = (request.GET.get("q") or "").strip()
+
+    if selected_fy:
+        projects = [project for project in projects if _project_financial_year_label(project) == selected_fy]
+
+    if search:
+        s = search.lower()
+        projects = [
+            project for project in projects
+            if s in project.inquiry_no.lower()
+            or s in project.client_name.lower()
+            or s in project.project_name.lower()
+            or s in (project.work_order_no or "").lower()
+            or s in (project.purchase_order_no or "").lower()
+        ]
+
+    quotation_projects = [
+        project for project in projects
+        if project.status in {
+            EstimateProject.Status.DRAFT,
+            EstimateProject.Status.RATE_FINALIZATION,
+            EstimateProject.Status.QUOTATION_PENDING,
+        }
+    ]
+    open_budget_projects = [
+        project for project in projects
+        if project.status in {
+            EstimateProject.Status.QUOTATION_FINALIZED,
+            EstimateProject.Status.PO_RECEIVED,
+            EstimateProject.Status.IN_EXECUTION,
+        }
+    ]
+    closed_budget_projects = [
+        project for project in projects
+        if project.status == EstimateProject.Status.CLOSED
+    ]
+
     return render(
         request,
         "estimation/estimate_list.html",
         {
-            "projects": projects,
+            "quotation_projects": quotation_projects,
+            "open_budget_projects": open_budget_projects,
+            "closed_budget_projects": closed_budget_projects,
+            "fy_choices": fy_choices,
+            "selected_fy": selected_fy,
+            "search": search,
             "can_create_estimate": _can_create_estimate(request.user),
             "can_delete_estimate": _can_delete_estimate(request.user),
+            "can_manage_accounts": _can_manage_accounts(request.user),
         },
     )
 
@@ -373,6 +422,9 @@ def mark_po_received(request, project_id: int):
     if not _can_manage_accounts(request.user):
         messages.error(request, "You do not have permission to mark PO received.")
         return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.status == EstimateProject.Status.CLOSED:
+        messages.error(request, "Closed budgets cannot be modified.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
 
     project.work_order_no = (request.POST.get("work_order_no") or "").strip()
     project.purchase_order_no = (request.POST.get("purchase_order_no") or "").strip()
@@ -395,6 +447,9 @@ def add_expense(request, project_id: int):
         return redirect("estimation:estimate_detail", project_id=project.id)
     if not _can_manage_accounts(request.user):
         messages.error(request, "You do not have permission to add expenditures.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.status == EstimateProject.Status.CLOSED:
+        messages.error(request, "Closed budgets cannot accept new expenditures.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
     budget = get_object_or_404(project.budget_heads.all(), pk=request.POST.get("budget_head_id"))
@@ -425,6 +480,9 @@ def approve_expense(request, expense_id: int):
     if request.user.role not in {"Admin", "Management"}:
         messages.error(request, "Only management can approve expenditures.")
         return redirect("estimation:estimate_detail", project_id=expense.budget_head.project_id)
+    if expense.budget_head.project.status == EstimateProject.Status.CLOSED:
+        messages.error(request, "Closed budgets cannot be modified.")
+        return redirect("estimation:estimate_detail", project_id=expense.budget_head.project_id)
 
     expense.status = EstimateExpense.Status.APPROVED
     expense.approved_by = request.user
@@ -433,6 +491,25 @@ def approve_expense(request, expense_id: int):
     refresh_budget_totals(expense.budget_head.project)
     messages.success(request, "Expenditure approved.")
     return redirect("estimation:estimate_detail", project_id=expense.budget_head.project_id)
+
+
+@login_required
+def close_budget(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_accounts(request.user):
+        messages.error(request, "Only Accounts, Management, or Admin can close a budget.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not project.work_order_no:
+        messages.error(request, "A work order number is required before closing a budget.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    project.status = EstimateProject.Status.CLOSED
+    project.updated_by = request.user
+    project.save(update_fields=["status", "updated_by", "updated_at"])
+    messages.success(request, "Budget closed and moved to closed budgets.")
+    return redirect("estimation:estimate_list")
 
 
 @login_required

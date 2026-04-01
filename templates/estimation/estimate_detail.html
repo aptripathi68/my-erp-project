@@ -336,7 +336,9 @@
                 <label for="delivery_date">Delivery Date</label>
                 <input id="delivery_date" type="date" name="delivery_date" value="{{ project.delivery_date|date:'Y-m-d' }}">
 
+                {% if can_manage_accounts and project.status != "CLOSED" %}
                 <button class="btn btn-warning" type="submit">Save PO and Generate Budgets</button>
+                {% endif %}
             </form>
 
             <form method="post" action="{% url 'estimation:add_expense' project.id %}">
@@ -361,11 +363,20 @@
                 <label for="description">Description</label>
                 <input id="description" type="text" name="description">
 
-                {% if can_manage_accounts %}
+                {% if can_manage_accounts and project.status != "CLOSED" %}
                 <button class="btn btn-primary" type="submit">Record Expenditure</button>
                 {% endif %}
             </form>
         </div>
+
+        {% if can_manage_accounts and project.work_order_no and project.status != "CLOSED" %}
+        <div style="margin-top:16px;">
+            <form method="post" action="{% url 'estimation:close_budget' project.id %}" onsubmit="return confirm('Close this budget and move it to Closed Budgets?');">
+                {% csrf_token %}
+                <button class="btn btn-secondary" type="submit">Close Budget</button>
+            </form>
+        </div>
+        {% endif %}
 
         <table style="margin-top:16px;">
             <thead>

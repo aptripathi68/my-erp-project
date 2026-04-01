@@ -17,6 +17,10 @@
         .messages{margin-bottom:16px;}
         .message{padding:12px 14px;border-radius:8px;margin-bottom:8px;background:#eef6fa;}
         .action-cell{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+        .filters{display:grid;grid-template-columns:1fr 220px;gap:12px;margin-bottom:18px;}
+        .filters input,.filters select{width:100%;padding:10px 12px;border:1px solid #cfd8df;border-radius:8px;box-sizing:border-box;}
+        .section-title{margin:0 0 14px;color:#2d686f;}
+        .section-gap{margin-top:22px;}
     </style>
 </head>
 <body>
@@ -42,6 +46,17 @@
     {% endif %}
 
     <div class="card">
+        <form method="get" class="filters">
+            <input type="text" name="q" value="{{ search }}" placeholder="Search by inquiry, client, project, work order or PO">
+            <select name="fy" onchange="this.form.submit()">
+                <option value="">All Financial Years</option>
+                {% for fy in fy_choices %}
+                <option value="{{ fy }}" {% if selected_fy == fy %}selected{% endif %}>{{ fy }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <h2 class="section-title">Quotation Section</h2>
         <table>
             <thead>
                 <tr>
@@ -55,7 +70,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for project in projects %}
+                {% for project in quotation_projects %}
                 <tr>
                     <td>{{ project.inquiry_no }}</td>
                     <td>{{ project.client_name }}</td>
@@ -75,8 +90,76 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7">No estimation inquiries created yet.</td>
+                    <td colspan="7">No quotations found for the selected financial year.</td>
                 </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2 class="section-title section-gap">Open Budgets</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Financial Year</th>
+                    <th>Inquiry No</th>
+                    <th>Work Order No</th>
+                    <th>Client</th>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Budget Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in open_budget_projects %}
+                <tr>
+                    <td>{{ project.financial_year_label }}</td>
+                    <td>{{ project.inquiry_no }}</td>
+                    <td>{{ project.work_order_no|default:"-" }}</td>
+                    <td>{{ project.client_name }}</td>
+                    <td>{{ project.project_name }}</td>
+                    <td>{{ project.get_status_display }}</td>
+                    <td class="action-cell">
+                        <a href="{% url 'estimation:estimate_detail' project.id %}?sheet=budget-monitoring">Open Budget</a>
+                        {% if can_manage_accounts and project.work_order_no %}
+                        <form method="post" action="{% url 'estimation:close_budget' project.id %}" onsubmit="return confirm('Close this budget and move it to Closed Budgets?');">
+                            {% csrf_token %}
+                            <button class="btn btn-secondary" type="submit">Close Budget</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">No open budgets found for the selected financial year.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2 class="section-title section-gap">Closed Budgets</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Financial Year</th>
+                    <th>Inquiry No</th>
+                    <th>Work Order No</th>
+                    <th>Client</th>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in closed_budget_projects %}
+                <tr>
+                    <td>{{ project.financial_year_label }}</td>
+                    <td>{{ project.inquiry_no }}</td>
+                    <td>{{ project.work_order_no|default:"-" }}</td>
+                    <td>{{ project.client_name }}</td>
+                    <td>{{ project.project_name }}</td>
+                    <td>{{ project.get_status_display }}</td>
+                    <td><a href="{% url 'estimation:estimate_detail' project.id %}?sheet=budget-monitoring">View Closed Budget</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">No closed budgets found for the selected financial year.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

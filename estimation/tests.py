@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from masters.models import Grade, Group2, Item
 
@@ -289,3 +290,32 @@ class EstimationFlowTests(TestCase):
         response = self.client.post(reverse("estimation:delete_estimate", args=[project.id]), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(EstimateProject.objects.filter(id=project.id).exists())
+
+    def test_budget_closure_moves_project_to_closed_status(self):
+        accounts = User.objects.create_user(username="accclose", password="test123", role="Accounts")
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Close Budget",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+            work_order_no="WO-CLOSE",
+            status=EstimateProject.Status.PO_RECEIVED,
+        )
+        self.client.login(username="accclose", password="test123")
+        response = self.client.post(reverse("estimation:close_budget", args=[project.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, EstimateProject.Status.CLOSED)
+
+    def test_financial_year_label_uses_april_to_march_cycle(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="FY Test",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        project.purchase_order_date = timezone.datetime(2026, 3, 15).date()
+        project.save()
+        self.assertEqual(project.financial_year_label, "FY 2025-26")

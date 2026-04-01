@@ -18,6 +18,7 @@ urlpatterns = [
     path("<int:project_id>/quotation/export/excel/", views.export_quotation_excel, name="export_quotation_excel"),
     path("<int:project_id>/quotation/export/pdf/", views.export_quotation_pdf, name="export_quotation_pdf"),
     path("<int:project_id>/po-received/", views.mark_po_received, name="mark_po_received"),
+    path("<int:project_id>/budget/close/", views.close_budget, name="close_budget"),
     path("<int:project_id>/expenses/add/", views.add_expense, name="add_expense"),
     path("expenses/<int:expense_id>/approve/", views.approve_expense, name="approve_expense"),
     path("suppliers/create/", views.create_supplier, name="create_supplier"),
