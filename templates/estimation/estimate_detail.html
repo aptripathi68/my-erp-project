@@ -125,10 +125,12 @@
             <form method="post" action="{% url 'estimation:import_tentative_bom' project.id %}" style="margin-top:16px;">
                 {% csrf_token %}
                 {% for sheet_name, info in tentative_headers_info.items %}
-                    {% if info.detected %}
-                    {% with sheet_selected=tentative_selected_mappings|get_item:sheet_name %}
                     <div style="margin-bottom:18px;">
                         <h4 style="margin:0 0 10px;">{{ sheet_name }}</h4>
+                        {% if info.detected %}
+                        <p class="small" style="margin:0 0 8px;"><strong>Detected Header Row:</strong> {{ info.header_row }}</p>
+                        <p class="small" style="margin:0 0 10px;"><strong>Available BOM Columns:</strong> {{ info.headers|join:", " }}</p>
+                        {% with sheet_selected=tentative_selected_mappings|get_item:sheet_name %}
                         <table>
                             <thead>
                                 <tr>
@@ -172,9 +174,11 @@
                                 </tr>
                             </tbody>
                         </table>
+                        {% endwith %}
+                        {% else %}
+                        <p style="color:#b42318; margin:0;">Header row not detected for this sheet. Please check that the tentative BOM has visible header names within the first 40 rows.</p>
+                        {% endif %}
                     </div>
-                    {% endwith %}
-                    {% endif %}
                 {% endfor %}
                 {% if can_manage_raw_materials %}
                 <div style="display:flex;gap:10px;margin-top:12px;">
@@ -183,6 +187,8 @@
                 </div>
                 {% endif %}
             </form>
+            {% else %}
+            <p class="small" style="margin-top:16px;">After upload, the detected BOM sheets and column headings will appear here for mapping.</p>
             {% endif %}
 
             {% if tentative_result %}

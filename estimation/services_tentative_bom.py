@@ -40,6 +40,12 @@ ALIASES = {
     "section_name": [
         "section name",
         "section",
+        "section size",
+        "section designation",
+        "member section",
+        "profile size",
+        "size",
+        "material",
         "item description",
         "profile",
         "member",
@@ -52,16 +58,23 @@ ALIASES = {
         "mat grade",
         "steel grade",
         "material spec",
+        "specification",
+        "spec",
     ],
     "gross_weight": [
         "gross weight",
         "gross wt",
+        "gross wt (kg)",
+        "gross weight (kg)",
         "drawing gross weight",
         "drawing gross wt",
+        "drawing gross wt (kg)",
         "engg weight",
         "engg weight (kg)",
         "unit wt",
         "unit weight",
+        "weight (kg)",
+        "total weight",
         "weight",
         "wt",
     ],
@@ -86,9 +99,11 @@ def detect_header_row(ws, max_scan_rows: int = 40):
         start=1,
     ):
         headers = [_h(v) for v in row]
-        has_section = any(h in ALIASES["section_name"] for h in headers)
-        has_weight = any(h in ALIASES["gross_weight"] for h in headers)
-        if has_section and has_weight:
+        hits = 0
+        for field_aliases in ALIASES.values():
+            if any(h in field_aliases for h in headers):
+                hits += 1
+        if hits >= 2:
             return row_index, headers
     return None, None
 

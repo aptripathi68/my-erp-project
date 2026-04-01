@@ -24,6 +24,7 @@ from .services import (
     sync_project_supplier_rates,
 )
 from .services_tentative_bom import validate_and_extract_tentative_bom
+from .services_tentative_bom import workbook_sheet_headers
 
 
 User = get_user_model()
@@ -365,6 +366,19 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(len(result["aggregated_lines"]), 1)
         self.assertEqual(result["aggregated_lines"][0]["item"].id, self.item.id)
         self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("2.000"))
+
+    def test_tentative_bom_headers_are_detected_with_practical_column_names(self):
+        with NamedTemporaryFile(suffix=".xlsx") as tmp:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "BOM"
+            ws.append(["Profile Size", "Specification", "Gross Wt (KG)"])
+            wb.save(tmp.name)
+
+            headers = workbook_sheet_headers(tmp.name)
+
+        self.assertTrue(headers["BOM"]["detected"])
+        self.assertIn("profile size", headers["BOM"]["headers"])
 
     def test_planning_can_import_tentative_bom_to_raw_material_lines(self):
         project = EstimateProject.objects.create(
