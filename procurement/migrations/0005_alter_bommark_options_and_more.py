@@ -16,7 +16,14 @@ class Migration(migrations.Migration):
             name='bommark',
             options={'ordering': ['sheet_name', 'erc_mark']},
         ),
-        
+        migrations.RemoveIndex(
+            model_name='bommark',
+            name='procurement_mark_no_48c40f_idx',
+        ),
+        migrations.RemoveIndex(
+            model_name='bommark',
+            name='procurement_sheet_n_4d86df_idx',
+        ),
         migrations.RenameField(
             model_name='bomcomponent',
             old_name='mark',

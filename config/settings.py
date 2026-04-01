@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "procurement",
     "ledger",
     "drawings",
+    "estimation",
 ]
 
 MIDDLEWARE = [

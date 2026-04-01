@@ -9,18 +9,4 @@ class Migration(migrations.Migration):
         ('procurement', '0011_remove_bommark_procurement_mark_no_48c40f_idx_and_more'),
     ]
 
-    operations = [
-        migrations.SeparateDatabaseAndState(
-            database_operations=[],
-            state_operations=[
-                migrations.RemoveIndex(
-                    model_name='bommark',
-                    name='procurement_mark_no_48c40f_idx',
-                ),
-                migrations.RemoveIndex(
-                    model_name='bommark',
-                    name='procurement_sheet_n_4d86df_idx',
-                ),
-            ],
-        ),
-    ]
+    operations = []

@@ -16,6 +16,7 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 
 from drawings.models import Drawing
+from estimation.models import EstimateProject
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
 from .services.bom_importer import (
     build_header_signature,
@@ -160,17 +161,24 @@ def _persist_sheet_mappings(headers_info, sheet_mappings, user):
 @staff_member_required
 def bom_upload(request):
     context = {}
+    estimate_project = None
+    estimate_id = request.GET.get("estimate_project") or request.POST.get("estimate_project")
+    if estimate_id:
+        try:
+            estimate_project = EstimateProject.objects.get(pk=estimate_id)
+        except EstimateProject.DoesNotExist:
+            estimate_project = None
 
     # STEP 1: Upload file -> detect headers -> show mapping screen
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
 
-        bom_name = (request.POST.get("bom_name") or f.name).strip()
-        project_name = (request.POST.get("project_name") or "").strip()
-        client_name = (request.POST.get("client_name") or "").strip()
-        purchase_order_no = (request.POST.get("purchase_order_no") or "").strip()
-        purchase_order_date = (request.POST.get("purchase_order_date") or "").strip()
-        delivery_date = (request.POST.get("delivery_date") or "").strip()
+        bom_name = (request.POST.get("bom_name") or (estimate_project.work_order_no if estimate_project else "") or f.name).strip()
+        project_name = (request.POST.get("project_name") or (estimate_project.project_name if estimate_project else "")).strip()
+        client_name = (request.POST.get("client_name") or (estimate_project.client_name if estimate_project else "")).strip()
+        purchase_order_no = (request.POST.get("purchase_order_no") or (estimate_project.purchase_order_no if estimate_project else "")).strip()
+        purchase_order_date = (request.POST.get("purchase_order_date") or (estimate_project.purchase_order_date.isoformat() if estimate_project and estimate_project.purchase_order_date else "")).strip()
+        delivery_date = (request.POST.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else "")).strip()
         order_rate = (request.POST.get("order_rate") or "").strip()
         order_value = (request.POST.get("order_value") or "").strip()
 
@@ -190,6 +198,7 @@ def bom_upload(request):
         request.session["delivery_date"] = delivery_date
         request.session["order_rate"] = order_rate
         request.session["order_value"] = order_value
+        request.session["estimate_project_id"] = estimate_project.id if estimate_project else None
 
         auto_mappings = {}
         for sheet_name, info in headers_info.items():
@@ -212,6 +221,7 @@ def bom_upload(request):
         context["delivery_date"] = delivery_date
         context["order_rate"] = order_rate
         context["order_value"] = order_value
+        context["estimate_project"] = estimate_project
         context["headers_info"] = headers_info
         context["selected_mappings"] = auto_mappings
         context["mapping_step"] = True
@@ -230,10 +240,18 @@ def bom_upload(request):
         delivery_date_raw = request.session.get("delivery_date", "")
         order_rate_raw = request.session.get("order_rate", "")
         order_value_raw = request.session.get("order_value", "")
+        estimate_project_id = request.session.get("estimate_project_id")
 
         if not tmp_path:
             context["error"] = "Please upload the BOM file first."
             return render(request, "procurement/bom_upload.html", context)
+
+        estimate_project = None
+        if estimate_project_id:
+            try:
+                estimate_project = EstimateProject.objects.get(pk=estimate_project_id)
+            except EstimateProject.DoesNotExist:
+                estimate_project = None
 
         headers_info = workbook_sheet_headers(tmp_path)
 
@@ -265,6 +283,7 @@ def bom_upload(request):
         context["delivery_date"] = delivery_date_raw
         context["order_rate"] = order_rate_raw
         context["order_value"] = order_value_raw
+        context["estimate_project"] = estimate_project
         context["headers_info"] = headers_info
         context["selected_mappings"] = user_sheet_mappings
         context["mapping_step"] = True
@@ -289,6 +308,7 @@ def bom_upload(request):
 
             with transaction.atomic():
                 header = BOMHeader.objects.create(
+                    estimate_project=estimate_project,
                     bom_name=bom_name,
                     project_name=project_name,
                     client_name=client_name,
@@ -371,6 +391,20 @@ def bom_upload(request):
     context["delivery_date"] = request.session.get("delivery_date", "")
     context["order_rate"] = request.session.get("order_rate", "")
     context["order_value"] = request.session.get("order_value", "")
+    context["estimate_project"] = estimate_project
+    if estimate_project:
+        context["bom_name"] = context["bom_name"] or estimate_project.work_order_no
+        context["project_name"] = context["project_name"] or estimate_project.project_name
+        context["client_name"] = context["client_name"] or estimate_project.client_name
+        context["purchase_order_no"] = context["purchase_order_no"] or estimate_project.purchase_order_no
+        context["purchase_order_date"] = (
+            context["purchase_order_date"]
+            or (estimate_project.purchase_order_date.isoformat() if estimate_project.purchase_order_date else "")
+        )
+        context["delivery_date"] = (
+            context["delivery_date"]
+            or (estimate_project.delivery_date.isoformat() if estimate_project.delivery_date else "")
+        )
     return render(request, "procurement/bom_upload.html", context)
 
 

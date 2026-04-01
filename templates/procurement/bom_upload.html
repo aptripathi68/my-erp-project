@@ -73,6 +73,12 @@
 
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
+        {% if estimate_project %}
+        <div style="margin-bottom:12px;padding:12px;border:1px solid #d7e4ec;border-radius:8px;background:#eef6fa;">
+            <strong>Linked Estimation:</strong> {{ estimate_project.inquiry_no }} - {{ estimate_project.project_name }}
+            <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
+        </div>
+        {% endif %}
 
         <div>
             <label><strong>WO Number</strong></label><br>
@@ -141,6 +147,9 @@
         <input type="hidden" name="delivery_date" value="{{ delivery_date|default:'' }}">
         <input type="hidden" name="order_rate" value="{{ order_rate|default:'' }}">
         <input type="hidden" name="order_value" value="{{ order_value|default:'' }}">
+        {% if estimate_project %}
+        <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
+        {% endif %}
 
         {% for sheet_name, info in headers_info.items %}
             <div class="card">
@@ -356,6 +365,9 @@
     <p>
         <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">
             Download Master BOM Excel
+        </a>
+        <a class="btn btn-primary" href="{% url 'dashboard_home' %}" style="margin-left:8px;">
+            Home
         </a>
     </p>
 </div>

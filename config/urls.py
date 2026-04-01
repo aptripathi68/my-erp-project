@@ -40,6 +40,7 @@ urlpatterns = [
     path("api/", include("ledger.urls")),
     path("procurement/", include("procurement.urls")),
     path("drawings/", include("drawings.urls")),
+    path("estimation/", include("estimation.urls")),
 ]
 
 if settings.DEBUG:

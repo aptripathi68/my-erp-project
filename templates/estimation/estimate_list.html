@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Estimation Projects</title>
+    <style>
+        body{font-family:Arial, Helvetica, sans-serif;background:#f6f8fb;color:#1f2a34;margin:24px;}
+        .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+        .btn{display:inline-block;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;border:none;cursor:pointer;}
+        .btn-primary{background:#2d686f;color:#fff;}
+        .btn-secondary{background:#fff;color:#1f2a34;border:1px solid #cfd8df;}
+        table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;}
+        th,td{padding:12px 14px;border-bottom:1px solid #e7edf2;text-align:left;}
+        th{background:#2d686f;color:#fff;}
+        .status{font-weight:700;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
+        .messages{margin-bottom:16px;}
+        .message{padding:12px 14px;border-radius:8px;margin-bottom:8px;background:#eef6fa;}
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1 style="margin:0 0 8px;">Estimation & Quotation</h1>
+            <p style="margin:0;color:#5b6b79;">Create new project inquiries, finalize quotations, and monitor budgets.</p>
+        </div>
+        <div>
+            <a class="btn btn-secondary" href="/">Dashboard</a>
+            <a class="btn btn-primary" href="{% url 'estimation:estimate_create' %}">New Query</a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Inquiry No</th>
+                    <th>Client</th>
+                    <th>Project</th>
+                    <th>Qty (MT)</th>
+                    <th>Status</th>
+                    <th>Quotation/MT</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td>{{ project.inquiry_no }}</td>
+                    <td>{{ project.client_name }}</td>
+                    <td>{{ project.project_name }}</td>
+                    <td>{{ project.quantity_mt }}</td>
+                    <td class="status">{{ project.get_status_display }}</td>
+                    <td>{{ project.quotation_price_per_mt }}</td>
+                    <td><a href="{% url 'estimation:estimate_detail' project.id %}">Open</a></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No estimation inquiries created yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

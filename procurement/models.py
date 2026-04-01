@@ -123,6 +123,13 @@ class GRNItem(models.Model):
 class BOMHeader(models.Model):
     """Represents one uploaded BOM file"""
 
+    estimate_project = models.ForeignKey(
+        "estimation.EstimateProject",
+        on_delete=models.SET_NULL,
+        related_name="boms",
+        null=True,
+        blank=True,
+    )
     bom_name = models.CharField(max_length=255)
     project_name = models.CharField(max_length=255, blank=True)
     client_name = models.CharField(max_length=255, blank=True)

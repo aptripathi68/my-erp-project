@@ -7,6 +7,12 @@ from django.db import models
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('Admin', 'Administrator'),
+        ('Planning', 'Planning'),
+        ('Marketing', 'Marketing'),
+        ('Accounts', 'Accounts'),
+        ('Procurement', 'Procurement'),
+        ('Dispatch', 'Dispatch'),
+        ('Management', 'Management'),
         ('Store', 'Store Manager'),
         ('Viewer', 'Viewer Only'),
     ]
