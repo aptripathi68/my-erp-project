@@ -273,10 +273,10 @@
                 <thead>
                     <tr>
                         <th>Cost Head</th>
-                        <th>Percentage / Consumption</th>
+                        <th>Percentage</th>
                         <th>Cost per Kg / Rate per LTR</th>
                         <th>Cost</th>
-                        <th>Remarks</th>
+                        <th>Remarks / Consumption</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -287,6 +287,8 @@
                         <td>
                             {% if head.line_type == "TOTAL" %}
                             {{ cost_head.display_percentage }}
+                            {% elif cost_head.is_paint_component %}
+                            -
                             {% else %}
                             <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" title="{{ cost_head.input_label }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
                             {% endif %}
@@ -302,6 +304,11 @@
                         <td>
                             {% if head.line_type == "TOTAL" %}
                             {{ head.remarks }}
+                            {% elif cost_head.is_paint_component %}
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="number" step="0.001" name="consumption_{{ head.id }}" value="{{ cost_head.display_consumption }}" title="Consumption/MT (LTR)" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                                <span class="small">LTR/MT</span>
+                            </div>
                             {% else %}
                             <input type="text" name="remarks_{{ head.id }}" value="{{ head.remarks }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
                             {% endif %}

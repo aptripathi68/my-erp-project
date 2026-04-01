@@ -296,13 +296,13 @@ class EstimationFlowTests(TestCase):
             elif h.code == "OFFCUT_RECOVERY":
                 payload[f"percentage_{h.id}"] = "-5.830"
             elif h.code == "PRIMER":
-                payload[f"percentage_{h.id}"] = "8.5"
+                payload[f"consumption_{h.id}"] = "8.5"
             elif h.code == "MIO":
-                payload[f"percentage_{h.id}"] = "6"
+                payload[f"consumption_{h.id}"] = "6"
             elif h.code == "FINISH_PAINT":
-                payload[f"percentage_{h.id}"] = "8"
+                payload[f"consumption_{h.id}"] = "8"
             elif h.code == "THINNER":
-                payload[f"percentage_{h.id}"] = "0.4"
+                payload[f"consumption_{h.id}"] = "0.4"
             else:
                 payload[f"percentage_{h.id}"] = "100.00"
             payload[f"rate_{h.id}"] = "180" if h.code == "MIO" else str(h.rate_per_kg)

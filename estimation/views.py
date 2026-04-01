@@ -239,6 +239,9 @@ def estimate_detail(request, project_id: int):
                     if head.code in PAINT_COMPONENT_CODES
                     else _format_percentage_for_display(head.percentage)
                 ),
+                "display_consumption": _format_consumption_for_display(head.percentage)
+                if head.code in PAINT_COMPONENT_CODES
+                else "",
                 "input_label": "Consumption/MT (LTR)"
                 if head.code in PAINT_COMPONENT_CODES
                 else "Percentage",
@@ -404,7 +407,11 @@ def update_cost_heads(request, project_id: int):
 
     for head in project.cost_heads.filter(line_type="ENTRY"):
         if head.is_percentage_editable:
-            entered_percentage = _parse_decimal(request.POST.get(f"percentage_{head.id}"))
+            entered_percentage = _parse_decimal(
+                request.POST.get(
+                    f"consumption_{head.id}" if head.code in PAINT_COMPONENT_CODES else f"percentage_{head.id}"
+                )
+            )
             head.percentage = (
                 entered_percentage
                 if head.code in PAINT_COMPONENT_CODES
