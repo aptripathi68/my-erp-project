@@ -129,7 +129,13 @@ def estimate_detail(request, project_id: int):
         "suppliers": EstimateSupplier.objects.filter(is_active=True),
         "supplier_links": supplier_links,
         "rate_matrix": rate_matrix,
-        "cost_heads": project.cost_heads.all(),
+        "cost_heads": [
+            {
+                "obj": head,
+                "display_percentage": (head.percentage * Decimal("100")) if head.percentage is not None else None,
+            }
+            for head in project.cost_heads.all()
+        ],
         "budget_heads": project.budget_heads.all(),
         "can_manage_rates": _can_manage_rates(request.user),
         "can_manage_costs": _can_manage_costs(request.user),
@@ -142,6 +148,9 @@ def estimate_detail(request, project_id: int):
 def create_supplier(request):
     if request.method != "POST":
         return redirect("estimation:estimate_list")
+    if not _can_manage_rates(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can create suppliers.")
+        return redirect(request.POST.get("next") or "estimation:estimate_list")
 
     name = (request.POST.get("name") or "").strip()
     if not name:
@@ -164,6 +173,9 @@ def create_supplier(request):
 def add_project_supplier(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_rates(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can add suppliers to the rate sheet.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
     supplier_id = request.POST.get("supplier_id")
@@ -211,6 +223,30 @@ def add_raw_material_line(request, project_id: int):
 
 
 @login_required
+def delete_raw_material_line(request, project_id: int, line_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_costs(request.user):
+        messages.error(request, "You do not have permission to delete raw material lines.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    line = get_object_or_404(EstimateRawMaterialLine, pk=line_id, project=project)
+    line.delete()
+
+    for index, row in enumerate(project.raw_material_lines.order_by("sort_order", "id"), start=1):
+        if row.sort_order != index:
+            row.sort_order = index
+            row.save(update_fields=["sort_order"])
+
+    recalculate_cost_heads(project)
+    project.updated_by = request.user
+    project.save(update_fields=["updated_by", "updated_at"])
+    messages.success(request, "Raw material line deleted.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
 def update_rate_sheet(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
@@ -251,7 +287,8 @@ def update_cost_heads(request, project_id: int):
 
     for head in project.cost_heads.filter(line_type="ENTRY"):
         if head.is_percentage_editable:
-            head.percentage = _parse_decimal(request.POST.get(f"percentage_{head.id}"))
+            entered_percentage = _parse_decimal(request.POST.get(f"percentage_{head.id}"))
+            head.percentage = entered_percentage / Decimal("100")
         if head.is_rate_editable and head.code != "RAW_MATERIAL_COST":
             head.rate_per_kg = _parse_decimal(request.POST.get(f"rate_{head.id}"))
         head.remarks = (request.POST.get(f"remarks_{head.id}") or "").strip()

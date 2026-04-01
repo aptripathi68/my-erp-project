@@ -27,6 +27,7 @@ User = get_user_model()
 class EstimationFlowTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="planner", password="test123", role="Planning")
+        self.marketing_user = User.objects.create_user(username="marketing", password="test123", role="Marketing")
         self.group2 = Group2.objects.create(code="STEEL", name="Steel")
         self.grade = Grade.objects.create(group2=self.group2, code="E250", name="IS:2062, E250Br")
         self.item = Item.objects.create(
@@ -161,3 +162,88 @@ class EstimationFlowTests(TestCase):
 
         self.assertEqual(budget.budget_code, "WO-001/006")
         self.assertEqual(budget.approved_amount, Decimal("50000.00"))
+
+    def test_raw_material_line_can_be_deleted(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Delete Line Test",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        line = project.raw_material_lines.create(item=self.item, quantity_mt=Decimal("10"), sort_order=1)
+        recalculate_cost_heads(project)
+
+        self.client.login(username="planner", password="test123")
+        response = self.client.post(
+            reverse("estimation:delete_raw_material_line", args=[project.id, line.id]),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(project.raw_material_lines.filter(id=line.id).exists())
+
+    def test_percentage_input_is_saved_as_fraction(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Percentage Test",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        head = project.cost_heads.get(code="FABRICATION")
+
+        self.client.login(username="planner", password="test123")
+        payload = {}
+        for h in project.cost_heads.filter(line_type="ENTRY"):
+            payload[f"percentage_{h.id}"] = "100.00"
+            payload[f"rate_{h.id}"] = str(h.rate_per_kg)
+            payload[f"remarks_{h.id}"] = h.remarks
+        payload[f"rate_{head.id}"] = "11"
+        response = self.client.post(
+            reverse("estimation:update_cost_heads", args=[project.id]),
+            payload,
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        head.refresh_from_db()
+        self.assertEqual(head.percentage, Decimal("1"))
+
+    def test_planning_cannot_add_supplier_column(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Supplier Permission",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        supplier = EstimateSupplier.objects.create(name="IronMart")
+
+        self.client.login(username="planner", password="test123")
+        response = self.client.post(
+            reverse("estimation:add_project_supplier", args=[project.id]),
+            {"supplier_id": supplier.id},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(project.project_suppliers.filter(supplier=supplier).exists())
+
+    def test_marketing_can_add_supplier_column(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Supplier Permission OK",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        supplier = EstimateSupplier.objects.create(name="IronMart")
+
+        self.client.login(username="marketing", password="test123")
+        response = self.client.post(
+            reverse("estimation:add_project_supplier", args=[project.id]),
+            {"supplier_id": supplier.id},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(project.project_suppliers.filter(supplier=supplier).exists())

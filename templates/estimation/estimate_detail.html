@@ -131,6 +131,7 @@
                     <th>Quantity in MT</th>
                     <th>Final Rate/MT</th>
                     <th>Total Amount</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,10 +144,20 @@
                     <td>{{ line.quantity_mt }}</td>
                     <td>{{ line.final_rate_per_mt }}</td>
                     <td>{{ line.total_amount }}</td>
+                    <td>
+                        {% if can_manage_costs %}
+                        <form method="post" action="{% url 'estimation:delete_raw_material_line' project.id line.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-secondary" type="submit">Delete</button>
+                        </form>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7">No raw material lines added yet.</td>
+                    <td colspan="8">No raw material lines added yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -156,26 +167,33 @@
     <div class="card">
         <h2 class="section-title">Rate Finalisation</h2>
         <p class="muted">Supplier firms once added remain available for future quotations. Add the suppliers you want as columns for this inquiry, then enter the market rates.</p>
+        {% if not can_manage_rates %}
+        <p class="small">Supplier creation, supplier-column selection, and market-rate entry are restricted to Marketing, Management, or Admin users.</p>
+        {% endif %}
         <div class="grid">
             <form method="post" action="{% url 'estimation:create_supplier' %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'estimation:estimate_detail' project.id %}">
                 <label for="name">Create Supplier Master</label>
-                <input id="name" type="text" name="name" placeholder="Supplier name">
+                <input id="name" type="text" name="name" placeholder="Supplier name" {% if not can_manage_rates %}disabled{% endif %}>
                 <div class="small">Optional contact fields can be extended later from admin.</div>
+                {% if can_manage_rates %}
                 <button class="btn btn-secondary" style="margin-top:10px;" type="submit">Create Supplier</button>
+                {% endif %}
             </form>
 
             <form method="post" action="{% url 'estimation:add_project_supplier' project.id %}">
                 {% csrf_token %}
                 <label for="supplier_id">Add Supplier Column</label>
-                <select id="supplier_id" name="supplier_id" required>
+                <select id="supplier_id" name="supplier_id" required {% if not can_manage_rates %}disabled{% endif %}>
                     <option value="">Select supplier</option>
                     {% for supplier in suppliers %}
                     <option value="{{ supplier.id }}">{{ supplier.name }}</option>
                     {% endfor %}
                 </select>
+                {% if can_manage_rates %}
                 <button class="btn btn-primary" style="margin-top:10px;" type="submit">Add Supplier to Rate Sheet</button>
+                {% endif %}
             </form>
         </div>
 
@@ -243,14 +261,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for head in cost_heads %}
+                    {% for cost_head in cost_heads %}
+                    {% with head=cost_head.obj %}
                     <tr>
                         <td>{{ head.name }}</td>
                         <td>
                             {% if head.line_type == "TOTAL" %}
-                            {{ head.percentage|default:"" }}
+                            {% if cost_head.display_percentage is not None %}{{ cost_head.display_percentage|floatformat:2 }}{% endif %}
                             {% else %}
-                            <input type="number" step="0.0001" name="percentage_{{ head.id }}" value="{{ head.percentage|default_if_none:'' }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="number" step="0.01" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage|floatformat:2 }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
                             {% endif %}
                         </td>
                         <td>
@@ -269,6 +288,7 @@
                             {% endif %}
                         </td>
                     </tr>
+                    {% endwith %}
                     {% endfor %}
                 </tbody>
             </table>

@@ -89,7 +89,7 @@ def quantize4(value: Decimal) -> Decimal:
 
 
 def ensure_project_cost_heads(project: EstimateProject) -> None:
-    if project.cost_heads.exists():
+    if EstimateCostHead.objects.filter(project=project).exists():
         return
 
     for index, cfg in enumerate(COST_HEAD_DEFAULTS, start=1):
@@ -139,7 +139,7 @@ def recalculate_cost_heads(project: EstimateProject) -> None:
     ensure_project_cost_heads(project)
     update_material_totals(project)
 
-    cost_heads = {head.code: head for head in project.cost_heads.all()}
+    cost_heads = {head.code: head for head in EstimateCostHead.objects.filter(project=project)}
     quantity_kg = project.quantity_kg or ZERO
 
     raw_cost = cost_heads["RAW_MATERIAL_COST"]
