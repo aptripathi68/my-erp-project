@@ -380,6 +380,22 @@ class EstimationFlowTests(TestCase):
         self.assertTrue(headers["BOM"]["detected"])
         self.assertIn("profile size", headers["BOM"]["headers"])
 
+    def test_tentative_bom_uses_drg_gross_weight_and_default_grade_when_blank(self):
+        with NamedTemporaryFile(suffix=".xlsx") as tmp:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "BOM"
+            ws.append(["Profile", "Quality", "Drg Gross Wt.", "Total weight"])
+            ws.append(["PL10", "", 1200, 9999])
+            wb.save(tmp.name)
+
+            headers = workbook_sheet_headers(tmp.name)
+            result = validate_and_extract_tentative_bom(tmp.name)
+
+        self.assertEqual(headers["BOM"]["mapping"]["gross_weight"], "drg gross wt.")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("1.200"))
+
     def test_planning_can_import_tentative_bom_to_raw_material_lines(self):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",

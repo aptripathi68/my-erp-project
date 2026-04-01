@@ -11,6 +11,10 @@ import openpyxl
 from masters.models import Item, normalize_item_description
 from procurement.services.bom_importer import normalize_grade_name
 
+DEFAULT_GRADE_CODE = "IS:2062"
+DEFAULT_GRADE_NAME = "E250BR"
+DEFAULT_GRADE_DISPLAY = f"{DEFAULT_GRADE_CODE} {DEFAULT_GRADE_NAME}"
+
 
 def _h(value: Any) -> str:
     if value is None:
@@ -38,6 +42,7 @@ def _to_decimal(value: Any) -> Optional[Decimal]:
 
 ALIASES = {
     "section_name": [
+        "thickness",
         "section name",
         "section",
         "section size",
@@ -60,8 +65,13 @@ ALIASES = {
         "material spec",
         "specification",
         "spec",
+        "quality",
     ],
     "gross_weight": [
+        "drg gross wt.",
+        "drg gross wt",
+        "drg wt.",
+        "drg wt",
         "gross weight",
         "gross wt",
         "gross wt (kg)",
@@ -110,12 +120,13 @@ def detect_header_row(ws, max_scan_rows: int = 40):
 
 def build_col_map(headers: List[str]) -> Dict[str, int]:
     col_map: Dict[str, int] = {}
-    for idx, header in enumerate(headers):
-        for canonical, aliases in ALIASES.items():
+    for canonical, aliases in ALIASES.items():
+        for alias in aliases:
+            for idx, header in enumerate(headers):
+                if header == alias:
+                    col_map[canonical] = idx
+                    break
             if canonical in col_map:
-                continue
-            if header in aliases:
-                col_map[canonical] = idx
                 break
     return col_map
 
@@ -212,7 +223,7 @@ def validate_and_extract_tentative_bom(
         sheet_mapping = (user_sheet_mappings or {}).get(sheet_name, {})
         col_map = build_user_col_map(headers, sheet_mapping) if sheet_mapping else build_col_map(headers)
 
-        missing_fields = [field for field in ("section_name", "grade", "gross_weight") if field not in col_map]
+        missing_fields = [field for field in ("section_name", "gross_weight") if field not in col_map]
         if missing_fields:
             detected[sheet_name] = {"skipped": True, "reason": f"missing_columns:{','.join(missing_fields)}"}
             continue
@@ -238,13 +249,15 @@ def validate_and_extract_tentative_bom(
             if not section_raw and not grade_raw and gross_weight is None:
                 continue
 
-            row_errors: List[str] = []
+            # Ignore section/group headers and assembly summary rows that do not identify a raw material profile.
             if not section_raw:
-                row_errors.append("Section name is blank.")
+                continue
+
+            row_errors: List[str] = []
             if not grade_raw:
-                row_errors.append("Grade is blank.")
+                grade_raw = DEFAULT_GRADE_DISPLAY
             if gross_weight is None or gross_weight <= 0:
-                row_errors.append("Drawing gross weight must be a positive number.")
+                continue
 
             matched_item = None
             if section_raw and grade_raw:
