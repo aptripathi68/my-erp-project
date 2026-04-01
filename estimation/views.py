@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
@@ -14,6 +15,7 @@ from django.conf import settings
 
 from masters.models import Item
 from masters.models import Group2
+from procurement.models import BOMColumnMapping
 
 from .models import (
     EstimateExpense,
@@ -33,6 +35,15 @@ from .services import (
     refresh_budget_totals,
     sync_project_supplier_rates,
 )
+from .services_tentative_bom import (
+    build_header_signature as build_tentative_header_signature,
+    build_user_col_map as build_tentative_user_col_map,
+    validate_and_extract_tentative_bom,
+    workbook_sheet_headers as tentative_bom_sheet_headers,
+)
+
+
+TENTATIVE_BOM_MAPPING_FIELDS = ("section_name", "grade", "gross_weight")
 
 
 def _format_percentage_for_display(value):
@@ -77,7 +88,7 @@ def _can_manage_rates(user) -> bool:
 
 
 def _can_create_estimate(user) -> bool:
-    return user.role in {"Admin", "Marketing", "Management"}
+    return user.role in {"Admin", "Planning", "Management"}
 
 
 def _can_manage_raw_materials(user) -> bool:
@@ -106,6 +117,143 @@ def _default_active_sheet(user) -> str:
 
 def _project_financial_year_label(project) -> str:
     return project.financial_year_label
+
+
+def _session_safe_errors(errors):
+    safe = []
+    for err in errors:
+        row = {}
+        for key, value in err.items():
+            if isinstance(value, list):
+                row[key] = [str(x) for x in value]
+            elif value is None:
+                row[key] = ""
+            else:
+                row[key] = str(value)
+        safe.append(row)
+    return safe
+
+
+def _tentative_key(project_id: int, suffix: str) -> str:
+    return f"estimation_tentative_bom_{project_id}_{suffix}"
+
+
+def _clean_sheet_mapping(mapping):
+    if not isinstance(mapping, dict):
+        return {}
+    return {field: (mapping.get(field) or "").strip() for field in TENTATIVE_BOM_MAPPING_FIELDS}
+
+
+def _load_persisted_tentative_mappings(headers_info):
+    loaded = {}
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+        signature = info.get("header_signature") or build_tentative_header_signature(info.get("headers", []))
+        if not signature:
+            continue
+        saved = (
+            BOMColumnMapping.objects.filter(sheet_name=sheet_name, header_signature=signature)
+            .order_by("-updated_at")
+            .first()
+        )
+        if saved and saved.mapping:
+            loaded[sheet_name] = _clean_sheet_mapping(saved.mapping)
+    return loaded
+
+
+def _persist_tentative_mappings(headers_info, sheet_mappings, user):
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+        mapping = _clean_sheet_mapping((sheet_mappings or {}).get(sheet_name, {}))
+        if not any(mapping.values()):
+            continue
+        signature = info.get("header_signature") or build_tentative_header_signature(info.get("headers", []))
+        if not signature:
+            continue
+        obj, created = BOMColumnMapping.objects.get_or_create(
+            sheet_name=sheet_name,
+            header_signature=signature,
+            defaults={"mapping": mapping, "created_by": user, "updated_by": user},
+        )
+        if not created:
+            obj.mapping = mapping
+            obj.updated_by = user
+            obj.save(update_fields=["mapping", "updated_by", "updated_at"])
+
+
+def _build_tentative_user_sheet_mappings(request, headers_info):
+    user_sheet_mappings = {}
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+        user_sheet_mappings[sheet_name] = {
+            field: request.POST.get(f"{sheet_name}__{field}", "").strip()
+            for field in TENTATIVE_BOM_MAPPING_FIELDS
+        }
+    return user_sheet_mappings
+
+
+def _has_any_mapping(sheet_mappings):
+    if not sheet_mappings:
+        return False
+    return any(any(v for v in sheet_map.values()) for sheet_map in sheet_mappings.values())
+
+
+def _clear_tentative_bom_session(request, project_id: int):
+    for suffix in ("tmp_path", "headers_info", "selected_mappings", "result"):
+        request.session.pop(_tentative_key(project_id, suffix), None)
+
+
+def _build_estimate_detail_context(request, project):
+    tentative_headers_info = request.session.get(_tentative_key(project.id, "headers_info")) or {}
+    tentative_selected_mappings = request.session.get(_tentative_key(project.id, "selected_mappings")) or {}
+    tentative_result = request.session.get(_tentative_key(project.id, "result")) or None
+
+    supplier_links = list(project.project_suppliers.select_related("supplier"))
+    rate_matrix = []
+    for line in project.raw_material_lines.all():
+        supplier_rate_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
+        row_rates = [supplier_rate_map.get(link.supplier_id) for link in supplier_links]
+        rate_matrix.append((line, row_rates))
+
+    return {
+        "project": project,
+        "group2_list": Group2.objects.order_by("name"),
+        "suppliers": EstimateSupplier.objects.filter(is_active=True),
+        "supplier_links": supplier_links,
+        "rate_matrix": rate_matrix,
+        "cost_heads": [
+            {
+                "obj": head,
+                "display_percentage": (
+                    _format_consumption_for_display(head.percentage)
+                    if head.code in PAINT_COMPONENT_CODES
+                    else _format_percentage_for_display(head.percentage)
+                ),
+                "display_consumption": _format_consumption_for_display(head.percentage)
+                if head.code in PAINT_COMPONENT_CODES
+                else "",
+                "input_label": "Consumption/MT (LTR)"
+                if head.code in PAINT_COMPONENT_CODES
+                else "Percentage",
+                "rate_label": "Rate/LTR" if head.code in PAINT_COMPONENT_CODES else "Cost per Kg",
+                "is_paint_component": head.code in PAINT_COMPONENT_CODES,
+            }
+            for head in project.cost_heads.all()
+        ],
+        "budget_heads": project.budget_heads.all(),
+        "active_sheet": request.GET.get("sheet") or _default_active_sheet(request.user),
+        "can_manage_raw_materials": _can_manage_raw_materials(request.user),
+        "can_manage_rates": _can_manage_rates(request.user),
+        "can_manage_costs": _can_manage_costs(request.user),
+        "can_manage_accounts": _can_manage_accounts(request.user),
+        "can_delete_estimate": _can_delete_estimate(request.user),
+        "tentative_headers_info": tentative_headers_info,
+        "tentative_selected_mappings": tentative_selected_mappings,
+        "tentative_result": tentative_result,
+    }
 
 
 @login_required
@@ -170,7 +318,7 @@ def estimate_list(request):
 @login_required
 def estimate_create(request):
     if not _can_create_estimate(request.user):
-        messages.error(request, "Only Marketing, Management, or Admin can create a new quotation inquiry.")
+        messages.error(request, "Only Planning, Management, or Admin can create a new quotation inquiry.")
         return redirect("estimation:estimate_list")
 
     if request.method == "POST":
@@ -217,47 +365,7 @@ def estimate_detail(request, project_id: int):
     sync_project_supplier_rates(project)
     recalculate_cost_heads(project)
     refresh_budget_totals(project)
-
-    supplier_links = list(project.project_suppliers.select_related("supplier"))
-    rate_matrix = []
-    for line in project.raw_material_lines.all():
-        supplier_rate_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
-        row_rates = [supplier_rate_map.get(link.supplier_id) for link in supplier_links]
-        rate_matrix.append((line, row_rates))
-
-    context = {
-        "project": project,
-        "group2_list": Group2.objects.order_by("name"),
-        "suppliers": EstimateSupplier.objects.filter(is_active=True),
-        "supplier_links": supplier_links,
-        "rate_matrix": rate_matrix,
-        "cost_heads": [
-            {
-                "obj": head,
-                "display_percentage": (
-                    _format_consumption_for_display(head.percentage)
-                    if head.code in PAINT_COMPONENT_CODES
-                    else _format_percentage_for_display(head.percentage)
-                ),
-                "display_consumption": _format_consumption_for_display(head.percentage)
-                if head.code in PAINT_COMPONENT_CODES
-                else "",
-                "input_label": "Consumption/MT (LTR)"
-                if head.code in PAINT_COMPONENT_CODES
-                else "Percentage",
-                "rate_label": "Rate/LTR" if head.code in PAINT_COMPONENT_CODES else "Cost per Kg",
-                "is_paint_component": head.code in PAINT_COMPONENT_CODES,
-            }
-            for head in project.cost_heads.all()
-        ],
-        "budget_heads": project.budget_heads.all(),
-        "active_sheet": request.GET.get("sheet") or _default_active_sheet(request.user),
-        "can_manage_raw_materials": _can_manage_raw_materials(request.user),
-        "can_manage_rates": _can_manage_rates(request.user),
-        "can_manage_costs": _can_manage_costs(request.user),
-        "can_manage_accounts": _can_manage_accounts(request.user),
-        "can_delete_estimate": _can_delete_estimate(request.user),
-    }
+    context = _build_estimate_detail_context(request, project)
     return render(request, "estimation/estimate_detail.html", context)
 
 
@@ -309,6 +417,105 @@ def add_project_supplier(request, project_id: int):
     project.save(update_fields=["status", "updated_by", "updated_at"])
     messages.success(request, f"{supplier.name} added to the rate finalization sheet.")
     return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
+def import_tentative_bom(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_raw_materials(request.user):
+        messages.error(request, "Only Planning, Management, or Admin can upload tentative BOM for raw material selection.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    action = request.POST.get("action")
+
+    if request.FILES.get("file"):
+        upload = request.FILES["file"]
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            for chunk in upload.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        headers_info = tentative_bom_sheet_headers(tmp_path)
+        selected_mappings = {}
+        for sheet_name, info in headers_info.items():
+            if info.get("detected"):
+                selected_mappings[sheet_name] = info.get("mapping", {})
+
+        persisted = _load_persisted_tentative_mappings(headers_info)
+        for sheet_name, mapping in persisted.items():
+            if any(mapping.values()):
+                selected_mappings[sheet_name] = mapping
+
+        request.session[_tentative_key(project.id, "tmp_path")] = tmp_path
+        request.session[_tentative_key(project.id, "headers_info")] = headers_info
+        request.session[_tentative_key(project.id, "selected_mappings")] = selected_mappings
+        request.session.pop(_tentative_key(project.id, "result"), None)
+        messages.info(request, "Tentative BOM uploaded. Review the column mapping, then validate.")
+        return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
+
+    tmp_path = request.session.get(_tentative_key(project.id, "tmp_path"))
+    headers_info = request.session.get(_tentative_key(project.id, "headers_info")) or {}
+    if not tmp_path or not headers_info:
+        messages.error(request, "Please upload the tentative BOM file first.")
+        return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
+
+    posted_mappings = _build_tentative_user_sheet_mappings(request, headers_info)
+    selected_mappings = request.session.get(_tentative_key(project.id, "selected_mappings")) or {}
+    if _has_any_mapping(posted_mappings):
+        selected_mappings = posted_mappings
+        request.session[_tentative_key(project.id, "selected_mappings")] = selected_mappings
+
+    if _has_any_mapping(selected_mappings):
+        _persist_tentative_mappings(headers_info, selected_mappings, request.user)
+
+    result = validate_and_extract_tentative_bom(tmp_path, user_sheet_mappings=selected_mappings)
+    request.session[_tentative_key(project.id, "result")] = {
+        "ok": result["ok"],
+        "errors": _session_safe_errors(result.get("errors", [])),
+        "sheets_used": result.get("sheets_used", 0),
+        "matched_rows": result.get("matched_rows", 0),
+        "aggregated_lines": [
+            {
+                "item_description": row["item"].item_description,
+                "grade_name": row["item"].grade.name,
+                "section_name": row["item"].section_name,
+                "gross_weight_kg": str(row["gross_weight_kg"]),
+                "quantity_mt": str(row["quantity_mt"]),
+                "source_rows": row["source_rows"],
+            }
+            for row in result.get("aggregated_lines", [])
+        ],
+    }
+
+    if action == "import":
+        if not result["ok"]:
+            messages.error(request, "Tentative BOM has validation errors. Fix them before import.")
+            return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
+
+        project.raw_material_lines.all().delete()
+        for index, row in enumerate(result["aggregated_lines"], start=1):
+            EstimateRawMaterialLine.objects.create(
+                project=project,
+                item=row["item"],
+                quantity_mt=row["quantity_mt"],
+                sort_order=index,
+            )
+        sync_project_supplier_rates(project)
+        recalculate_cost_heads(project)
+        project.status = EstimateProject.Status.RATE_FINALIZATION
+        project.updated_by = request.user
+        project.save(update_fields=["status", "updated_by", "updated_at"])
+        _clear_tentative_bom_session(request, project.id)
+        messages.success(request, "Tentative BOM imported and raw material selection updated.")
+        return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
+
+    if result["ok"]:
+        messages.success(request, "Tentative BOM validation passed. Import is now enabled.")
+    else:
+        messages.error(request, "Tentative BOM validation found errors. Please correct the mapping or source file.")
+    return redirect(f"{redirect('estimation:estimate_detail', project_id=project.id).url}?sheet=raw-material-selection")
 
 
 @login_required

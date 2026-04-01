@@ -9,6 +9,7 @@ urlpatterns = [
     path("new/", views.estimate_create, name="estimate_create"),
     path("<int:project_id>/delete/", views.delete_estimate, name="delete_estimate"),
     path("<int:project_id>/", views.estimate_detail, name="estimate_detail"),
+    path("<int:project_id>/raw-materials/tentative-bom/", views.import_tentative_bom, name="import_tentative_bom"),
     path("<int:project_id>/raw-materials/add/", views.add_raw_material_line, name="add_raw_material_line"),
     path("<int:project_id>/raw-materials/<int:line_id>/delete/", views.delete_raw_material_line, name="delete_raw_material_line"),
     path("<int:project_id>/suppliers/add/", views.add_project_supplier, name="add_project_supplier"),

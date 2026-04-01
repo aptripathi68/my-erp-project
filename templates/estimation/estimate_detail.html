@@ -1,3 +1,4 @@
+{% load procurement_extras %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -105,7 +106,146 @@
 
     <div class="card sheet-panel {% if active_sheet == 'raw-material-selection' %}active{% endif %}" id="raw-material-selection">
         <h2 class="section-title">Raw Material Selection</h2>
-        <p class="muted">Uses the same Item Master chain already available in the ERP. Select section/grade/item from the Item Master and enter quantity in MT.</p>
+        <p class="muted">Planning can upload a tentative BOM, map the Section Name, Grade Name, and Drawing Gross Weight columns, validate the matching with Item Master, and import summed raw-material quantities in MT. Manual addition and deletion remain available after import.</p>
+
+        <div class="card" style="margin-bottom:16px;background:#f8fbfd;">
+            <h3 style="margin-top:0;">Tentative BOM Upload</h3>
+            <form method="post" action="{% url 'estimation:import_tentative_bom' project.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label for="tentative_bom_file">Upload Tentative BOM (.xlsx)</label>
+                <input id="tentative_bom_file" type="file" name="file" accept=".xlsx" {% if not can_manage_raw_materials %}disabled{% endif %}>
+                {% if can_manage_raw_materials %}
+                <div style="margin-top:12px;">
+                    <button class="btn btn-secondary" type="submit">Upload Tentative BOM</button>
+                </div>
+                {% endif %}
+            </form>
+
+            {% if tentative_headers_info %}
+            <form method="post" action="{% url 'estimation:import_tentative_bom' project.id %}" style="margin-top:16px;">
+                {% csrf_token %}
+                {% for sheet_name, info in tentative_headers_info.items %}
+                    {% if info.detected %}
+                    {% with sheet_selected=tentative_selected_mappings|get_item:sheet_name %}
+                    <div style="margin-bottom:18px;">
+                        <h4 style="margin:0 0 10px;">{{ sheet_name }}</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mapping Field</th>
+                                    <th>Select BOM Column</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Section Name</td>
+                                    <td>
+                                        <select name="{{ sheet_name }}__section_name" {% if not can_manage_raw_materials %}disabled{% endif %}>
+                                            <option value="">Select column</option>
+                                            {% for h in info.headers %}
+                                            <option value="{{ h }}" {% if sheet_selected|get_item:"section_name" == h %}selected{% endif %}>{{ h }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Grade Name</td>
+                                    <td>
+                                        <select name="{{ sheet_name }}__grade" {% if not can_manage_raw_materials %}disabled{% endif %}>
+                                            <option value="">Select column</option>
+                                            {% for h in info.headers %}
+                                            <option value="{{ h }}" {% if sheet_selected|get_item:"grade" == h %}selected{% endif %}>{{ h }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Drawing Gross Weight (KG)</td>
+                                    <td>
+                                        <select name="{{ sheet_name }}__gross_weight" {% if not can_manage_raw_materials %}disabled{% endif %}>
+                                            <option value="">Select column</option>
+                                            {% for h in info.headers %}
+                                            <option value="{{ h }}" {% if sheet_selected|get_item:"gross_weight" == h %}selected{% endif %}>{{ h }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endwith %}
+                    {% endif %}
+                {% endfor %}
+                {% if can_manage_raw_materials %}
+                <div style="display:flex;gap:10px;margin-top:12px;">
+                    <button class="btn btn-primary" type="submit" name="action" value="validate">Validate</button>
+                    <button class="btn btn-success" type="submit" name="action" value="import" {% if not tentative_result or not tentative_result.ok %}disabled{% endif %}>Import</button>
+                </div>
+                {% endif %}
+            </form>
+            {% endif %}
+
+            {% if tentative_result %}
+            <div style="margin-top:16px;">
+                <p class="small"><strong>Sheets used:</strong> {{ tentative_result.sheets_used }} | <strong>Matched rows:</strong> {{ tentative_result.matched_rows }}</p>
+                {% if tentative_result.errors %}
+                <h4>Validation Errors</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sheet</th>
+                            <th>Excel Row</th>
+                            <th>Section Name</th>
+                            <th>Grade Name</th>
+                            <th>Gross Weight</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for error in tentative_result.errors %}
+                        <tr>
+                            <td>{{ error.sheet_name }}</td>
+                            <td>{{ error.excel_row }}</td>
+                            <td>{{ error.section_name }}</td>
+                            <td>{{ error.grade }}</td>
+                            <td>{{ error.gross_weight }}</td>
+                            <td>{{ error.errors|join:", " }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                {% if tentative_result.aggregated_lines %}
+                <h4 style="margin-top:16px;">Import Preview</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Description</th>
+                            <th>Grade Name</th>
+                            <th>Section Name</th>
+                            <th>Total Gross Weight (KG)</th>
+                            <th>Quantity in MT</th>
+                            <th>Source Rows</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in tentative_result.aggregated_lines %}
+                        <tr>
+                            <td>{{ row.item_description }}</td>
+                            <td>{{ row.grade_name }}</td>
+                            <td>{{ row.section_name }}</td>
+                            <td>{{ row.gross_weight_kg }}</td>
+                            <td>{{ row.quantity_mt }}</td>
+                            <td>{{ row.source_rows }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
         <form method="post" action="{% url 'estimation:add_raw_material_line' project.id %}">
             {% csrf_token %}
             <div class="grid">

@@ -1,9 +1,12 @@
 from decimal import Decimal
+from tempfile import NamedTemporaryFile
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+import openpyxl
 
 from masters.models import Grade, Group2, Item
 
@@ -20,6 +23,7 @@ from .services import (
     refresh_budget_totals,
     sync_project_supplier_rates,
 )
+from .services_tentative_bom import validate_and_extract_tentative_bom
 
 
 User = get_user_model()
@@ -41,7 +45,7 @@ class EstimationFlowTests(TestCase):
         )
 
     def test_create_inquiry_screen_creates_project(self):
-        self.client.login(username="marketing", password="test123")
+        self.client.login(username="planner", password="test123")
         response = self.client.post(
             reverse("estimation:estimate_create"),
             {
@@ -63,7 +67,7 @@ class EstimationFlowTests(TestCase):
         )
 
     def test_create_inquiry_without_quantity_is_allowed(self):
-        self.client.login(username="marketing", password="test123")
+        self.client.login(username="planner", password="test123")
         response = self.client.post(
             reverse("estimation:estimate_create"),
             {
@@ -84,11 +88,11 @@ class EstimationFlowTests(TestCase):
             ).exists()
         )
 
-    def test_planning_cannot_create_inquiry(self):
-        self.client.login(username="planner", password="test123")
+    def test_marketing_cannot_create_inquiry(self):
+        self.client.login(username="marketing", password="test123")
         response = self.client.get(reverse("estimation:estimate_create"), follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Only Marketing, Management, or Admin can create a new quotation inquiry.")
+        self.assertContains(response, "Only Planning, Management, or Admin can create a new quotation inquiry.")
 
     def test_project_inquiry_number_and_cost_heads_created(self):
         project = EstimateProject.objects.create(
@@ -343,6 +347,68 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(project.cost_heads.get(code="MIO").percentage, Decimal("6"))
         self.assertEqual(project.cost_heads.get(code="FINISH_PAINT").percentage, Decimal("8"))
         self.assertEqual(project.cost_heads.get(code="THINNER").percentage, Decimal("0.4"))
+
+    def test_tentative_bom_validation_aggregates_by_item_master_match(self):
+        with NamedTemporaryFile(suffix=".xlsx") as tmp:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Sheet1"
+            ws.append(["Section Name", "Grade Name", "Drawing Gross Weight"])
+            ws.append(["PL10", "E250BR", 1200])
+            ws.append(["PL10", "E250BR", 800])
+            wb.save(tmp.name)
+
+            result = validate_and_extract_tentative_bom(tmp.name)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["matched_rows"], 2)
+        self.assertEqual(len(result["aggregated_lines"]), 1)
+        self.assertEqual(result["aggregated_lines"][0]["item"].id, self.item.id)
+        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("2.000"))
+
+    def test_planning_can_import_tentative_bom_to_raw_material_lines(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Tentative BOM Import",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.client.login(username="planner", password="test123")
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws.append(["Section Name", "Grade Name", "Drawing Gross Weight"])
+        ws.append(["PL10", "E250BR", 1500])
+        ws.append(["PL10", "E250BR", 500])
+        with NamedTemporaryFile(suffix=".xlsx") as tmp:
+            wb.save(tmp.name)
+            with open(tmp.name, "rb") as fh:
+                upload = SimpleUploadedFile(
+                    "tentative.xlsx",
+                    fh.read(),
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            self.client.post(
+                reverse("estimation:import_tentative_bom", args=[project.id]),
+                {"file": upload},
+                follow=True,
+            )
+            response = self.client.post(
+                reverse("estimation:import_tentative_bom", args=[project.id]),
+                {
+                    "action": "import",
+                    "Sheet1__section_name": "Section Name",
+                    "Sheet1__grade": "Grade Name",
+                    "Sheet1__gross_weight": "Drawing Gross Weight",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(project.raw_material_lines.count(), 1)
+        self.assertEqual(project.raw_material_lines.first().quantity_mt, Decimal("2.000"))
 
     def test_planning_cannot_add_supplier_column(self):
         project = EstimateProject.objects.create(
