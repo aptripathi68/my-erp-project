@@ -40,6 +40,32 @@ def _to_decimal(value: Any) -> Optional[Decimal]:
         return None
 
 
+def _grade_variants(raw_grade: str) -> List[str]:
+    base = normalize_grade_name((raw_grade or "").replace(";", " ").replace(",", " "))
+    if not base:
+        return []
+
+    variants = {base}
+
+    collapsed = base.replace("BR", "B")
+    variants.add(collapsed)
+
+    if base.endswith("BR"):
+        variants.add(base[:-2])
+    if base.endswith("B"):
+        variants.add(base[:-1])
+
+    variants.add(base.replace("IS2062", ""))
+    variants.add(collapsed.replace("IS2062", ""))
+
+    cleaned = set()
+    for value in variants:
+        value = value.strip()
+        if value:
+            cleaned.add(value)
+    return sorted(cleaned, key=len, reverse=True)
+
+
 ALIASES = {
     "section_name": [
         "thickness",
@@ -229,13 +255,19 @@ def validate_and_extract_tentative_bom(
         section_norm = normalize_item_description(item.section_name or "")
         if not section_norm or not item.grade:
             continue
-        grade_code_norm = normalize_grade_name(item.grade.code or "")
-        grade_name_norm = normalize_grade_name(item.grade.name or "")
-        grade_combined_norm = normalize_grade_name(f"{item.grade.code or ''} {item.grade.name or ''}")
-        for grade_norm in (grade_code_norm, grade_name_norm, grade_combined_norm):
-            if grade_norm:
-                item_by_section_grade[(section_norm, grade_norm)] = item
-                grade_candidates_by_section.setdefault(section_norm, []).append((grade_norm, item))
+        raw_grade_values = [
+            item.grade.code or "",
+            item.grade.name or "",
+            f"{item.grade.code or ''} {item.grade.name or ''}",
+        ]
+        seen_for_item = set()
+        for raw_grade in raw_grade_values:
+            for grade_norm in _grade_variants(raw_grade):
+                key = (section_norm, grade_norm)
+                item_by_section_grade[key] = item
+                if grade_norm not in seen_for_item:
+                    grade_candidates_by_section.setdefault(section_norm, []).append((grade_norm, item))
+                    seen_for_item.add(grade_norm)
 
     extracted: List[TentativeBOMRow] = []
     errors: List[Dict[str, Any]] = []
@@ -296,11 +328,14 @@ def validate_and_extract_tentative_bom(
             matched_item = None
             if section_raw and grade_raw:
                 section_norm = normalize_item_description(section_raw)
-                grade_norm = normalize_grade_name(grade_raw)
-                matched_item = item_by_section_grade.get((section_norm, grade_norm))
+                for grade_norm in _grade_variants(grade_raw):
+                    matched_item = item_by_section_grade.get((section_norm, grade_norm))
+                    if matched_item is not None:
+                        break
                 if matched_item is None:
+                    grade_variants = _grade_variants(grade_raw)
                     for candidate_grade, candidate_item in grade_candidates_by_section.get(section_norm, []):
-                        if grade_norm and (grade_norm in candidate_grade or candidate_grade in grade_norm):
+                        if any(grade_norm and (grade_norm in candidate_grade or candidate_grade in grade_norm) for grade_norm in grade_variants):
                             matched_item = candidate_item
                             break
                 if matched_item is None:

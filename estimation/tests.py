@@ -25,6 +25,7 @@ from .services import (
 )
 from .services_tentative_bom import validate_and_extract_tentative_bom
 from .services_tentative_bom import workbook_sheet_headers
+from .services_tentative_bom import _grade_variants
 
 
 User = get_user_model()
@@ -395,6 +396,26 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(headers["BOM"]["mapping"]["gross_weight"], "drg gross wt.")
         self.assertTrue(result["ok"])
         self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("1.200"))
+
+    def test_grade_variants_handle_br_b_and_spacing_variations(self):
+        variants = _grade_variants("IS:2062 E250 BR")
+        self.assertIn("IS2062E250BR", variants)
+        self.assertIn("IS2062E250B", variants)
+        self.assertIn("IS2062E250", variants)
+
+    def test_tentative_bom_matches_shortened_grade_variant(self):
+        with NamedTemporaryFile(suffix=".xlsx") as tmp:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "BOM"
+            ws.append(["Thickness", "Quality", "Drg Gross Wt."])
+            ws.append(["PL10", "E250 B", 1200])
+            wb.save(tmp.name)
+
+            result = validate_and_extract_tentative_bom(tmp.name)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["aggregated_lines"][0]["item"].id, self.item.id)
 
     def test_planning_can_import_tentative_bom_to_raw_material_lines(self):
         project = EstimateProject.objects.create(
