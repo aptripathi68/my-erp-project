@@ -15,5 +15,6 @@ class CustomUserAdmin(UserAdmin):
     )
     
     add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Permissions', {'fields': ('is_staff', 'is_superuser')}),
         ('Additional Info', {'fields': ('role', 'phone', 'employee_id')}),
     )

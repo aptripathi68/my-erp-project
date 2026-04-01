@@ -74,11 +74,11 @@ def estimate_create(request):
     if request.method == "POST":
         client_name = (request.POST.get("client_name") or "").strip()
         project_name = (request.POST.get("project_name") or "").strip()
-        quantity_mt = _parse_decimal(request.POST.get("quantity_mt"))
+        quantity_mt = _parse_decimal(request.POST.get("quantity_mt"), default=Decimal("0"))
         notes = (request.POST.get("notes") or "").strip()
 
-        if not client_name or not project_name or quantity_mt <= 0:
-            messages.error(request, "Client name, project name, and quantity in MT are required.")
+        if not client_name or not project_name:
+            messages.error(request, "Client name and project name are required.")
             return render(request, "estimation/estimate_create.html", {})
 
         project = EstimateProject.objects.create(

@@ -129,8 +129,10 @@ def update_material_totals(project: EstimateProject) -> None:
     if total_qty_mt:
         raw_cost_per_kg = total_amount / (total_qty_mt * Decimal("1000"))
 
+    if total_qty_mt:
+        project.quantity_mt = quantize2(total_qty_mt)
     project.raw_material_cost_per_kg = quantize2(raw_cost_per_kg)
-    project.save(update_fields=["raw_material_cost_per_kg", "updated_at"])
+    project.save(update_fields=["quantity_mt", "raw_material_cost_per_kg", "updated_at"])
 
 
 def recalculate_cost_heads(project: EstimateProject) -> None:

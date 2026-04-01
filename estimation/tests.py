@@ -60,6 +60,28 @@ class EstimationFlowTests(TestCase):
             ).exists()
         )
 
+    def test_create_inquiry_without_quantity_is_allowed(self):
+        self.client.login(username="planner", password="test123")
+        response = self.client.post(
+            reverse("estimation:estimate_create"),
+            {
+                "client_name": "PAHARPUR",
+                "project_name": "NO QTY HEADER",
+                "quantity_mt": "",
+                "notes": "Header first",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            EstimateProject.objects.filter(
+                client_name="PAHARPUR",
+                project_name="NO QTY HEADER",
+                quantity_mt=Decimal("0"),
+            ).exists()
+        )
+
     def test_project_inquiry_number_and_cost_heads_created(self):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
@@ -76,7 +98,7 @@ class EstimationFlowTests(TestCase):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
             project_name="W STYLE ACC STRUCTURE AND HANDRAIL",
-            quantity_mt=Decimal("284"),
+            quantity_mt=Decimal("0"),
             created_by=self.user,
             updated_by=self.user,
         )
@@ -105,6 +127,7 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(line.lowest_rate_per_mt, Decimal("56000"))
         self.assertEqual(line.total_amount, Decimal("2240000.00"))
         self.assertEqual(project.raw_material_cost_per_kg, Decimal("56.00"))
+        self.assertEqual(project.quantity_mt, Decimal("40.00"))
 
     def test_budget_generation_and_expense_approval(self):
         management = User.objects.create_user(username="boss", password="test123", role="Management")
