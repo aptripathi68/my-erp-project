@@ -26,6 +26,11 @@
         .actions{display:flex;gap:10px;flex-wrap:wrap;}
         .muted{color:#5f6f7d;}
         .small{font-size:12px;color:#6f7f8c;}
+        .sheet-tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+        .sheet-tab{padding:10px 14px;border-radius:8px;border:1px solid #cfd8df;background:#fff;text-decoration:none;color:#1f2a34;font-weight:700;}
+        .sheet-tab.active{background:#2d686f;color:#fff;border-color:#2d686f;}
+        .sheet-panel{display:none;}
+        .sheet-panel.active{display:block;}
     </style>
 </head>
 <body>
@@ -36,7 +41,8 @@
         </div>
         <div class="actions">
             <a class="btn btn-secondary" href="{% url 'estimation:estimate_list' %}">Back</a>
-            <a class="btn btn-secondary" href="{% url 'estimation:export_quotation' project.id %}">Download Quotation</a>
+            <a class="btn btn-secondary" href="{% url 'estimation:export_quotation_excel' project.id %}">Download Excel</a>
+            <a class="btn btn-secondary" href="{% url 'estimation:export_quotation_pdf' project.id %}">Download PDF</a>
             <a class="btn btn-secondary" href="/procurement/bom/upload/?estimate_project={{ project.id }}">Open BOM Upload</a>
             {% if not project.quotation_locked %}
             <form method="post" action="{% url 'estimation:finalize_quotation' project.id %}">
@@ -84,7 +90,14 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="sheet-tabs">
+        <a href="?sheet=raw-material-selection" class="sheet-tab {% if active_sheet == 'raw-material-selection' %}active{% endif %}">Raw Material Selection</a>
+        <a href="?sheet=rate-finalisation" class="sheet-tab {% if active_sheet == 'rate-finalisation' %}active{% endif %}">Rate Finalisation</a>
+        <a href="?sheet=quotation-calculation" class="sheet-tab {% if active_sheet == 'quotation-calculation' %}active{% endif %}">Quotation Calculation</a>
+        <a href="?sheet=budget-monitoring" class="sheet-tab {% if active_sheet == 'budget-monitoring' %}active{% endif %}">PO & Budget Monitoring</a>
+    </div>
+
+    <div class="card sheet-panel {% if active_sheet == 'raw-material-selection' %}active{% endif %}" id="raw-material-selection">
         <h2 class="section-title">Raw Material Selection</h2>
         <p class="muted">Uses the same Item Master chain already available in the ERP. Select section/grade/item from the Item Master and enter quantity in MT.</p>
         <form method="post" action="{% url 'estimation:add_raw_material_line' project.id %}">
@@ -117,7 +130,9 @@
                 </div>
             </div>
             <div style="margin-top:12px;">
+                {% if can_manage_raw_materials %}
                 <button class="btn btn-primary" type="submit">Add Raw Material</button>
+                {% endif %}
             </div>
         </form>
 
@@ -164,7 +179,7 @@
         </table>
     </div>
 
-    <div class="card">
+    <div class="card sheet-panel {% if active_sheet == 'rate-finalisation' %}active{% endif %}" id="rate-finalisation">
         <h2 class="section-title">Rate Finalisation</h2>
         <p class="muted">Supplier firms once added remain available for future quotations. Add the suppliers you want as columns for this inquiry, then enter the market rates.</p>
         {% if not can_manage_rates %}
@@ -243,7 +258,7 @@
         </form>
     </div>
 
-    <div class="card">
+    <div class="card sheet-panel {% if active_sheet == 'quotation-calculation' %}active{% endif %}" id="quotation-calculation">
         <h2 class="section-title">Quotation Calculation</h2>
         <p class="muted">Default percentage is 100% for most rows. Scrap Burning and Offcut Recovery can be negative or positive based on planning input.</p>
         <form method="post" action="{% url 'estimation:update_cost_heads' project.id %}">
@@ -298,7 +313,7 @@
         </form>
     </div>
 
-    <div class="card">
+    <div class="card sheet-panel {% if active_sheet == 'budget-monitoring' %}active{% endif %}" id="budget-monitoring">
         <h2 class="section-title">PO and Budget Monitoring</h2>
         <div class="grid">
             <form method="post" action="{% url 'estimation:mark_po_received' project.id %}">

@@ -19,6 +19,7 @@ s3transfer==0.16.0
 python-dateutil==2.9.0.post0
 six==1.17.0
 urllib3==2.6.3
+reportlab==4.2.2
 
 # NEW PACKAGES FOR ERP SYSTEM
 # Excel Processing

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from pathlib import Path
 
 import openpyxl
 from django.contrib import messages
@@ -9,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.conf import settings
 
 from masters.models import Item
 from masters.models import Group2
@@ -24,6 +26,7 @@ from .models import (
 from .services import (
     create_default_suppliers_if_missing,
     ensure_project_cost_heads,
+    DEFAULT_COST_HEAD_CONFIG,
     generate_budget_heads,
     recalculate_cost_heads,
     refresh_budget_totals,
@@ -68,12 +71,24 @@ def _can_create_estimate(user) -> bool:
     return user.role in {"Admin", "Marketing", "Management"}
 
 
+def _can_manage_raw_materials(user) -> bool:
+    return user.role in {"Admin", "Planning", "Management"}
+
+
 def _can_manage_costs(user) -> bool:
     return user.role in {"Admin", "Planning", "Management"}
 
 
 def _can_manage_accounts(user) -> bool:
     return user.role in {"Admin", "Accounts", "Management"}
+
+
+def _default_active_sheet(user) -> str:
+    if user.role == "Marketing":
+        return "rate-finalisation"
+    if user.role == "Accounts":
+        return "budget-monitoring"
+    return "raw-material-selection"
 
 
 @login_required
@@ -161,6 +176,8 @@ def estimate_detail(request, project_id: int):
             for head in project.cost_heads.all()
         ],
         "budget_heads": project.budget_heads.all(),
+        "active_sheet": request.GET.get("sheet") or _default_active_sheet(request.user),
+        "can_manage_raw_materials": _can_manage_raw_materials(request.user),
         "can_manage_rates": _can_manage_rates(request.user),
         "can_manage_costs": _can_manage_costs(request.user),
         "can_manage_accounts": _can_manage_accounts(request.user),
@@ -223,6 +240,9 @@ def add_raw_material_line(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
         return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_raw_materials(request.user):
+        messages.error(request, "Only Planning, Management, or Admin can select raw materials.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
 
     item_id = request.POST.get("item_id")
     quantity_mt = _parse_decimal(request.POST.get("quantity_mt"))
@@ -251,7 +271,7 @@ def delete_raw_material_line(request, project_id: int, line_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
         return redirect("estimation:estimate_detail", project_id=project.id)
-    if not _can_manage_costs(request.user):
+    if not _can_manage_raw_materials(request.user):
         messages.error(request, "You do not have permission to delete raw material lines.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
@@ -344,7 +364,7 @@ def mark_po_received(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
         return redirect("estimation:estimate_detail", project_id=project.id)
-    if not _can_manage_accounts(request.user) and request.user.role not in {"Planning", "Admin", "Management"}:
+    if not _can_manage_accounts(request.user):
         messages.error(request, "You do not have permission to mark PO received.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
@@ -410,33 +430,71 @@ def approve_expense(request, expense_id: int):
 
 
 @login_required
-def export_quotation(request, project_id: int):
+def export_quotation_excel(request, project_id: int):
     project = get_object_or_404(EstimateProject.objects.prefetch_related("cost_heads"), pk=project_id)
     recalculate_cost_heads(project)
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Estimation"
+    ws.title = "Quotation"
 
-    ws["A2"] = "KALPADEEP INDUSTRIES PVT LTD"
-    ws["A3"] = "Estimation"
-    ws["B3"] = "Standard"
-    ws["C3"] = project.project_name
-    ws["D3"] = float(project.quantity_mt)
-    ws["A4"] = f"Client : {project.client_name}"
-    ws["B4"] = "Percentage"
-    ws["C4"] = "Cost per Kg"
-    ws["D4"] = "COST"
-    ws["E4"] = "Remarks"
-
-    row = 5
+    ws["A1"] = "KALPADEEP INDUSTRIES PVT LTD"
+    ws["A2"] = "Quotation Sheet"
+    ws["A3"] = f"Client: {project.client_name}"
+    ws["C3"] = f"Project: {project.project_name}"
+    ws["E3"] = f"Quantity MT: {float(project.quantity_mt)}"
+    ws.append([])
+    ws.append(["Cost Head", "Percentage", "Cost per Kg", "Cost", "Remarks"])
     for head in project.cost_heads.all():
-        ws.cell(row=row, column=1, value=head.name)
-        ws.cell(row=row, column=2, value=float(head.percentage) if head.percentage is not None else "")
-        ws.cell(row=row, column=3, value=float(head.rate_per_kg or 0))
-        ws.cell(row=row, column=4, value=float(head.amount or 0))
-        ws.cell(row=row, column=5, value=head.remarks)
-        row += 1
+        ws.append([
+            head.name,
+            float((head.percentage or 0) * Decimal("100")) if head.percentage is not None else "",
+            float(head.rate_per_kg or 0),
+            float(head.amount or 0),
+            head.remarks,
+        ])
+
+    raw_ws = wb.create_sheet("Raw Material Selection")
+    raw_ws.append(["Item Description", "Grade", "Section", "Quantity MT", "Final Rate/MT", "Total Amount"])
+    for line in project.raw_material_lines.select_related("item__grade").all():
+        raw_ws.append([
+            line.item.item_description,
+            line.item.grade.name,
+            line.item.section_name,
+            float(line.quantity_mt or 0),
+            float(line.final_rate_per_mt or 0),
+            float(line.total_amount or 0),
+        ])
+
+    rate_ws = wb.create_sheet("Rate Finalisation")
+    supplier_links = list(project.project_suppliers.select_related("supplier"))
+    rate_headers = ["Item Description", "Grade", "Section", "Quantity MT"] + [
+        f"{link.supplier.name} Rate/MT" for link in supplier_links
+    ] + ["Final Rate/MT", "Total Amount"]
+    rate_ws.append(rate_headers)
+    for line in project.raw_material_lines.select_related("item__grade").prefetch_related("supplier_rates").all():
+        supplier_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
+        row = [
+            line.item.item_description,
+            line.item.grade.name,
+            line.item.section_name,
+            float(line.quantity_mt or 0),
+        ]
+        for link in supplier_links:
+            row.append(float((supplier_map.get(link.supplier_id).rate_per_mt if supplier_map.get(link.supplier_id) else 0) or 0))
+        row.extend([float(line.final_rate_per_mt or 0), float(line.total_amount or 0)])
+        rate_ws.append(row)
+
+    budget_ws = wb.create_sheet("Budget Monitoring")
+    budget_ws.append(["Budget Code", "Budget Head", "Budget Amount", "Spent Amount", "Approved Amount"])
+    for budget in project.budget_heads.all():
+        budget_ws.append([
+            budget.budget_code,
+            budget.name,
+            float(budget.budget_amount or 0),
+            float(budget.spent_amount or 0),
+            float(budget.approved_amount or 0),
+        ])
 
     output = BytesIO()
     wb.save(output)
@@ -447,4 +505,84 @@ def export_quotation(request, project_id: int):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     response["Content-Disposition"] = f'attachment; filename="{project.inquiry_no}_quotation.xlsx"'
+    return response
+
+
+@login_required
+def export_quotation_pdf(request, project_id: int):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas
+    except Exception:
+        messages.error(request, "PDF export package is not installed on this server yet.")
+        return redirect("estimation:estimate_detail", project_id=project_id)
+
+    project = get_object_or_404(EstimateProject.objects.prefetch_related("cost_heads"), pk=project_id)
+    recalculate_cost_heads(project)
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 20 * mm
+
+    logo_path = Path(settings.BASE_DIR) / "static" / "logo" / "kalpadeeplogo.png"
+    if logo_path.exists():
+        try:
+            pdf.drawImage(str(logo_path), 15 * mm, height - 35 * mm, width=25 * mm, height=18 * mm, preserveAspectRatio=True, mask='auto')
+        except Exception:
+            pass
+
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(45 * mm, y, "KALPADEEP INDUSTRIES PVT LTD")
+    y -= 8 * mm
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(15 * mm, y, "Quotation")
+    y -= 7 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(15 * mm, y, f"Client: {project.client_name}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Project: {project.project_name}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Quantity (MT): {project.quantity_mt}")
+    y -= 10 * mm
+
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(15 * mm, y, "Cost Head")
+    pdf.drawString(85 * mm, y, "Percentage")
+    pdf.drawString(115 * mm, y, "Cost/Kg")
+    pdf.drawString(145 * mm, y, "Cost")
+    y -= 5 * mm
+    pdf.line(15 * mm, y, 195 * mm, y)
+    y -= 5 * mm
+    pdf.setFont("Helvetica", 9)
+
+    for head in project.cost_heads.all():
+        if y < 25 * mm:
+            pdf.showPage()
+            y = height - 20 * mm
+            pdf.setFont("Helvetica", 9)
+        pct = ""
+        if head.percentage is not None:
+            pct_value = head.percentage * Decimal("100")
+            pct = f"{pct_value.quantize(Decimal('0.001'))}%"
+        pdf.drawString(15 * mm, y, str(head.name)[:42])
+        pdf.drawRightString(108 * mm, y, pct)
+        pdf.drawRightString(140 * mm, y, f"{head.rate_per_kg}")
+        pdf.drawRightString(188 * mm, y, f"{head.amount}")
+        y -= 5.5 * mm
+
+    y -= 10 * mm
+    pdf.line(120 * mm, y, 190 * mm, y)
+    y -= 5 * mm
+    pdf.drawString(125 * mm, y, "Quotation Approved By")
+    y -= 12 * mm
+    pdf.line(120 * mm, y, 190 * mm, y)
+    y -= 5 * mm
+    pdf.drawString(145 * mm, y, "Signature")
+
+    pdf.save()
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{project.inquiry_no}_quotation.pdf"'
     return response

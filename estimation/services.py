@@ -18,7 +18,7 @@ TWOPLACES = Decimal("0.01")
 FOURPLACES = Decimal("0.0001")
 
 
-COST_HEAD_DEFAULTS = [
+DEFAULT_COST_HEAD_CONFIG = [
     {"code": "RAW_MATERIAL_COST", "name": "Raw Material Cost", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": "Including Transport"},
     {"code": "INWARD_TRANSPORTATION", "name": "Inward Transportation", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": ""},
     {"code": "SCRAP_BURNING", "name": "Scrap Burning", "percentage": Decimal("-0.03888"), "rate_per_kg": Decimal("28"), "remarks": ""},
@@ -92,19 +92,47 @@ def ensure_project_cost_heads(project: EstimateProject) -> None:
     if EstimateCostHead.objects.filter(project=project).exists():
         return
 
-    for index, cfg in enumerate(COST_HEAD_DEFAULTS, start=1):
-        EstimateCostHead.objects.create(
-            project=project,
-            code=cfg["code"],
-            name=cfg["name"],
-            line_type=cfg.get("line_type", EstimateCostHead.LineType.ENTRY),
-            percentage=cfg.get("percentage"),
-            rate_per_kg=cfg.get("rate_per_kg", ZERO),
-            remarks=cfg.get("remarks", ""),
-            sort_order=index,
-            is_percentage_editable=cfg.get("line_type") != EstimateCostHead.LineType.TOTAL,
-            is_rate_editable=cfg.get("line_type") != EstimateCostHead.LineType.TOTAL,
-        )
+    existing = {head.code: head for head in EstimateCostHead.objects.filter(project=project)}
+
+    for index, cfg in enumerate(DEFAULT_COST_HEAD_CONFIG, start=1):
+        line_type = cfg.get("line_type", EstimateCostHead.LineType.ENTRY)
+        obj = existing.get(cfg["code"])
+        if obj is None:
+            EstimateCostHead.objects.create(
+                project=project,
+                code=cfg["code"],
+                name=cfg["name"],
+                line_type=line_type,
+                percentage=cfg.get("percentage"),
+                rate_per_kg=cfg.get("rate_per_kg", ZERO),
+                remarks=cfg.get("remarks", ""),
+                sort_order=index,
+                is_percentage_editable=line_type != EstimateCostHead.LineType.TOTAL,
+                is_rate_editable=line_type != EstimateCostHead.LineType.TOTAL,
+            )
+            continue
+
+        changed = False
+        obj.name = cfg["name"]
+        obj.line_type = line_type
+        obj.sort_order = index
+        obj.is_percentage_editable = line_type != EstimateCostHead.LineType.TOTAL
+        obj.is_rate_editable = line_type != EstimateCostHead.LineType.TOTAL
+        changed = True
+
+        default_percentage = cfg.get("percentage")
+        default_rate = cfg.get("rate_per_kg", ZERO)
+        default_remarks = cfg.get("remarks", "")
+
+        if obj.percentage in (None, ZERO) and default_percentage not in (None, ZERO):
+            obj.percentage = default_percentage
+        if (obj.rate_per_kg or ZERO) == ZERO and default_rate != ZERO:
+            obj.rate_per_kg = default_rate
+        if not obj.remarks and default_remarks:
+            obj.remarks = default_remarks
+
+        if changed:
+            obj.save()
 
 
 def sync_project_supplier_rates(project: EstimateProject) -> None:
