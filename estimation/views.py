@@ -83,6 +83,10 @@ def _can_manage_accounts(user) -> bool:
     return user.role in {"Admin", "Accounts", "Management"}
 
 
+def _can_delete_estimate(user) -> bool:
+    return user.role in {"Admin", "Management"}
+
+
 def _default_active_sheet(user) -> str:
     if user.role == "Marketing":
         return "rate-finalisation"
@@ -100,6 +104,7 @@ def estimate_list(request):
         {
             "projects": projects,
             "can_create_estimate": _can_create_estimate(request.user),
+            "can_delete_estimate": _can_delete_estimate(request.user),
         },
     )
 
@@ -181,6 +186,7 @@ def estimate_detail(request, project_id: int):
         "can_manage_rates": _can_manage_rates(request.user),
         "can_manage_costs": _can_manage_costs(request.user),
         "can_manage_accounts": _can_manage_accounts(request.user),
+        "can_delete_estimate": _can_delete_estimate(request.user),
     }
     return render(request, "estimation/estimate_detail.html", context)
 
@@ -427,6 +433,29 @@ def approve_expense(request, expense_id: int):
     refresh_budget_totals(expense.budget_head.project)
     messages.success(request, "Expenditure approved.")
     return redirect("estimation:estimate_detail", project_id=expense.budget_head.project_id)
+
+
+@login_required
+def delete_estimate(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_list")
+    if not _can_delete_estimate(request.user):
+        messages.error(request, "Only Management or Admin can delete quotations.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    if project.boms.exists():
+        messages.error(request, "This quotation cannot be deleted because it is already linked with BOM records.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    if project.budget_heads.exists() or EstimateExpense.objects.filter(budget_head__project=project).exists():
+        messages.error(request, "This quotation cannot be deleted because budget or expenditure records already exist.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    project_name = project.project_name
+    project.delete()
+    messages.success(request, f'Quotation "{project_name}" deleted successfully.')
+    return redirect("estimation:estimate_list")
 
 
 @login_required

@@ -44,6 +44,12 @@
             <a class="btn btn-secondary" href="{% url 'estimation:export_quotation_excel' project.id %}">Download Excel</a>
             <a class="btn btn-secondary" href="{% url 'estimation:export_quotation_pdf' project.id %}">Download PDF</a>
             <a class="btn btn-secondary" href="/procurement/bom/upload/?estimate_project={{ project.id }}">Open BOM Upload</a>
+            {% if can_delete_estimate %}
+            <form method="post" action="{% url 'estimation:delete_estimate' project.id %}" onsubmit="return confirm('Delete this quotation permanently?');">
+                {% csrf_token %}
+                <button class="btn btn-secondary" type="submit">Delete Quotation</button>
+            </form>
+            {% endif %}
             {% if not project.quotation_locked %}
             <form method="post" action="{% url 'estimation:finalize_quotation' project.id %}">
                 {% csrf_token %}

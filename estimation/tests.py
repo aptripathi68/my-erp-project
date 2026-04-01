@@ -259,3 +259,33 @@ class EstimationFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(project.project_suppliers.filter(supplier=supplier).exists())
+
+    def test_management_can_delete_unused_quotation(self):
+        management = User.objects.create_user(username="mgmtdelete", password="test123", role="Management")
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Delete Me",
+            quantity_mt=Decimal("0"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.client.login(username="mgmtdelete", password="test123")
+        response = self.client.post(reverse("estimation:delete_estimate", args=[project.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(EstimateProject.objects.filter(id=project.id).exists())
+
+    def test_management_cannot_delete_quotation_with_budget(self):
+        management = User.objects.create_user(username="mgmtkeep", password="test123", role="Management")
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Keep Me",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        generate_budget_heads(project)
+        self.client.login(username="mgmtkeep", password="test123")
+        response = self.client.post(reverse("estimation:delete_estimate", args=[project.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(EstimateProject.objects.filter(id=project.id).exists())

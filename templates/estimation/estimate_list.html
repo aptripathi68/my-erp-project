@@ -16,6 +16,7 @@
         .card{background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
         .messages{margin-bottom:16px;}
         .message{padding:12px 14px;border-radius:8px;margin-bottom:8px;background:#eef6fa;}
+        .action-cell{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
     </style>
 </head>
 <body>
@@ -62,7 +63,15 @@
                     <td>{{ project.quantity_mt }}</td>
                     <td class="status">{{ project.get_status_display }}</td>
                     <td>{{ project.quotation_price_per_mt }}</td>
-                    <td><a href="{% url 'estimation:estimate_detail' project.id %}">Open</a></td>
+                    <td class="action-cell">
+                        <a href="{% url 'estimation:estimate_detail' project.id %}">Open</a>
+                        {% if can_delete_estimate %}
+                        <form method="post" action="{% url 'estimation:delete_estimate' project.id %}" onsubmit="return confirm('Delete this quotation permanently?');">
+                            {% csrf_token %}
+                            <button class="btn btn-secondary" type="submit">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
