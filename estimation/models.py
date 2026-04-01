@@ -200,7 +200,7 @@ class EstimateCostHead(models.Model):
     code = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
     line_type = models.CharField(max_length=20, choices=LineType.choices, default=LineType.ENTRY)
-    percentage = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    percentage = models.DecimalField(max_digits=10, decimal_places=5, null=True, blank=True)
     rate_per_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     amount = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     remarks = models.CharField(max_length=255, blank=True)

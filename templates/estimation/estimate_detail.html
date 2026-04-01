@@ -265,9 +265,9 @@
                         <td>{{ head.name }}</td>
                         <td>
                             {% if head.line_type == "TOTAL" %}
-                            {% if cost_head.display_percentage is not None %}{{ cost_head.display_percentage|floatformat:2 }}{% endif %}
+                            {{ cost_head.display_percentage }}
                             {% else %}
-                            <input type="number" step="0.01" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage|floatformat:2 }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
                             {% endif %}
                         </td>
                         <td>

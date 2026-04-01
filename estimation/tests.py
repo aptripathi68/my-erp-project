@@ -100,6 +100,11 @@ class EstimationFlowTests(TestCase):
         ensure_project_cost_heads(project)
         self.assertTrue(project.inquiry_no.startswith("EST/"))
         self.assertEqual(project.cost_heads.count(), 29)
+        self.assertEqual(project.cost_heads.get(code="SCRAP_BURNING").percentage, Decimal("-0.03888"))
+        self.assertEqual(project.cost_heads.get(code="SCRAP_BURNING").rate_per_kg, Decimal("28"))
+        self.assertEqual(project.cost_heads.get(code="OFFCUT_RECOVERY").percentage, Decimal("-0.05830"))
+        self.assertEqual(project.cost_heads.get(code="OFFCUT_RECOVERY").rate_per_kg, Decimal("35"))
+        self.assertEqual(project.cost_heads.get(code="FABRICATION").rate_per_kg, Decimal("11"))
 
     def test_rate_finalization_updates_raw_material_cost(self):
         project = EstimateProject.objects.create(
@@ -203,7 +208,7 @@ class EstimationFlowTests(TestCase):
         self.client.login(username="planner", password="test123")
         payload = {}
         for h in project.cost_heads.filter(line_type="ENTRY"):
-            payload[f"percentage_{h.id}"] = "100.00"
+            payload[f"percentage_{h.id}"] = "-3.888" if h.code == "SCRAP_BURNING" else "100.00"
             payload[f"rate_{h.id}"] = str(h.rate_per_kg)
             payload[f"remarks_{h.id}"] = h.remarks
         payload[f"rate_{head.id}"] = "11"
@@ -215,6 +220,7 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         head.refresh_from_db()
         self.assertEqual(head.percentage, Decimal("1"))
+        self.assertEqual(project.cost_heads.get(code="SCRAP_BURNING").percentage, Decimal("-0.03888"))
 
     def test_planning_cannot_add_supplier_column(self):
         project = EstimateProject.objects.create(

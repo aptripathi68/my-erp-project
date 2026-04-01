@@ -31,6 +31,15 @@ from .services import (
 )
 
 
+def _format_percentage_for_display(value):
+    if value is None:
+        return ""
+    pct = value * Decimal("100")
+    if pct == pct.quantize(Decimal("0.01")):
+        return f"{pct.quantize(Decimal('0.01'))}"
+    return f"{pct.quantize(Decimal('0.001'))}"
+
+
 def _parse_decimal(value: str, default: Decimal = Decimal("0")) -> Decimal:
     value = (value or "").strip()
     if not value:
@@ -147,7 +156,7 @@ def estimate_detail(request, project_id: int):
         "cost_heads": [
             {
                 "obj": head,
-                "display_percentage": (head.percentage * Decimal("100")) if head.percentage is not None else None,
+                "display_percentage": _format_percentage_for_display(head.percentage),
             }
             for head in project.cost_heads.all()
         ],
