@@ -35,6 +35,10 @@ def _parse_decimal(value: str, default: Decimal = Decimal("0")) -> Decimal:
     value = (value or "").strip()
     if not value:
         return default
+    try:
+        return Decimal(value)
+    except (InvalidOperation, TypeError):
+        return default
 
 
 def _parse_date(value: str):
@@ -45,10 +49,6 @@ def _parse_date(value: str):
         return timezone.datetime.fromisoformat(value).date()
     except ValueError:
         return None
-    try:
-        return Decimal(value)
-    except (InvalidOperation, TypeError):
-        return default
 
 
 def _can_manage_rates(user) -> bool:

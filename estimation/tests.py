@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from masters.models import Grade, Group2, Item
 
@@ -35,6 +36,28 @@ class EstimationFlowTests(TestCase):
             item_description="PL10MM IS:2062, E250BR",
             section_name="PL10MM",
             unit_weight=Decimal("78.50"),
+        )
+
+    def test_create_inquiry_screen_creates_project(self):
+        self.client.login(username="planner", password="test123")
+        response = self.client.post(
+            reverse("estimation:estimate_create"),
+            {
+                "client_name": "PAHARPUR",
+                "project_name": "W STYLE ACC STRUCTURE AND HANDRAIL",
+                "quantity_mt": "950",
+                "notes": "Urgent submission",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            EstimateProject.objects.filter(
+                client_name="PAHARPUR",
+                project_name="W STYLE ACC STRUCTURE AND HANDRAIL",
+                quantity_mt=Decimal("950"),
+            ).exists()
         )
 
     def test_project_inquiry_number_and_cost_heads_created(self):
