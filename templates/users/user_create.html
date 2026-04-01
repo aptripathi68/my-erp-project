@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Create User</title>
+    <style>
+        body{font-family:Arial, Helvetica, sans-serif;background:#f6f8fb;color:#1f2a34;margin:24px;}
+        .card{max-width:820px;background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
+        .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+        label{display:block;font-weight:700;margin-bottom:6px;}
+        input,select{width:100%;padding:10px 12px;border:1px solid #cfd8df;border-radius:8px;box-sizing:border-box;}
+        .btn{display:inline-block;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;border:none;cursor:pointer;margin-top:16px;}
+        .btn-primary{background:#2d686f;color:#fff;}
+        .btn-secondary{background:#fff;color:#1f2a34;border:1px solid #cfd8df;}
+        .messages{margin-bottom:16px;}
+        .message{padding:12px 14px;border-radius:8px;margin-bottom:8px;background:#fdecec;color:#8a1f1f;}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1 style="margin-top:0;">Create User</h1>
+        <p style="color:#5b6b79;">Create application users and assign the department role that also controls group membership.</p>
+
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="grid">
+                <div>
+                    <label for="username">Username</label>
+                    <input id="username" type="text" name="username" required>
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input id="email" type="email" name="email">
+                </div>
+                <div>
+                    <label for="first_name">First Name</label>
+                    <input id="first_name" type="text" name="first_name">
+                </div>
+                <div>
+                    <label for="last_name">Last Name</label>
+                    <input id="last_name" type="text" name="last_name">
+                </div>
+                <div>
+                    <label for="role">Role</label>
+                    <select id="role" name="role">
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="employee_id">Employee ID</label>
+                    <input id="employee_id" type="text" name="employee_id">
+                </div>
+                <div>
+                    <label for="phone">Phone</label>
+                    <input id="phone" type="text" name="phone">
+                </div>
+                <div>
+                    <label for="password">Password</label>
+                    <input id="password" type="password" name="password" required>
+                </div>
+                <div>
+                    <label for="confirm_password">Confirm Password</label>
+                    <input id="confirm_password" type="password" name="confirm_password" required>
+                </div>
+                <div style="display:flex;align-items:end;">
+                    <label style="display:flex;gap:10px;align-items:center;font-weight:600;">
+                        <input type="checkbox" name="is_staff" style="width:auto;"> Allow Admin Login
+                    </label>
+                </div>
+            </div>
+
+            <a class="btn btn-secondary" href="{% url 'users:user_list' %}">Back</a>
+            <button class="btn btn-primary" type="submit">Create User</button>
+        </form>
+    </div>
+</body>
+</html>

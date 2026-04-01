@@ -143,6 +143,20 @@
             margin-bottom:22px;
         }
 
+        .messages{
+            margin-bottom:18px;
+        }
+
+        .message{
+            background:#fff7e6;
+            border:1px solid #f0d28a;
+            color:#7a5600;
+            padding:12px 14px;
+            border-radius:10px;
+            margin-bottom:10px;
+            box-shadow:var(--shadow);
+        }
+
         .hero h2{
             margin:0 0 8px;
             font-size:36px;
@@ -287,12 +301,21 @@
 
             <div class="nav-group">
                 <div class="nav-group-title">Administration</div>
+                <a class="nav-link" href="/users/">User Management</a>
                 <a class="nav-link" href="/admin/">Admin Panel</a>
                 <a class="nav-link" href="/admin/users/user/">Users</a>
             </div>
         </aside>
 
         <main class="content">
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <section class="hero">
                 <h2>ERP Dashboard</h2>
                 <p>
@@ -406,6 +429,12 @@
                     <h3>Stock Ledger</h3>
                     <p>Track stock movement entries and maintain complete inventory traceability.</p>
                     <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
+                </div>
+
+                <div class="module-card">
+                    <h3>User Management</h3>
+                    <p>Create ERP users, assign department roles, and verify access before module-level testing.</p>
+                    <a href="/users/">Open User Management</a>
                 </div>
 
                 <div class="module-card">
