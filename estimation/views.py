@@ -211,6 +211,15 @@ def _build_estimate_detail_context(request, project):
     tentative_headers_info = request.session.get(_tentative_key(project.id, "headers_info")) or {}
     tentative_selected_mappings = request.session.get(_tentative_key(project.id, "selected_mappings")) or {}
     tentative_result = request.session.get(_tentative_key(project.id, "result")) or None
+    if tentative_result and tentative_result.get("aggregated_lines") and not tentative_result.get("total_quantity_mt"):
+        total_quantity_mt = sum(
+            (
+                _parse_decimal(row.get("quantity_mt"), default=Decimal("0"))
+                for row in tentative_result.get("aggregated_lines", [])
+            ),
+            Decimal("0"),
+        )
+        tentative_result["total_quantity_mt"] = str(total_quantity_mt.quantize(Decimal("0.001")))
     preferred_sheet_names = [
         sheet_name
         for sheet_name, info in tentative_headers_info.items()
