@@ -24,6 +24,7 @@ from .models import (
     EstimateSupplier,
 )
 from .services import (
+    PAINT_COMPONENT_CODES,
     create_default_suppliers_if_missing,
     ensure_project_cost_heads,
     DEFAULT_COST_HEAD_CONFIG,
@@ -41,6 +42,14 @@ def _format_percentage_for_display(value):
     if pct == pct.quantize(Decimal("0.01")):
         return f"{pct.quantize(Decimal('0.01'))}"
     return f"{pct.quantize(Decimal('0.001'))}"
+
+
+def _format_consumption_for_display(value):
+    if value is None:
+        return ""
+    if value == value.quantize(Decimal("0.01")):
+        return f"{value.quantize(Decimal('0.01'))}"
+    return f"{value.quantize(Decimal('0.001'))}"
 
 
 def _parse_decimal(value: str, default: Decimal = Decimal("0")) -> Decimal:
@@ -225,7 +234,16 @@ def estimate_detail(request, project_id: int):
         "cost_heads": [
             {
                 "obj": head,
-                "display_percentage": _format_percentage_for_display(head.percentage),
+                "display_percentage": (
+                    _format_consumption_for_display(head.percentage)
+                    if head.code in PAINT_COMPONENT_CODES
+                    else _format_percentage_for_display(head.percentage)
+                ),
+                "input_label": "Consumption/MT (LTR)"
+                if head.code in PAINT_COMPONENT_CODES
+                else "Percentage",
+                "rate_label": "Rate/LTR" if head.code in PAINT_COMPONENT_CODES else "Cost per Kg",
+                "is_paint_component": head.code in PAINT_COMPONENT_CODES,
             }
             for head in project.cost_heads.all()
         ],
@@ -387,7 +405,11 @@ def update_cost_heads(request, project_id: int):
     for head in project.cost_heads.filter(line_type="ENTRY"):
         if head.is_percentage_editable:
             entered_percentage = _parse_decimal(request.POST.get(f"percentage_{head.id}"))
-            head.percentage = entered_percentage / Decimal("100")
+            head.percentage = (
+                entered_percentage
+                if head.code in PAINT_COMPONENT_CODES
+                else entered_percentage / Decimal("100")
+            )
         if head.is_rate_editable and head.code != "RAW_MATERIAL_COST":
             head.rate_per_kg = _parse_decimal(request.POST.get(f"rate_{head.id}"))
         head.remarks = (request.POST.get(f"remarks_{head.id}") or "").strip()
@@ -550,11 +572,16 @@ def export_quotation_excel(request, project_id: int):
     ws["C3"] = f"Project: {project.project_name}"
     ws["E3"] = f"Quantity MT: {float(project.quantity_mt)}"
     ws.append([])
-    ws.append(["Cost Head", "Percentage", "Cost per Kg", "Cost", "Remarks"])
+    ws.append(["Cost Head", "Percentage / Consumption", "Cost per Kg / Rate per LTR", "Cost", "Remarks"])
     for head in project.cost_heads.all():
+        second_column = (
+            float(head.percentage or 0)
+            if head.code in PAINT_COMPONENT_CODES
+            else float((head.percentage or 0) * Decimal("100")) if head.percentage is not None else ""
+        )
         ws.append([
             head.name,
-            float((head.percentage or 0) * Decimal("100")) if head.percentage is not None else "",
+            second_column,
             float(head.rate_per_kg or 0),
             float(head.amount or 0),
             head.remarks,
@@ -655,8 +682,8 @@ def export_quotation_pdf(request, project_id: int):
 
     pdf.setFont("Helvetica-Bold", 9)
     pdf.drawString(15 * mm, y, "Cost Head")
-    pdf.drawString(85 * mm, y, "Percentage")
-    pdf.drawString(115 * mm, y, "Cost/Kg")
+    pdf.drawString(78 * mm, y, "Pct / Cons.")
+    pdf.drawString(114 * mm, y, "Cost/Kg / Rate")
     pdf.drawString(145 * mm, y, "Cost")
     y -= 5 * mm
     pdf.line(15 * mm, y, 195 * mm, y)
@@ -670,8 +697,11 @@ def export_quotation_pdf(request, project_id: int):
             pdf.setFont("Helvetica", 9)
         pct = ""
         if head.percentage is not None:
-            pct_value = head.percentage * Decimal("100")
-            pct = f"{pct_value.quantize(Decimal('0.001'))}%"
+            if head.code in PAINT_COMPONENT_CODES:
+                pct = f"{head.percentage.quantize(Decimal('0.001'))} LTR/MT"
+            else:
+                pct_value = head.percentage * Decimal("100")
+                pct = f"{pct_value.quantize(Decimal('0.001'))}%"
         pdf.drawString(15 * mm, y, str(head.name)[:42])
         pdf.drawRightString(108 * mm, y, pct)
         pdf.drawRightString(140 * mm, y, f"{head.rate_per_kg}")

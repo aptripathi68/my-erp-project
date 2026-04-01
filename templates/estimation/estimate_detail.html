@@ -266,15 +266,15 @@
 
     <div class="card sheet-panel {% if active_sheet == 'quotation-calculation' %}active{% endif %}" id="quotation-calculation">
         <h2 class="section-title">Quotation Calculation</h2>
-        <p class="muted">Default percentage is 100% for most rows. Scrap Burning and Offcut Recovery can be negative or positive based on planning input.</p>
+        <p class="muted">Default percentage is 100% for most rows. Scrap Burning and Offcut Recovery can be negative or positive based on planning input. Paint Procurement is auto-calculated from PRIMER, MIO, FINISH PAINT, and THINNER using their rate per litre and editable consumption per MT.</p>
         <form method="post" action="{% url 'estimation:update_cost_heads' project.id %}">
             {% csrf_token %}
             <table>
                 <thead>
                     <tr>
                         <th>Cost Head</th>
-                        <th>Percentage</th>
-                        <th>Cost per Kg</th>
+                        <th>Percentage / Consumption</th>
+                        <th>Cost per Kg / Rate per LTR</th>
                         <th>Cost</th>
                         <th>Remarks</th>
                     </tr>
@@ -288,7 +288,7 @@
                             {% if head.line_type == "TOTAL" %}
                             {{ cost_head.display_percentage }}
                             {% else %}
-                            <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" title="{{ cost_head.input_label }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
                             {% endif %}
                         </td>
                         <td>

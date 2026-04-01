@@ -223,6 +223,105 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(head.percentage, Decimal("1"))
         self.assertEqual(project.cost_heads.get(code="SCRAP_BURNING").percentage, Decimal("-0.03888"))
 
+    def test_paint_procurement_rolls_up_component_costs_only_once(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Paint Rollup",
+            quantity_mt=Decimal("330"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        primer = project.cost_heads.get(code="PRIMER")
+        mio = project.cost_heads.get(code="MIO")
+        finish = project.cost_heads.get(code="FINISH_PAINT")
+        thinner = project.cost_heads.get(code="THINNER")
+        mio.rate_per_kg = Decimal("180")
+        mio.save(update_fields=["rate_per_kg"])
+
+        recalculate_cost_heads(project)
+
+        primer.refresh_from_db()
+        mio.refresh_from_db()
+        finish.refresh_from_db()
+        thinner.refresh_from_db()
+        paint = project.cost_heads.get(code="PAINT_PROCUREMENT")
+        total_conversion = project.cost_heads.get(code="TOTAL_CONVERSION_COST")
+
+        self.assertEqual(primer.amount, Decimal("250800.00"))
+        self.assertEqual(mio.amount, Decimal("356400.00"))
+        self.assertEqual(finish.amount, Decimal("580800.00"))
+        self.assertEqual(thinner.amount, Decimal("15840.00"))
+        self.assertEqual(paint.amount, Decimal("1203840.00"))
+        self.assertEqual(paint.rate_per_kg, Decimal("3.6480"))
+        manual_total_conversion = sum(
+            (
+                project.cost_heads.get(code=code).amount or Decimal("0")
+                for code in [
+                    "TOTAL_RM_COST",
+                    "FABRICATION",
+                    "BENDING",
+                    "JIGG_FIXTURE",
+                    "ASSEMBLY",
+                    "NDT_INSPECTION",
+                    "INSPECTION",
+                    "PAINT_PROCUREMENT",
+                    "BLASTING_PAINT_APPLICATION",
+                    "PAINT_TESTING",
+                    "LOADING_DISPATCH",
+                    "PACKING",
+                    "TRANSPORTATION",
+                ]
+            ),
+            Decimal("0"),
+        )
+        self.assertEqual(total_conversion.amount, manual_total_conversion)
+
+    def test_planning_can_update_paint_component_consumption(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Paint Edit",
+            quantity_mt=Decimal("330"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        recalculate_cost_heads(project)
+
+        self.client.login(username="planner", password="test123")
+        payload = {}
+        for h in project.cost_heads.filter(line_type="ENTRY"):
+            if h.code == "SCRAP_BURNING":
+                payload[f"percentage_{h.id}"] = "-3.888"
+            elif h.code == "OFFCUT_RECOVERY":
+                payload[f"percentage_{h.id}"] = "-5.830"
+            elif h.code == "PRIMER":
+                payload[f"percentage_{h.id}"] = "8.5"
+            elif h.code == "MIO":
+                payload[f"percentage_{h.id}"] = "6"
+            elif h.code == "FINISH_PAINT":
+                payload[f"percentage_{h.id}"] = "8"
+            elif h.code == "THINNER":
+                payload[f"percentage_{h.id}"] = "0.4"
+            else:
+                payload[f"percentage_{h.id}"] = "100.00"
+            payload[f"rate_{h.id}"] = "180" if h.code == "MIO" else str(h.rate_per_kg)
+            payload[f"remarks_{h.id}"] = h.remarks
+
+        response = self.client.post(
+            reverse("estimation:update_cost_heads", args=[project.id]),
+            payload,
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        primer = project.cost_heads.get(code="PRIMER")
+        paint = project.cost_heads.get(code="PAINT_PROCUREMENT")
+        primer.refresh_from_db()
+        paint.refresh_from_db()
+        self.assertEqual(primer.percentage, Decimal("8.5"))
+        self.assertEqual(primer.amount, Decimal("266475.00"))
+        self.assertEqual(paint.amount, Decimal("1219515.00"))
+
     def test_planning_cannot_add_supplier_column(self):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
@@ -307,6 +406,26 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         project.refresh_from_db()
         self.assertEqual(project.status, EstimateProject.Status.CLOSED)
+
+    def test_budget_generation_excludes_paint_component_rows(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Budget Exclusion",
+            quantity_mt=Decimal("330"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        project.cost_heads.filter(code="MIO").update(rate_per_kg=Decimal("180"))
+        recalculate_cost_heads(project)
+        generate_budget_heads(project)
+
+        budget_codes = set(project.budget_heads.values_list("cost_head__code", flat=True))
+        self.assertIn("PAINT_PROCUREMENT", budget_codes)
+        self.assertNotIn("PRIMER", budget_codes)
+        self.assertNotIn("MIO", budget_codes)
+        self.assertNotIn("FINISH_PAINT", budget_codes)
+        self.assertNotIn("THINNER", budget_codes)
 
     def test_financial_year_label_uses_april_to_march_cycle(self):
         project = EstimateProject.objects.create(
