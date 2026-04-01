@@ -322,6 +322,28 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(primer.amount, Decimal("266475.00"))
         self.assertEqual(paint.amount, Decimal("1219515.00"))
 
+    def test_existing_legacy_paint_rows_are_backfilled_to_default_consumption(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Legacy Paint",
+            quantity_mt=Decimal("330"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        project.cost_heads.filter(code="PRIMER").update(percentage=Decimal("1"), remarks="@8 LTR/MT")
+        project.cost_heads.filter(code="MIO").update(percentage=Decimal("1"), remarks="@6 LTR/MT")
+        project.cost_heads.filter(code="FINISH_PAINT").update(percentage=Decimal("1"), remarks="@8 LTR/MT")
+        project.cost_heads.filter(code="THINNER").update(percentage=Decimal("1"), remarks="@0.4 LTR/MT")
+
+        ensure_project_cost_heads(project)
+        recalculate_cost_heads(project)
+
+        self.assertEqual(project.cost_heads.get(code="PRIMER").percentage, Decimal("8"))
+        self.assertEqual(project.cost_heads.get(code="MIO").percentage, Decimal("6"))
+        self.assertEqual(project.cost_heads.get(code="FINISH_PAINT").percentage, Decimal("8"))
+        self.assertEqual(project.cost_heads.get(code="THINNER").percentage, Decimal("0.4"))
+
     def test_planning_cannot_add_supplier_column(self):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",

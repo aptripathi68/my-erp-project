@@ -103,9 +103,6 @@ def quantize3(value: Decimal) -> Decimal:
 
 
 def ensure_project_cost_heads(project: EstimateProject) -> None:
-    if EstimateCostHead.objects.filter(project=project).exists():
-        return
-
     existing = {head.code: head for head in EstimateCostHead.objects.filter(project=project)}
 
     for index, cfg in enumerate(DEFAULT_COST_HEAD_CONFIG, start=1):
@@ -140,6 +137,12 @@ def ensure_project_cost_heads(project: EstimateProject) -> None:
 
         if obj.percentage in (None, ZERO) and default_percentage not in (None, ZERO):
             obj.percentage = default_percentage
+        if (
+            obj.code in PAINT_COMPONENT_DEFAULTS
+            and obj.percentage == Decimal("1")
+            and ("LTR/MT" in (obj.remarks or "").upper() or (obj.remarks or "").strip().startswith("@"))
+        ):
+            obj.percentage = PAINT_COMPONENT_DEFAULTS[obj.code]["consumption_per_mt"]
         if (obj.rate_per_kg or ZERO) == ZERO and default_rate != ZERO:
             obj.rate_per_kg = default_rate
         if not obj.remarks and default_remarks:
