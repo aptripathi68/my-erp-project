@@ -25,7 +25,9 @@
         </div>
         <div>
             <a class="btn btn-secondary" href="/">Dashboard</a>
+            {% if can_create_users %}
             <a class="btn btn-primary" href="{% url 'users:user_create' %}">Create User</a>
+            {% endif %}
         </div>
     </div>
 

@@ -52,6 +52,12 @@ class UserManagementViewTests(TestCase):
             role="Admin",
             is_staff=True,
         )
+        self.management_user = User.objects.create_user(
+            username="management1",
+            password="test123",
+            role="Management",
+            is_staff=True,
+        )
 
     def test_admin_can_create_user_from_app_screen(self):
         self.client.login(username="admin1", password="test123")
@@ -82,3 +88,13 @@ class UserManagementViewTests(TestCase):
         response = self.client.get(reverse("users:user_list"), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "do not have permission")
+
+    def test_management_can_view_but_not_create_users(self):
+        self.client.login(username="management1", password="test123")
+        response = self.client.get(reverse("users:user_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Create User")
+
+        response = self.client.get(reverse("users:user_create"), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "do not have permission to create users")

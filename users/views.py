@@ -7,23 +7,35 @@ from django.shortcuts import redirect, render
 User = get_user_model()
 
 
-def _can_manage_users(user):
+def _can_view_users(user):
     return user.is_superuser or user.role in {"Admin", "Management"}
+
+
+def _can_create_users(user):
+    return user.is_superuser or user.role == "Admin"
 
 
 @login_required
 def user_list(request):
-    if not _can_manage_users(request.user):
+    if not _can_view_users(request.user):
         messages.error(request, "You do not have permission to manage users.")
         return redirect("dashboard_home")
 
     users = User.objects.all().order_by("username")
-    return render(request, "users/user_list.html", {"users": users, "role_choices": User.ROLE_CHOICES})
+    return render(
+        request,
+        "users/user_list.html",
+        {
+            "users": users,
+            "role_choices": User.ROLE_CHOICES,
+            "can_create_users": _can_create_users(request.user),
+        },
+    )
 
 
 @login_required
 def user_create(request):
-    if not _can_manage_users(request.user):
+    if not _can_create_users(request.user):
         messages.error(request, "You do not have permission to create users.")
         return redirect("dashboard_home")
 
