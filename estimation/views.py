@@ -55,6 +55,10 @@ def _can_manage_rates(user) -> bool:
     return user.role in {"Admin", "Marketing", "Management"}
 
 
+def _can_create_estimate(user) -> bool:
+    return user.role in {"Admin", "Marketing", "Management"}
+
+
 def _can_manage_costs(user) -> bool:
     return user.role in {"Admin", "Planning", "Management"}
 
@@ -66,11 +70,22 @@ def _can_manage_accounts(user) -> bool:
 @login_required
 def estimate_list(request):
     projects = EstimateProject.objects.all().prefetch_related("project_suppliers")
-    return render(request, "estimation/estimate_list.html", {"projects": projects})
+    return render(
+        request,
+        "estimation/estimate_list.html",
+        {
+            "projects": projects,
+            "can_create_estimate": _can_create_estimate(request.user),
+        },
+    )
 
 
 @login_required
 def estimate_create(request):
+    if not _can_create_estimate(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can create a new quotation inquiry.")
+        return redirect("estimation:estimate_list")
+
     if request.method == "POST":
         client_name = (request.POST.get("client_name") or "").strip()
         project_name = (request.POST.get("project_name") or "").strip()

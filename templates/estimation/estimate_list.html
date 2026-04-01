@@ -26,7 +26,9 @@
         </div>
         <div>
             <a class="btn btn-secondary" href="/">Dashboard</a>
+            {% if can_create_estimate %}
             <a class="btn btn-primary" href="{% url 'estimation:estimate_create' %}">New Query</a>
+            {% endif %}
         </div>
     </div>
 

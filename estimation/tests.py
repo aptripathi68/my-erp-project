@@ -40,7 +40,7 @@ class EstimationFlowTests(TestCase):
         )
 
     def test_create_inquiry_screen_creates_project(self):
-        self.client.login(username="planner", password="test123")
+        self.client.login(username="marketing", password="test123")
         response = self.client.post(
             reverse("estimation:estimate_create"),
             {
@@ -62,7 +62,7 @@ class EstimationFlowTests(TestCase):
         )
 
     def test_create_inquiry_without_quantity_is_allowed(self):
-        self.client.login(username="planner", password="test123")
+        self.client.login(username="marketing", password="test123")
         response = self.client.post(
             reverse("estimation:estimate_create"),
             {
@@ -82,6 +82,12 @@ class EstimationFlowTests(TestCase):
                 quantity_mt=Decimal("0"),
             ).exists()
         )
+
+    def test_planning_cannot_create_inquiry(self):
+        self.client.login(username="planner", password="test123")
+        response = self.client.get(reverse("estimation:estimate_create"), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only Marketing, Management, or Admin can create a new quotation inquiry.")
 
     def test_project_inquiry_number_and_cost_heads_created(self):
         project = EstimateProject.objects.create(
