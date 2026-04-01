@@ -210,6 +210,22 @@ def _build_estimate_detail_context(request, project):
     tentative_headers_info = request.session.get(_tentative_key(project.id, "headers_info")) or {}
     tentative_selected_mappings = request.session.get(_tentative_key(project.id, "selected_mappings")) or {}
     tentative_result = request.session.get(_tentative_key(project.id, "result")) or None
+    preferred_sheet_names = [
+        sheet_name
+        for sheet_name, info in tentative_headers_info.items()
+        if info.get("preferred")
+    ]
+    if preferred_sheet_names:
+        tentative_headers_info = {
+            sheet_name: info
+            for sheet_name, info in tentative_headers_info.items()
+            if sheet_name in preferred_sheet_names
+        }
+        tentative_selected_mappings = {
+            sheet_name: mapping
+            for sheet_name, mapping in tentative_selected_mappings.items()
+            if sheet_name in preferred_sheet_names
+        }
 
     supplier_links = list(project.project_suppliers.select_related("supplier"))
     rate_matrix = []
