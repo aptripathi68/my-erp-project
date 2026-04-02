@@ -346,6 +346,24 @@
             </form>
             {% endif %}
         </div>
+        {% if supplier_links %}
+        <div class="card" style="margin-bottom:16px;background:#f8fbfd;">
+            <h3 style="margin-top:0;">Selected Suppliers</h3>
+            <div class="actions">
+                {% for link in supplier_links %}
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #d9e2ec;border-radius:8px;padding:8px 10px;background:#fff;">
+                    <strong>{{ link.supplier.name }}</strong>
+                    {% if can_manage_rates %}
+                    <form method="post" action="{% url 'estimation:remove_project_supplier' project.id link.supplier.id %}" onsubmit="return confirm('Remove this supplier from the current rate sheet? Its supplier-wise rates and uploaded quotation files for this project will also be removed.');">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary" type="submit" style="padding:6px 10px;">Remove</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <div class="grid">
             <form method="post" action="{% url 'estimation:create_supplier' %}">
                 {% csrf_token %}
@@ -385,6 +403,7 @@
                         {% for link in supplier_links %}
                         <th>{{ link.supplier.name }} Rate/MT</th>
                         {% endfor %}
+                        <th>Lowest (L1) Rate/MT</th>
                         <th>Final Rate/MT</th>
                         <th>Total Amount</th>
                     </tr>
@@ -401,12 +420,13 @@
                             <input type="number" step="0.01" name="rate_{{ line.id }}_{{ rate.supplier_id }}" value="{{ rate.rate_per_mt|default_if_none:'' }}" {% if not can_manage_rates %}disabled{% endif %}>
                         </td>
                         {% endfor %}
+                        <td>{{ line.lowest_rate_per_mt }}</td>
                         <td><input type="number" step="0.01" name="final_rate_{{ line.id }}" value="{{ line.final_rate_per_mt }}" {% if not can_manage_rates %}disabled{% endif %}></td>
                         <td>{{ line.total_amount }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{{ supplier_links|length|add:'7' }}">Add raw materials and supplier columns to start the rate sheet.</td>
+                        <td colspan="{{ supplier_links|length|add:'8' }}">Add raw materials and supplier columns to start the rate sheet.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -555,7 +575,7 @@
                 <div class="grid">
                     <div>
                         <label>Estimated Price /MT (Round-Off)</label>
-                        <input type="number" step="0.01" value="{{ project.estimated_price_per_mt }}" disabled>
+                        <input type="number" step="0.01" value="{{ management_estimated_price }}" disabled>
                     </div>
                     <div>
                         <label for="quoted_price_per_mt">Quoted Price</label>
@@ -580,6 +600,12 @@
                 </div>
                 {% endif %}
             </form>
+            {% if can_reopen_quotation %}
+            <form method="post" action="{% url 'estimation:reopen_quotation_for_review' project.id %}" style="margin-top:12px;">
+                {% csrf_token %}
+                <button class="btn btn-secondary" type="submit">Reopen for Review</button>
+            </form>
+            {% endif %}
         </div>
     </div>
 

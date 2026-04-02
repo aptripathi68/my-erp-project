@@ -307,6 +307,10 @@ def _build_estimate_detail_context(request, project):
             "Management",
             "Accounts",
         },
+        "management_estimated_price": project.estimated_price_per_kg,
+        "can_reopen_quotation": _can_manage_decision(request.user)
+        and project.status in {EstimateProject.Status.APPROVED, EstimateProject.Status.REJECTED}
+        and not project.budget_heads.exists(),
         "tentative_headers_info": tentative_headers_info,
         "tentative_selected_mappings": tentative_selected_mappings,
         "tentative_result": tentative_result,
@@ -474,6 +478,37 @@ def add_project_supplier(request, project_id: int):
     project.updated_by = request.user
     project.save(update_fields=["status", "updated_by", "updated_at"])
     messages.success(request, f"{supplier.name} added to the rate finalization sheet.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
+def remove_project_supplier(request, project_id: int, supplier_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_rates(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can remove suppliers from the rate sheet.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    link = get_object_or_404(EstimateProjectSupplier, project=project, supplier_id=supplier_id)
+    supplier = link.supplier
+
+    EstimateSupplierQuotationFile.objects.filter(project=project, supplier=supplier).delete()
+    EstimateRawMaterialRate.objects.filter(line__project=project, supplier=supplier).delete()
+    link.delete()
+
+    for index, row in enumerate(project.project_suppliers.order_by("column_order", "supplier__name"), start=1):
+        if row.column_order != index:
+            row.column_order = index
+            row.save(update_fields=["column_order"])
+
+    for line in project.raw_material_lines.prefetch_related("supplier_rates"):
+        line.recalculate_from_rates(save=True)
+
+    recalculate_cost_heads(project)
+    project.updated_by = request.user
+    project.save(update_fields=["updated_by", "updated_at"])
+    messages.success(request, f"{supplier.name} removed from this rate sheet.")
     return redirect("estimation:estimate_detail", project_id=project.id)
 
 
@@ -702,7 +737,9 @@ def download_rate_sheet(request, project_id: int):
     for idx, link in enumerate(supplier_links, start=supplier_start_col):
         ws.cell(row=5, column=idx, value=f"{link.supplier.name} Rate/MT")
 
-    final_rate_col = supplier_start_col + len(supplier_links)
+    lowest_rate_col = supplier_start_col + len(supplier_links)
+    final_rate_col = lowest_rate_col + 1
+    ws.cell(row=5, column=lowest_rate_col, value="Lowest (L1) Rate/MT")
     ws.cell(row=5, column=final_rate_col, value="Final Rate/MT")
     ws.cell(row=5, column=final_rate_col + 1, value="Total Amount")
 
@@ -717,6 +754,7 @@ def download_rate_sheet(request, project_id: int):
         for idx, link in enumerate(supplier_links, start=supplier_start_col):
             rate = supplier_map.get(link.supplier_id)
             ws.cell(row=current_row, column=idx, value=float(rate.rate_per_mt) if rate and rate.rate_per_mt is not None else "")
+        ws.cell(row=current_row, column=lowest_rate_col, value=float(line.lowest_rate_per_mt or 0))
         ws.cell(row=current_row, column=final_rate_col, value=float(line.final_rate_per_mt or 0))
         ws.cell(row=current_row, column=final_rate_col + 1, value=float(line.total_amount or 0))
         current_row += 1
@@ -990,6 +1028,28 @@ def submit_management_decision(request, project_id: int):
 
 
 @login_required
+def reopen_quotation_for_review(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_decision(request.user):
+        messages.error(request, "Only Management or Admin can reopen quotations for review.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.status not in {EstimateProject.Status.APPROVED, EstimateProject.Status.REJECTED}:
+        messages.error(request, "Only approved or rejected quotations can be reopened.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.budget_heads.exists():
+        messages.error(request, "This quotation cannot be reopened because the budget sheet has already been created.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    project.status = EstimateProject.Status.UNDER_REVIEW
+    project.updated_by = request.user
+    project.save(update_fields=["status", "updated_by", "updated_at"])
+    messages.success(request, "Quotation reopened for review.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
 def mark_po_received(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
@@ -1162,7 +1222,7 @@ def export_quotation_excel(request, project_id: int):
     supplier_links = list(project.project_suppliers.select_related("supplier"))
     rate_headers = ["Item Description", "Grade", "Section", "Quantity MT"] + [
         f"{link.supplier.name} Rate/MT" for link in supplier_links
-    ] + ["Final Rate/MT", "Total Amount"]
+    ] + ["Lowest (L1) Rate/MT", "Final Rate/MT", "Total Amount"]
     rate_ws.append(rate_headers)
     for line in project.raw_material_lines.select_related("item__grade").prefetch_related("supplier_rates").all():
         supplier_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
@@ -1174,7 +1234,7 @@ def export_quotation_excel(request, project_id: int):
         ]
         for link in supplier_links:
             row.append(float((supplier_map.get(link.supplier_id).rate_per_mt if supplier_map.get(link.supplier_id) else 0) or 0))
-        row.extend([float(line.final_rate_per_mt or 0), float(line.total_amount or 0)])
+        row.extend([float(line.lowest_rate_per_mt or 0), float(line.final_rate_per_mt or 0), float(line.total_amount or 0)])
         rate_ws.append(row)
 
     budget_ws = wb.create_sheet("Budget Monitoring")

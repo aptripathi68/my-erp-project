@@ -503,6 +503,39 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(project.project_suppliers.filter(supplier=supplier).exists())
 
+    def test_marketing_can_remove_supplier_from_current_rate_sheet(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Remove Supplier",
+            quantity_mt=Decimal("10"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        supplier = EstimateSupplier.objects.create(name="Remove Me")
+        EstimateProjectSupplier.objects.create(project=project, supplier=supplier, column_order=1)
+        line = project.raw_material_lines.create(item=self.item, quantity_mt=Decimal("10"), sort_order=1)
+        sync_project_supplier_rates(project)
+        line.supplier_rates.filter(supplier=supplier).update(rate_per_mt=Decimal("55000"))
+        EstimateSupplierQuotationFile.objects.create(
+            project=project,
+            supplier=supplier,
+            file_key="estimation/test/remove.pdf",
+            original_filename="remove.pdf",
+            uploaded_by=self.marketing_user,
+        )
+
+        self.client.login(username="marketing", password="test123")
+        response = self.client.post(
+            reverse("estimation:remove_project_supplier", args=[project.id, supplier.id]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(project.project_suppliers.filter(supplier=supplier).exists())
+        self.assertFalse(line.supplier_rates.filter(supplier=supplier).exists())
+        self.assertFalse(project.supplier_quotation_files.filter(supplier=supplier).exists())
+
     def test_marketing_can_download_and_upload_rate_sheet(self):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
@@ -524,8 +557,10 @@ class EstimationFlowTests(TestCase):
         wb = openpyxl.load_workbook(BytesIO(download.content))
         ws = wb.active
         self.assertEqual(ws["B5"].value, "Item Description")
+        self.assertEqual(ws["G5"].value, "Lowest (L1) Rate/MT")
+        self.assertEqual(ws["H5"].value, "Final Rate/MT")
         ws["F6"] = 57500
-        ws["G6"] = 57500
+        ws["H6"] = 57500
 
         out = BytesIO()
         wb.save(out)
@@ -672,6 +707,67 @@ class EstimationFlowTests(TestCase):
         project.refresh_from_db()
         self.assertEqual(project.status, EstimateProject.Status.UNDER_REVIEW)
         self.assertFalse(project.budget_heads.exists())
+
+    def test_management_can_reopen_approved_quotation_before_budget_creation(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Reopen Approved",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+            status=EstimateProject.Status.APPROVED,
+        )
+
+        self.client.login(username="boss", password="test123")
+        response = self.client.post(
+            reverse("estimation:reopen_quotation_for_review", args=[project.id]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, EstimateProject.Status.UNDER_REVIEW)
+
+    def test_management_decision_uses_estimated_price_per_kg_display(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Decision Display",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        recalculate_cost_heads(project)
+
+        self.client.login(username="boss", password="test123")
+        response = self.client.get(reverse("estimation:estimate_detail", args=[project.id]))
+        project.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'value="{project.quotation_price_per_kg}"', html=False)
+        self.assertNotContains(response, f'value="{project.quotation_price_per_mt}"', html=False)
+
+    def test_management_cannot_reopen_approved_quotation_after_budget_creation(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="No Reopen After Budget",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+            status=EstimateProject.Status.APPROVED,
+        )
+        ensure_project_cost_heads(project)
+        generate_budget_heads(project)
+
+        self.client.login(username="boss", password="test123")
+        response = self.client.post(
+            reverse("estimation:reopen_quotation_for_review", args=[project.id]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, EstimateProject.Status.APPROVED)
 
     def test_budget_generation_excludes_paint_component_rows(self):
         project = EstimateProject.objects.create(
