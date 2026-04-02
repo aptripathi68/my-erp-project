@@ -161,6 +161,38 @@ class EstimateProjectSupplier(models.Model):
         return f"{self.project.inquiry_no} - {self.supplier.name}"
 
 
+class EstimateSupplierQuotationFile(models.Model):
+    project = models.ForeignKey(
+        EstimateProject,
+        on_delete=models.CASCADE,
+        related_name="supplier_quotation_files",
+    )
+    supplier = models.ForeignKey(
+        EstimateSupplier,
+        on_delete=models.PROTECT,
+        related_name="quotation_files",
+    )
+    file_key = models.CharField(max_length=500)
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+    content_type = models.CharField(max_length=100, blank=True, default="")
+    file_size = models.BigIntegerField(null=True, blank=True)
+    remarks = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="uploaded_estimate_supplier_files",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["supplier__name", "-uploaded_at"]
+
+    def __str__(self) -> str:
+        return f"{self.project.inquiry_no} - {self.supplier.name} - {self.original_filename or self.file_key}"
+
+
 class EstimateRawMaterialLine(models.Model):
     project = models.ForeignKey(
         EstimateProject,

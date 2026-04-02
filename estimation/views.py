@@ -25,6 +25,7 @@ from .models import (
     EstimateRawMaterialLine,
     EstimateRawMaterialRate,
     EstimateSupplier,
+    EstimateSupplierQuotationFile,
 )
 from .services import (
     PAINT_COMPONENT_CODES,
@@ -35,6 +36,11 @@ from .services import (
     recalculate_cost_heads,
     refresh_budget_totals,
     sync_project_supplier_rates,
+)
+from .storage import (
+    build_supplier_quotation_object_key,
+    generate_supplier_quotation_download_url,
+    upload_supplier_quotation_file,
 )
 from .services_tentative_bom import (
     build_header_signature as build_tentative_header_signature,
@@ -242,6 +248,14 @@ def _build_estimate_detail_context(request, project):
         }
 
     supplier_links = list(project.project_suppliers.select_related("supplier"))
+    supplier_file_rows = []
+    for quotation_file in project.supplier_quotation_files.select_related("supplier", "uploaded_by"):
+        download_url = None
+        try:
+            download_url = generate_supplier_quotation_download_url(quotation_file.file_key)
+        except Exception:
+            download_url = None
+        supplier_file_rows.append((quotation_file, download_url))
     rate_matrix = []
     for line in project.raw_material_lines.all():
         supplier_rate_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
@@ -253,6 +267,7 @@ def _build_estimate_detail_context(request, project):
         "group2_list": Group2.objects.order_by("name"),
         "suppliers": EstimateSupplier.objects.filter(is_active=True),
         "supplier_links": supplier_links,
+        "supplier_file_rows": supplier_file_rows,
         "rate_matrix": rate_matrix,
         "cost_heads": [
             {
@@ -655,6 +670,187 @@ def update_rate_sheet(request, project_id: int):
         update_fields.insert(0, "status")
     project.save(update_fields=update_fields)
     messages.success(request, "Rate finalization sheet updated.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
+def download_rate_sheet(request, project_id: int):
+    project = get_object_or_404(
+        EstimateProject.objects.prefetch_related(
+            "project_suppliers__supplier",
+            "raw_material_lines__item__grade",
+            "raw_material_lines__supplier_rates__supplier",
+        ),
+        pk=project_id,
+    )
+    supplier_links = list(project.project_suppliers.select_related("supplier"))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Rate Finalisation"
+    ws["A1"] = "KALPADEEP INDUSTRIES PVT LTD"
+    ws["A2"] = f"Rate Sheet - {project.inquiry_no}"
+    ws["A3"] = f"Client: {project.client_name}"
+    ws["D3"] = f"Project: {project.project_name}"
+    ws["A5"] = "Line ID"
+    ws["B5"] = "Item Description"
+    ws["C5"] = "Grade"
+    ws["D5"] = "Section"
+    ws["E5"] = "Quantity MT"
+
+    supplier_start_col = 6
+    for idx, link in enumerate(supplier_links, start=supplier_start_col):
+        ws.cell(row=5, column=idx, value=f"{link.supplier.name} Rate/MT")
+
+    final_rate_col = supplier_start_col + len(supplier_links)
+    ws.cell(row=5, column=final_rate_col, value="Final Rate/MT")
+    ws.cell(row=5, column=final_rate_col + 1, value="Total Amount")
+
+    current_row = 6
+    for line in project.raw_material_lines.all():
+        supplier_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
+        ws.cell(row=current_row, column=1, value=line.id)
+        ws.cell(row=current_row, column=2, value=line.item.item_description)
+        ws.cell(row=current_row, column=3, value=line.item.grade.name)
+        ws.cell(row=current_row, column=4, value=line.item.section_name)
+        ws.cell(row=current_row, column=5, value=float(line.quantity_mt or 0))
+        for idx, link in enumerate(supplier_links, start=supplier_start_col):
+            rate = supplier_map.get(link.supplier_id)
+            ws.cell(row=current_row, column=idx, value=float(rate.rate_per_mt) if rate and rate.rate_per_mt is not None else "")
+        ws.cell(row=current_row, column=final_rate_col, value=float(line.final_rate_per_mt or 0))
+        ws.cell(row=current_row, column=final_rate_col + 1, value=float(line.total_amount or 0))
+        current_row += 1
+
+    ws.column_dimensions["A"].hidden = True
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{project.inquiry_no}_rate_sheet.xlsx"'
+    return response
+
+
+@login_required
+def upload_rate_sheet(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_rates(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can upload the supplier rate sheet.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    upload = request.FILES.get("file")
+    if not upload:
+        messages.error(request, "Please choose the filled supplier rate sheet to upload.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    wb = openpyxl.load_workbook(upload, data_only=True)
+    ws = wb.active
+    header_row = None
+    for row_no in range(1, min(ws.max_row, 15) + 1):
+        row_values = [str(ws.cell(row=row_no, column=col).value or "").strip() for col in range(1, ws.max_column + 1)]
+        if "Line ID" in row_values and "Item Description" in row_values:
+            header_row = row_no
+            break
+
+    if not header_row:
+        messages.error(request, "Uploaded file does not look like the system-generated rate sheet.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    headers = {
+        str(ws.cell(row=header_row, column=col).value or "").strip(): col
+        for col in range(1, ws.max_column + 1)
+    }
+    line_id_col = headers.get("Line ID")
+    final_rate_col = headers.get("Final Rate/MT")
+    supplier_columns = {}
+    for link in project.project_suppliers.select_related("supplier"):
+        header = f"{link.supplier.name} Rate/MT"
+        if header in headers:
+            supplier_columns[link.supplier_id] = headers[header]
+
+    updated_lines = 0
+    for row_no in range(header_row + 1, ws.max_row + 1):
+        raw_line_id = ws.cell(row=row_no, column=line_id_col).value if line_id_col else None
+        if raw_line_id in (None, ""):
+            continue
+        try:
+            line_id = int(raw_line_id)
+        except (TypeError, ValueError):
+            continue
+        try:
+            line = project.raw_material_lines.prefetch_related("supplier_rates").get(pk=line_id)
+        except EstimateRawMaterialLine.DoesNotExist:
+            continue
+
+        supplier_rate_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
+        for supplier_id, col_no in supplier_columns.items():
+            rate = supplier_rate_map.get(supplier_id)
+            if not rate:
+                continue
+            cell_value = ws.cell(row=row_no, column=col_no).value
+            parsed = _parse_decimal("" if cell_value is None else str(cell_value), default=None)
+            rate.rate_per_mt = parsed
+            rate.save(update_fields=["rate_per_mt"])
+
+        final_value = ws.cell(row=row_no, column=final_rate_col).value if final_rate_col else None
+        parsed_final = _parse_decimal("" if final_value is None else str(final_value), default=Decimal("0"))
+        line.final_rate_per_mt = parsed_final
+        line.save(update_fields=["final_rate_per_mt"])
+        line.recalculate_from_rates(save=True)
+        updated_lines += 1
+
+    recalculate_cost_heads(project)
+    if project.status in {
+        EstimateProject.Status.DRAFT,
+        EstimateProject.Status.RATE_FINALIZATION,
+        EstimateProject.Status.REJECTED,
+        EstimateProject.Status.UNDER_REVIEW,
+    }:
+        project.status = EstimateProject.Status.UNDER_REVIEW
+    project.updated_by = request.user
+    project.save(update_fields=["status", "updated_by", "updated_at"])
+    messages.success(request, f"Supplier rate sheet uploaded and {updated_lines} raw material line(s) refreshed.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
+def upload_supplier_quotation(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_rates(request.user):
+        messages.error(request, "Only Marketing, Management, or Admin can upload supplier quotation files.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    upload = request.FILES.get("quotation_file")
+    supplier_id = request.POST.get("supplier_id")
+    remarks = (request.POST.get("remarks") or "").strip()
+    if not upload or not supplier_id:
+        messages.error(request, "Supplier and quotation file are required.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    supplier = get_object_or_404(EstimateSupplier, pk=supplier_id)
+    object_key = build_supplier_quotation_object_key(project, supplier.name, upload.name)
+    upload_supplier_quotation_file(
+        upload,
+        object_key,
+        content_type=getattr(upload, "content_type", "") or "application/octet-stream",
+    )
+    EstimateSupplierQuotationFile.objects.create(
+        project=project,
+        supplier=supplier,
+        file_key=object_key,
+        original_filename=upload.name,
+        content_type=getattr(upload, "content_type", "") or "",
+        file_size=getattr(upload, "size", None),
+        remarks=remarks,
+        uploaded_by=request.user,
+    )
+    messages.success(request, f"Supplier quotation file uploaded for {supplier.name}.")
     return redirect("estimation:estimate_detail", project_id=project.id)
 
 

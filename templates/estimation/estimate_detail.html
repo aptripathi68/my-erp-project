@@ -336,6 +336,16 @@
         {% if not can_manage_rates %}
         <p class="small">Supplier creation, supplier-column selection, and market-rate entry are restricted to Marketing, Management, or Admin users.</p>
         {% endif %}
+        <div class="actions" style="margin-bottom:12px;">
+            <a class="btn btn-secondary" href="{% url 'estimation:download_rate_sheet' project.id %}">Download Rate Sheet</a>
+            {% if can_manage_rates %}
+            <form method="post" action="{% url 'estimation:upload_rate_sheet' project.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="file" accept=".xlsx" style="display:inline-block;width:auto;">
+                <button class="btn btn-secondary" type="submit">Upload Filled Rate Sheet</button>
+            </form>
+            {% endif %}
+        </div>
         <div class="grid">
             <form method="post" action="{% url 'estimation:create_supplier' %}">
                 {% csrf_token %}
@@ -407,6 +417,73 @@
             </div>
             {% endif %}
         </form>
+
+        <div class="card" style="margin-top:16px;background:#f8fbfd;">
+            <h3 style="margin-top:0;">Supplier Quotation Files</h3>
+            <p class="small" style="margin-top:0;">Upload the quotation sheet received from each supplier. These files stay available for future reference even before final approval.</p>
+            {% if can_manage_rates %}
+            <form method="post" action="{% url 'estimation:upload_supplier_quotation' project.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="grid">
+                    <div>
+                        <label for="quotation_supplier_id">Supplier</label>
+                        <select id="quotation_supplier_id" name="supplier_id" required>
+                            <option value="">Select supplier</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="quotation_file">Quotation File</label>
+                        <input id="quotation_file" type="file" name="quotation_file" required>
+                    </div>
+                    <div>
+                        <label for="quotation_remarks">Remarks</label>
+                        <input id="quotation_remarks" type="text" name="remarks" placeholder="Optional remarks">
+                    </div>
+                </div>
+                <div style="margin-top:12px;">
+                    <button class="btn btn-secondary" type="submit">Upload Supplier Quotation</button>
+                </div>
+            </form>
+            {% endif %}
+
+            <table style="margin-top:16px;">
+                <thead>
+                    <tr>
+                        <th>Supplier</th>
+                        <th>File</th>
+                        <th>Remarks</th>
+                        <th>Uploaded By</th>
+                        <th>Uploaded At</th>
+                        <th>Download</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for quotation_file, download_url in supplier_file_rows %}
+                    <tr>
+                        <td>{{ quotation_file.supplier.name }}</td>
+                        <td>{{ quotation_file.original_filename }}</td>
+                        <td>{{ quotation_file.remarks|default:"-" }}</td>
+                        <td>{{ quotation_file.uploaded_by|default:"-" }}</td>
+                        <td>{{ quotation_file.uploaded_at|date:"d M Y H:i" }}</td>
+                        <td>
+                            {% if download_url %}
+                            <a href="{{ download_url }}">Download</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6">No supplier quotation files uploaded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="card sheet-panel {% if active_sheet == 'quotation-calculation' %}active{% endif %}" id="quotation-calculation">

@@ -1,5 +1,7 @@
 from decimal import Decimal
+from io import BytesIO
 from tempfile import NamedTemporaryFile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -15,6 +17,7 @@ from .models import (
     EstimateProject,
     EstimateProjectSupplier,
     EstimateSupplier,
+    EstimateSupplierQuotationFile,
 )
 from .services import (
     ensure_project_cost_heads,
@@ -499,6 +502,74 @@ class EstimationFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(project.project_suppliers.filter(supplier=supplier).exists())
+
+    def test_marketing_can_download_and_upload_rate_sheet(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Bulk Rate Sheet",
+            quantity_mt=Decimal("10"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        ensure_project_cost_heads(project)
+        supplier = EstimateSupplier.objects.create(name="IronMart")
+        EstimateProjectSupplier.objects.create(project=project, supplier=supplier, column_order=1)
+        line = project.raw_material_lines.create(item=self.item, quantity_mt=Decimal("10"), sort_order=1)
+        sync_project_supplier_rates(project)
+
+        self.client.login(username="marketing", password="test123")
+        download = self.client.get(reverse("estimation:download_rate_sheet", args=[project.id]))
+        self.assertEqual(download.status_code, 200)
+
+        wb = openpyxl.load_workbook(BytesIO(download.content))
+        ws = wb.active
+        self.assertEqual(ws["B5"].value, "Item Description")
+        ws["F6"] = 57500
+        ws["G6"] = 57500
+
+        out = BytesIO()
+        wb.save(out)
+        out.seek(0)
+        upload = SimpleUploadedFile(
+            "rate_sheet.xlsx",
+            out.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response = self.client.post(
+            reverse("estimation:upload_rate_sheet", args=[project.id]),
+            {"file": upload},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        line.refresh_from_db()
+        self.assertEqual(line.final_rate_per_mt, Decimal("57500.00"))
+        self.assertEqual(line.supplier_rates.get(supplier=supplier).rate_per_mt, Decimal("57500.00"))
+
+    @patch("estimation.views.upload_supplier_quotation_file")
+    def test_marketing_can_upload_supplier_quotation_file(self, mocked_upload):
+        mocked_upload.return_value = "estimation/test/file.pdf"
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Supplier Quote Upload",
+            quantity_mt=Decimal("10"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        supplier = EstimateSupplier.objects.create(name="ABC Steel")
+
+        self.client.login(username="marketing", password="test123")
+        upload = SimpleUploadedFile("supplier_quote.pdf", b"pdfdata", content_type="application/pdf")
+        response = self.client.post(
+            reverse("estimation:upload_supplier_quotation", args=[project.id]),
+            {"supplier_id": supplier.id, "quotation_file": upload, "remarks": "Initial quote"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        stored = EstimateSupplierQuotationFile.objects.get(project=project, supplier=supplier)
+        self.assertEqual(stored.original_filename, "supplier_quote.pdf")
+        self.assertEqual(stored.remarks, "Initial quote")
 
     def test_management_can_delete_unused_quotation(self):
         management = User.objects.create_user(username="mgmtdelete", password="test123", role="Management")

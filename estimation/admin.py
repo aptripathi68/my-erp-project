@@ -9,6 +9,7 @@ from .models import (
     EstimateRawMaterialLine,
     EstimateRawMaterialRate,
     EstimateSupplier,
+    EstimateSupplierQuotationFile,
 )
 
 
@@ -72,3 +73,9 @@ class EstimateExpenseAdmin(admin.ModelAdmin):
     list_display = ["budget_head", "expense_date", "reference_no", "amount", "status", "created_by", "approved_by"]
     list_filter = ["status", "expense_date"]
     search_fields = ["budget_head__budget_code", "description", "reference_no"]
+
+
+@admin.register(EstimateSupplierQuotationFile)
+class EstimateSupplierQuotationFileAdmin(admin.ModelAdmin):
+    list_display = ["project", "supplier", "original_filename", "uploaded_by", "uploaded_at"]
+    search_fields = ["project__inquiry_no", "project__project_name", "supplier__name", "original_filename"]
