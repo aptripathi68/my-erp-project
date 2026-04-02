@@ -37,10 +37,11 @@ class EstimateProjectAdmin(admin.ModelAdmin):
         "project_name",
         "quantity_mt",
         "status",
-        "quotation_locked",
+        "quoted_price_per_mt",
+        "approved_price_per_mt",
         "work_order_no",
     ]
-    list_filter = ["status", "quotation_locked", "created_at"]
+    list_filter = ["status", "created_at"]
     search_fields = ["inquiry_no", "client_name", "project_name", "purchase_order_no", "work_order_no"]
     inlines = [EstimateProjectSupplierInline]
 

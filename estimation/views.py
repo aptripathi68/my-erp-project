@@ -104,6 +104,10 @@ def _can_manage_accounts(user) -> bool:
     return user.role in {"Admin", "Accounts", "Management"}
 
 
+def _can_manage_decision(user) -> bool:
+    return user.role in {"Admin", "Management"}
+
+
 def _can_delete_estimate(user) -> bool:
     return user.role in {"Admin", "Management"}
 
@@ -275,7 +279,19 @@ def _build_estimate_detail_context(request, project):
         "can_manage_rates": _can_manage_rates(request.user),
         "can_manage_costs": _can_manage_costs(request.user),
         "can_manage_accounts": _can_manage_accounts(request.user),
+        "can_manage_decision": _can_manage_decision(request.user),
         "can_delete_estimate": _can_delete_estimate(request.user),
+        "can_edit_planning_notes": request.user.role in {"Admin", "Planning", "Management"},
+        "can_edit_marketing_notes": request.user.role in {"Admin", "Marketing", "Management"},
+        "can_edit_management_notes": request.user.role in {"Admin", "Management"},
+        "can_edit_accounts_notes": request.user.role in {"Admin", "Accounts", "Management"},
+        "can_edit_any_notes": request.user.role in {
+            "Admin",
+            "Planning",
+            "Marketing",
+            "Management",
+            "Accounts",
+        },
         "tentative_headers_info": tentative_headers_info,
         "tentative_selected_mappings": tentative_selected_mappings,
         "tentative_result": tentative_result,
@@ -308,13 +324,14 @@ def estimate_list(request):
         if project.status in {
             EstimateProject.Status.DRAFT,
             EstimateProject.Status.RATE_FINALIZATION,
-            EstimateProject.Status.QUOTATION_PENDING,
+            EstimateProject.Status.UNDER_REVIEW,
+            EstimateProject.Status.REJECTED,
         }
     ]
     open_budget_projects = [
         project for project in projects
         if project.status in {
-            EstimateProject.Status.QUOTATION_FINALIZED,
+            EstimateProject.Status.APPROVED,
             EstimateProject.Status.PO_RECEIVED,
             EstimateProject.Status.IN_EXECUTION,
         }
@@ -625,9 +642,18 @@ def update_rate_sheet(request, project_id: int):
         line.recalculate_from_rates(save=True)
 
     recalculate_cost_heads(project)
-    project.status = EstimateProject.Status.QUOTATION_PENDING
+    if project.status in {
+        EstimateProject.Status.DRAFT,
+        EstimateProject.Status.RATE_FINALIZATION,
+        EstimateProject.Status.REJECTED,
+        EstimateProject.Status.UNDER_REVIEW,
+    }:
+        project.status = EstimateProject.Status.UNDER_REVIEW
     project.updated_by = request.user
-    project.save(update_fields=["status", "updated_by", "updated_at"])
+    update_fields = ["updated_by", "updated_at"]
+    if project.status == EstimateProject.Status.UNDER_REVIEW:
+        update_fields.insert(0, "status")
+    project.save(update_fields=update_fields)
     messages.success(request, "Rate finalization sheet updated.")
     return redirect("estimation:estimate_detail", project_id=project.id)
 
@@ -640,8 +666,8 @@ def update_cost_heads(request, project_id: int):
     if not _can_manage_costs(request.user):
         messages.error(request, "You do not have permission to update estimation cost heads.")
         return redirect("estimation:estimate_detail", project_id=project.id)
-    if project.quotation_locked:
-        messages.error(request, "Quotation is locked and cannot be edited.")
+    if project.status == EstimateProject.Status.CLOSED:
+        messages.error(request, "Closed budgets cannot be modified.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
     for head in project.cost_heads.filter(line_type="ENTRY"):
@@ -662,23 +688,108 @@ def update_cost_heads(request, project_id: int):
         head.save(update_fields=["percentage", "rate_per_kg", "remarks"])
 
     recalculate_cost_heads(project)
+    if project.status in {
+        EstimateProject.Status.DRAFT,
+        EstimateProject.Status.RATE_FINALIZATION,
+        EstimateProject.Status.REJECTED,
+        EstimateProject.Status.UNDER_REVIEW,
+    }:
+        project.status = EstimateProject.Status.UNDER_REVIEW
     project.updated_by = request.user
-    project.save(update_fields=["updated_by", "updated_at"])
+    update_fields = ["updated_by", "updated_at"]
+    if project.status == EstimateProject.Status.UNDER_REVIEW:
+        update_fields.insert(0, "status")
+    project.save(update_fields=update_fields)
     messages.success(request, "Quotation calculation updated.")
     return redirect("estimation:estimate_detail", project_id=project.id)
 
 
 @login_required
-def finalize_quotation(request, project_id: int):
+def update_department_notes(request, project_id: int):
     project = get_object_or_404(EstimateProject, pk=project_id)
     if request.method != "POST":
         return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.status == EstimateProject.Status.CLOSED:
+        messages.error(request, "Closed budgets cannot be modified.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
 
-    project.quotation_locked = True
-    project.status = EstimateProject.Status.QUOTATION_FINALIZED
+    update_fields = ["updated_by", "updated_at"]
+    updated = False
+    role = request.user.role
+
+    if role in {"Admin", "Planning", "Management"}:
+        project.planning_notes = (request.POST.get("planning_notes") or "").strip()
+        update_fields.append("planning_notes")
+        updated = True
+    if role in {"Admin", "Marketing", "Management"}:
+        project.marketing_notes = (request.POST.get("marketing_notes") or "").strip()
+        update_fields.append("marketing_notes")
+        updated = True
+    if role in {"Admin", "Management"}:
+        project.management_notes = (request.POST.get("management_notes") or "").strip()
+        update_fields.append("management_notes")
+        updated = True
+    if role in {"Admin", "Accounts", "Management"}:
+        project.accounts_notes = (request.POST.get("accounts_notes") or "").strip()
+        update_fields.append("accounts_notes")
+        updated = True
+
+    if not updated:
+        messages.error(request, "You do not have permission to update department notes.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
     project.updated_by = request.user
-    project.save(update_fields=["quotation_locked", "status", "updated_by", "updated_at"])
-    messages.success(request, "Quotation finalized and locked.")
+    project.save(update_fields=update_fields)
+    messages.success(request, "Department notes updated.")
+    return redirect("estimation:estimate_detail", project_id=project.id)
+
+
+@login_required
+def submit_management_decision(request, project_id: int):
+    project = get_object_or_404(EstimateProject, pk=project_id)
+    if request.method != "POST":
+        return redirect("estimation:estimate_detail", project_id=project.id)
+    if not _can_manage_decision(request.user):
+        messages.error(request, "Only Management or Admin can approve or reject quotations.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    action = (request.POST.get("decision") or "").strip().lower()
+    quoted_price_per_mt = _parse_decimal(request.POST.get("quoted_price_per_mt"))
+    approved_price_per_mt = _parse_decimal(request.POST.get("approved_price_per_mt"))
+    decision_notes = (request.POST.get("decision_notes") or "").strip()
+    management_notes = (request.POST.get("management_notes") or "").strip()
+
+    if action not in {"approve", "reject"}:
+        messages.error(request, "Choose whether the quotation is approved or rejected.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
+
+    project.quoted_price_per_mt = quoted_price_per_mt
+    project.approved_price_per_mt = approved_price_per_mt
+    project.decision_notes = decision_notes
+    project.management_notes = management_notes
+    project.decision_by = request.user
+    project.decision_at = timezone.now()
+    project.updated_by = request.user
+    project.status = (
+        EstimateProject.Status.APPROVED if action == "approve" else EstimateProject.Status.REJECTED
+    )
+    project.save(
+        update_fields=[
+            "quoted_price_per_mt",
+            "approved_price_per_mt",
+            "decision_notes",
+            "management_notes",
+            "decision_by",
+            "decision_at",
+            "status",
+            "updated_by",
+            "updated_at",
+        ]
+    )
+    messages.success(
+        request,
+        "Quotation approved and saved." if action == "approve" else "Quotation rejected and saved.",
+    )
     return redirect("estimation:estimate_detail", project_id=project.id)
 
 
@@ -693,13 +804,15 @@ def mark_po_received(request, project_id: int):
     if project.status == EstimateProject.Status.CLOSED:
         messages.error(request, "Closed budgets cannot be modified.")
         return redirect("estimation:estimate_detail", project_id=project.id)
+    if project.status != EstimateProject.Status.APPROVED:
+        messages.error(request, "Only an approved quotation can move to PO and budget monitoring.")
+        return redirect("estimation:estimate_detail", project_id=project.id)
 
     project.work_order_no = (request.POST.get("work_order_no") or "").strip()
     project.purchase_order_no = (request.POST.get("purchase_order_no") or "").strip()
     project.purchase_order_date = _parse_date(request.POST.get("purchase_order_date"))
     project.delivery_date = _parse_date(request.POST.get("delivery_date"))
     project.status = EstimateProject.Status.PO_RECEIVED
-    project.quotation_locked = True
     project.updated_by = request.user
     project.save()
     generate_budget_heads(project)
@@ -817,6 +930,10 @@ def export_quotation_excel(request, project_id: int):
     ws["A3"] = f"Client: {project.client_name}"
     ws["C3"] = f"Project: {project.project_name}"
     ws["E3"] = f"Quantity MT: {float(project.quantity_mt)}"
+    ws["A4"] = f"Status: {project.get_status_display()}"
+    ws["C4"] = f"Estimated Price /MT: {float(project.estimated_price_per_mt or 0)}"
+    ws["E4"] = f"Quoted Price /MT: {float(project.quoted_price_per_mt or 0)}"
+    ws["G4"] = f"Approved Price /MT: {float(project.approved_price_per_mt or 0)}"
     ws.append([])
     ws.append(["Cost Head", "Percentage / Consumption", "Cost per Kg / Rate per LTR", "Cost", "Remarks"])
     for head in project.cost_heads.all():
@@ -924,6 +1041,14 @@ def export_quotation_pdf(request, project_id: int):
     pdf.drawString(15 * mm, y, f"Project: {project.project_name}")
     y -= 6 * mm
     pdf.drawString(15 * mm, y, f"Quantity (MT): {project.quantity_mt}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Status: {project.get_status_display()}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Estimated Price /MT: {project.estimated_price_per_mt}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Quoted Price /MT: {project.quoted_price_per_mt}")
+    y -= 6 * mm
+    pdf.drawString(15 * mm, y, f"Approved Price /MT: {project.approved_price_per_mt}")
     y -= 10 * mm
 
     pdf.setFont("Helvetica-Bold", 9)

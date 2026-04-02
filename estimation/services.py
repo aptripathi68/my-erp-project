@@ -57,7 +57,7 @@ DEFAULT_COST_HEAD_CONFIG = [
     {"code": "TOTAL_ESTIMATED_COST", "name": "Total Estimated Cost", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
     {"code": "BANK_INTEREST", "name": "Bank Interest", "percentage": Decimal("1"), "rate_per_kg": Decimal("1.01"), "remarks": ""},
     {"code": "MARGIN", "name": "Margin @ 8%", "percentage": Decimal("1"), "rate_per_kg": Decimal("6.93"), "remarks": ""},
-    {"code": "QUOTATION_PRICE", "name": "Quotation Price/MT (Round-Off)", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
+    {"code": "QUOTATION_PRICE", "name": "Estimated Price /MT (Round-Off)", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
 ]
 
 

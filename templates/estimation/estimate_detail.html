@@ -38,7 +38,7 @@
     <div class="top">
         <div>
             <h1 style="margin:0 0 8px;">{{ project.inquiry_no }} - {{ project.project_name }}</h1>
-            <p style="margin:0;" class="muted">Client: <strong>{{ project.client_name }}</strong> | Status: <strong>{{ project.get_status_display }}</strong>{% if project.quotation_locked %} | Quotation Locked{% endif %}</p>
+            <p style="margin:0;" class="muted">Client: <strong>{{ project.client_name }}</strong> | Status: <strong>{{ project.get_status_display }}</strong></p>
         </div>
         <div class="actions">
             <a class="btn btn-secondary" href="{% url 'estimation:estimate_list' %}">Back</a>
@@ -49,12 +49,6 @@
             <form method="post" action="{% url 'estimation:delete_estimate' project.id %}" onsubmit="return confirm('Delete this quotation permanently?');">
                 {% csrf_token %}
                 <button class="btn btn-secondary" type="submit">Delete Quotation</button>
-            </form>
-            {% endif %}
-            {% if not project.quotation_locked %}
-            <form method="post" action="{% url 'estimation:finalize_quotation' project.id %}">
-                {% csrf_token %}
-                <button class="btn btn-success" type="submit">Finalize Quotation</button>
             </form>
             {% endif %}
         </div>
@@ -83,12 +77,16 @@
                 <div class="value">{{ project.total_estimated_cost_per_kg }}</div>
             </div>
             <div class="stat">
-                <div class="label">Quotation Price/MT</div>
-                <div class="value">{{ project.quotation_price_per_mt }}</div>
+                <div class="label">Estimated Price /MT</div>
+                <div class="value">{{ project.estimated_price_per_mt }}</div>
             </div>
             <div class="stat">
-                <div class="label">Quotation Value</div>
-                <div class="value">{{ project.quotation_value }}</div>
+                <div class="label">Quoted Price /MT</div>
+                <div class="value">{{ project.quoted_price_per_mt }}</div>
+            </div>
+            <div class="stat">
+                <div class="label">Approved Price /MT</div>
+                <div class="value">{{ project.approved_price_per_mt }}</div>
             </div>
             <div class="stat">
                 <div class="label">Linked BOMs</div>
@@ -437,14 +435,14 @@
                             {% elif cost_head.is_paint_component %}
                             -
                             {% else %}
-                            <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" title="{{ cost_head.input_label }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="number" step="0.001" name="percentage_{{ head.id }}" value="{{ cost_head.display_percentage }}" title="{{ cost_head.input_label }}" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
                             {% endif %}
                         </td>
                         <td>
                             {% if head.code == "RAW_MATERIAL_COST" or head.line_type == "TOTAL" %}
                             {{ head.rate_per_kg }}
                             {% else %}
-                            <input type="number" step="0.0001" name="rate_{{ head.id }}" value="{{ head.rate_per_kg }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="number" step="0.0001" name="rate_{{ head.id }}" value="{{ head.rate_per_kg }}" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
                             {% endif %}
                         </td>
                         <td>{{ head.amount }}</td>
@@ -453,11 +451,11 @@
                             {{ head.remarks }}
                             {% elif cost_head.is_paint_component %}
                             <div style="display:flex; gap:8px; align-items:center;">
-                                <input type="number" step="0.001" name="consumption_{{ head.id }}" value="{{ cost_head.display_consumption }}" title="Consumption/MT (LTR)" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                                <input type="number" step="0.001" name="consumption_{{ head.id }}" value="{{ cost_head.display_consumption }}" title="Consumption/MT (LTR)" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
                                 <span class="small">LTR/MT</span>
                             </div>
                             {% else %}
-                            <input type="text" name="remarks_{{ head.id }}" value="{{ head.remarks }}" {% if not can_manage_costs or project.quotation_locked %}disabled{% endif %}>
+                            <input type="text" name="remarks_{{ head.id }}" value="{{ head.remarks }}" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
                             {% endif %}
                         </td>
                     </tr>
@@ -465,9 +463,75 @@
                     {% endfor %}
                 </tbody>
             </table>
-            {% if can_manage_costs and not project.quotation_locked %}
+            {% if can_manage_costs and project.status != "CLOSED" %}
             <div style="margin-top:12px;">
                 <button class="btn btn-primary" type="submit">Update Quotation</button>
+            </div>
+            {% endif %}
+        </form>
+
+        <div class="card" style="margin-top:16px;background:#f8fbfd;">
+            <h3 style="margin-top:0;">Management Decision</h3>
+            <p class="small" style="margin-top:0;">Estimated price is system-calculated. Management enters the quoted and approved prices, then marks the quotation as approved or rejected. Default budget generation will still use the estimated values.</p>
+            <form method="post" action="{% url 'estimation:submit_management_decision' project.id %}">
+                {% csrf_token %}
+                <div class="grid">
+                    <div>
+                        <label>Estimated Price /MT (Round-Off)</label>
+                        <input type="number" step="0.01" value="{{ project.estimated_price_per_mt }}" disabled>
+                    </div>
+                    <div>
+                        <label for="quoted_price_per_mt">Quoted Price</label>
+                        <input id="quoted_price_per_mt" type="number" step="0.01" name="quoted_price_per_mt" value="{{ project.quoted_price_per_mt }}" {% if not can_manage_decision or project.status == 'CLOSED' %}disabled{% endif %}>
+                    </div>
+                    <div>
+                        <label for="approved_price_per_mt">Approved Price</label>
+                        <input id="approved_price_per_mt" type="number" step="0.01" name="approved_price_per_mt" value="{{ project.approved_price_per_mt }}" {% if not can_manage_decision or project.status == 'CLOSED' %}disabled{% endif %}>
+                    </div>
+                </div>
+                <div style="margin-top:12px;">
+                    <label for="decision_notes">Approval / Rejection Remarks and Reason for Deviation</label>
+                    <textarea id="decision_notes" name="decision_notes" rows="3" {% if not can_manage_decision or project.status == 'CLOSED' %}disabled{% endif %}>{{ project.decision_notes }}</textarea>
+                </div>
+                {% if project.decision_by %}
+                <p class="small" style="margin-top:10px;">Last decision by {{ project.decision_by }} on {{ project.decision_at|date:"d M Y H:i" }}</p>
+                {% endif %}
+                {% if can_manage_decision and project.status != "CLOSED" %}
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+                    <button class="btn btn-success" type="submit" name="decision" value="approve">Approve Quotation</button>
+                    <button class="btn btn-warning" type="submit" name="decision" value="reject">Reject Quotation</button>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="section-title">Department Notes</h2>
+        <p class="muted">Each department can maintain its own note for analysis and monitoring. Other departments can still view these notes.</p>
+        <form method="post" action="{% url 'estimation:update_department_notes' project.id %}">
+            {% csrf_token %}
+            <div class="grid">
+                <div>
+                    <label for="planning_notes">Planning Notes</label>
+                    <textarea id="planning_notes" name="planning_notes" rows="4" {% if not can_edit_planning_notes or project.status == 'CLOSED' %}disabled{% endif %}>{{ project.planning_notes }}</textarea>
+                </div>
+                <div>
+                    <label for="marketing_notes">Marketing Notes</label>
+                    <textarea id="marketing_notes" name="marketing_notes" rows="4" {% if not can_edit_marketing_notes or project.status == 'CLOSED' %}disabled{% endif %}>{{ project.marketing_notes }}</textarea>
+                </div>
+                <div>
+                    <label for="management_notes">Management Notes</label>
+                    <textarea id="management_notes" name="management_notes" rows="4" {% if not can_edit_management_notes or project.status == 'CLOSED' %}disabled{% endif %}>{{ project.management_notes }}</textarea>
+                </div>
+                <div>
+                    <label for="accounts_notes">Accounts Notes</label>
+                    <textarea id="accounts_notes" name="accounts_notes" rows="4" {% if not can_edit_accounts_notes or project.status == 'CLOSED' %}disabled{% endif %}>{{ project.accounts_notes }}</textarea>
+                </div>
+            </div>
+            {% if project.status != "CLOSED" and can_edit_any_notes %}
+            <div style="margin-top:12px;">
+                <button class="btn btn-secondary" type="submit">Save Notes</button>
             </div>
             {% endif %}
         </form>

@@ -35,6 +35,7 @@ class EstimationFlowTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="planner", password="test123", role="Planning")
         self.marketing_user = User.objects.create_user(username="marketing", password="test123", role="Marketing")
+        self.management_user = User.objects.create_user(username="boss", password="test123", role="Management")
         self.group2 = Group2.objects.create(code="STEEL", name="Steel")
         self.grade = Grade.objects.create(group2=self.group2, code="E250", name="IS:2062, E250Br")
         self.item = Item.objects.create(
@@ -149,7 +150,6 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(project.quantity_mt, Decimal("40.00"))
 
     def test_budget_generation_and_expense_approval(self):
-        management = User.objects.create_user(username="boss", password="test123", role="Management")
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
             project_name="Budget Test",
@@ -173,7 +173,7 @@ class EstimationFlowTests(TestCase):
             created_by=self.user,
         )
         expense.status = EstimateExpense.Status.APPROVED
-        expense.approved_by = management
+        expense.approved_by = self.management_user
         expense.save()
         refresh_budget_totals(project)
         budget.refresh_from_db()
@@ -546,6 +546,61 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         project.refresh_from_db()
         self.assertEqual(project.status, EstimateProject.Status.CLOSED)
+
+    def test_management_can_approve_quotation_with_quoted_and_approved_prices(self):
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="Approve Quote",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+            status=EstimateProject.Status.UNDER_REVIEW,
+        )
+        self.client.login(username="boss", password="test123")
+        response = self.client.post(
+            reverse("estimation:submit_management_decision", args=[project.id]),
+            {
+                "decision": "approve",
+                "quoted_price_per_mt": "78000",
+                "approved_price_per_mt": "76500",
+                "decision_notes": "Approved after rate negotiation.",
+                "management_notes": "Keep estimated budget tighter than approved price.",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, EstimateProject.Status.APPROVED)
+        self.assertEqual(project.quoted_price_per_mt, Decimal("78000.00"))
+        self.assertEqual(project.approved_price_per_mt, Decimal("76500.00"))
+        self.assertEqual(project.decision_notes, "Approved after rate negotiation.")
+
+    def test_accounts_cannot_mark_po_received_until_quotation_is_approved(self):
+        accounts = User.objects.create_user(username="accpo", password="test123", role="Accounts")
+        project = EstimateProject.objects.create(
+            client_name="PAHARPUR",
+            project_name="PO Gate",
+            quantity_mt=Decimal("100"),
+            created_by=self.user,
+            updated_by=self.user,
+            status=EstimateProject.Status.UNDER_REVIEW,
+        )
+
+        self.client.login(username="accpo", password="test123")
+        response = self.client.post(
+            reverse("estimation:mark_po_received", args=[project.id]),
+            {
+                "work_order_no": "WO-PO",
+                "purchase_order_no": "PO-1",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, EstimateProject.Status.UNDER_REVIEW)
+        self.assertFalse(project.budget_heads.exists())
 
     def test_budget_generation_excludes_paint_component_rows(self):
         project = EstimateProject.objects.create(

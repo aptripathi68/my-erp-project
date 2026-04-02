@@ -32,8 +32,9 @@ class EstimateProject(models.Model):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         RATE_FINALIZATION = "RATE_FINALIZATION", "Rate Finalization"
-        QUOTATION_PENDING = "QUOTATION_PENDING", "Quotation Pending"
-        QUOTATION_FINALIZED = "QUOTATION_FINALIZED", "Quotation Finalized"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
         PO_RECEIVED = "PO_RECEIVED", "PO Received"
         IN_EXECUTION = "IN_EXECUTION", "In Execution"
         CLOSED = "CLOSED", "Closed"
@@ -61,6 +62,14 @@ class EstimateProject(models.Model):
     quotation_price_per_kg = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     quotation_price_per_mt = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     quotation_value = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    quoted_price_per_mt = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    approved_price_per_mt = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    decision_notes = models.TextField(blank=True)
+    decision_at = models.DateTimeField(null=True, blank=True)
+    planning_notes = models.TextField(blank=True)
+    marketing_notes = models.TextField(blank=True)
+    management_notes = models.TextField(blank=True)
+    accounts_notes = models.TextField(blank=True)
 
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -77,6 +86,13 @@ class EstimateProject(models.Model):
         null=True,
         blank=True,
     )
+    decision_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="decided_estimate_projects",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["-created_at", "inquiry_no"]
@@ -87,6 +103,18 @@ class EstimateProject(models.Model):
     @property
     def quantity_kg(self) -> Decimal:
         return (self.quantity_mt or ZERO) * Decimal("1000")
+
+    @property
+    def estimated_price_per_mt(self) -> Decimal:
+        return self.quotation_price_per_mt or ZERO
+
+    @property
+    def estimated_price_per_kg(self) -> Decimal:
+        return self.quotation_price_per_kg or ZERO
+
+    @property
+    def estimated_value(self) -> Decimal:
+        return self.quotation_value or ZERO
 
     def save(self, *args, **kwargs):
         if not self.inquiry_no:

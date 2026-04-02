@@ -65,7 +65,9 @@
                     <th>Project</th>
                     <th>Qty (MT)</th>
                     <th>Status</th>
-                    <th>Quotation/MT</th>
+                    <th>Estimated Price/MT</th>
+                    <th>Quoted Price/MT</th>
+                    <th>Approved Price/MT</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -77,7 +79,9 @@
                     <td>{{ project.project_name }}</td>
                     <td>{{ project.quantity_mt }}</td>
                     <td class="status">{{ project.get_status_display }}</td>
-                    <td>{{ project.quotation_price_per_mt }}</td>
+                    <td>{{ project.estimated_price_per_mt }}</td>
+                    <td>{{ project.quoted_price_per_mt }}</td>
+                    <td>{{ project.approved_price_per_mt }}</td>
                     <td class="action-cell">
                         <a href="{% url 'estimation:estimate_detail' project.id %}">Open</a>
                         {% if can_delete_estimate %}
@@ -90,7 +94,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7">No quotations found for the selected financial year.</td>
+                    <td colspan="9">No quotations found for the selected financial year.</td>
                 </tr>
                 {% endfor %}
             </tbody>
