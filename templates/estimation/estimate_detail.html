@@ -33,7 +33,7 @@
         .sheet-panel{display:none;}
         .sheet-panel.active{display:block;}
         .hidden-file-input{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;}
-        .file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+        .file-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
         .file-name{font-size:13px;color:#5f6f7d;min-width:220px;}
     </style>
 </head>
@@ -346,10 +346,11 @@
                 {% csrf_token %}
                 <div class="file-picker">
                     <input id="rate_sheet_file" class="hidden-file-input" type="file" name="file" accept=".xlsx,.xls">
-                    <button class="btn btn-secondary" type="button" data-file-trigger="rate_sheet_file">Select Rate Sheet</button>
+                    <button class="btn btn-secondary" type="button" data-file-trigger="rate_sheet_file">Choose Rate Sheet File</button>
                     <span class="file-name" data-file-name-for="rate_sheet_file">No file selected</span>
-                    <button class="btn btn-secondary" type="submit">Upload Rate Sheet</button>
+                    <button class="btn btn-secondary" type="submit">Upload Selected Rate Sheet</button>
                 </div>
+                <div class="small" style="margin-top:6px;">Step 1: choose the filled Excel file. Step 2: upload the selected rate sheet.</div>
             </form>
             {% endif %}
         </div>
