@@ -341,19 +341,22 @@
         {% endif %}
         <div class="actions" style="margin-bottom:12px;">
             <a class="btn btn-secondary" href="{% url 'estimation:download_rate_sheet' project.id %}">Download Rate Sheet</a>
-            {% if can_manage_rates %}
+        </div>
+        {% if can_manage_rates %}
+        <div class="card" style="margin-bottom:16px;background:#f8fbfd;">
+            <h3 style="margin-top:0;margin-bottom:10px;">Upload Rate Sheet</h3>
+            <p class="small" style="margin-top:0;">After downloading and filling the rate sheet, choose the updated file and upload it here.</p>
             <form method="post" action="{% url 'estimation:upload_rate_sheet' project.id %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="file-picker">
-                    <input id="rate_sheet_file" class="hidden-file-input" type="file" name="file" accept=".xlsx,.xls">
+                    <button class="btn btn-secondary" type="submit">Upload Rate Sheet</button>
                     <button class="btn btn-secondary" type="button" data-file-trigger="rate_sheet_file">Choose Rate Sheet File</button>
+                    <input id="rate_sheet_file" class="hidden-file-input" type="file" name="file" accept=".xlsx,.xls">
                     <span class="file-name" data-file-name-for="rate_sheet_file">No file selected</span>
-                    <button class="btn btn-secondary" type="submit">Upload Selected Rate Sheet</button>
                 </div>
-                <div class="small" style="margin-top:6px;">Step 1: choose the filled Excel file. Step 2: upload the selected rate sheet.</div>
             </form>
-            {% endif %}
         </div>
+        {% endif %}
         {% if supplier_links %}
         <div class="card" style="margin-bottom:16px;background:#f8fbfd;">
             <h3 style="margin-top:0;">Selected Suppliers</h3>
