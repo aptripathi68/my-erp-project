@@ -32,6 +32,9 @@
         .sheet-tab.active{background:#2d686f;color:#fff;border-color:#2d686f;}
         .sheet-panel{display:none;}
         .sheet-panel.active{display:block;}
+        .hidden-file-input{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;}
+        .file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+        .file-name{font-size:13px;color:#5f6f7d;min-width:220px;}
     </style>
 </head>
 <body>
@@ -341,8 +344,12 @@
             {% if can_manage_rates %}
             <form method="post" action="{% url 'estimation:upload_rate_sheet' project.id %}" enctype="multipart/form-data">
                 {% csrf_token %}
-                <input type="file" name="file" accept=".xlsx" style="display:inline-block;width:auto;">
-                <button class="btn btn-secondary" type="submit">Upload Filled Rate Sheet</button>
+                <div class="file-picker">
+                    <input id="rate_sheet_file" class="hidden-file-input" type="file" name="file" accept=".xlsx,.xls">
+                    <button class="btn btn-secondary" type="button" data-file-trigger="rate_sheet_file">Select Rate Sheet</button>
+                    <span class="file-name" data-file-name-for="rate_sheet_file">No file selected</span>
+                    <button class="btn btn-secondary" type="submit">Upload Rate Sheet</button>
+                </div>
             </form>
             {% endif %}
         </div>
@@ -456,7 +463,11 @@
                     </div>
                     <div>
                         <label for="quotation_file">Quotation File</label>
-                        <input id="quotation_file" type="file" name="quotation_file" required>
+                        <div class="file-picker">
+                            <input id="quotation_file" class="hidden-file-input" type="file" name="quotation_file" required>
+                            <button class="btn btn-secondary" type="button" data-file-trigger="quotation_file">Select Supplier File</button>
+                            <span class="file-name" data-file-name-for="quotation_file">No file selected</span>
+                        </div>
                     </div>
                     <div>
                         <label for="quotation_remarks">Remarks</label>
@@ -785,6 +796,21 @@
 
         gradeSelect?.addEventListener("change", async (event) => {
             await loadItems(groupSelect.value, event.target.value);
+        });
+
+        document.querySelectorAll("[data-file-trigger]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const input = document.getElementById(button.dataset.fileTrigger);
+                input?.click();
+            });
+        });
+
+        document.querySelectorAll(".hidden-file-input").forEach((input) => {
+            input.addEventListener("change", () => {
+                const fileNameTarget = document.querySelector(`[data-file-name-for="${input.id}"]`);
+                if (!fileNameTarget) return;
+                fileNameTarget.textContent = input.files?.length ? input.files[0].name : "No file selected";
+            });
         });
     </script>
 </body>
