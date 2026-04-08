@@ -559,8 +559,8 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(ws["B5"].value, "Item Description")
         self.assertEqual(ws["G5"].value, "Lowest (L1) Rate/MT")
         self.assertEqual(ws["H5"].value, "Final Rate/MT")
-        ws["F6"] = 57500
-        ws["H6"] = 57500
+        ws["F6"] = 57500.125
+        ws["H6"] = 57500.125
 
         out = BytesIO()
         wb.save(out)
@@ -578,8 +578,8 @@ class EstimationFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         line.refresh_from_db()
-        self.assertEqual(line.final_rate_per_mt, Decimal("57500.00"))
-        self.assertEqual(line.supplier_rates.get(supplier=supplier).rate_per_mt, Decimal("57500.00"))
+        self.assertEqual(line.final_rate_per_mt, Decimal("57500.125"))
+        self.assertEqual(line.supplier_rates.get(supplier=supplier).rate_per_mt, Decimal("57500.125"))
 
     @patch("estimation.views.upload_supplier_quotation_file")
     def test_marketing_can_upload_supplier_quotation_file(self, mocked_upload):

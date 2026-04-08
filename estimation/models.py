@@ -205,8 +205,8 @@ class EstimateRawMaterialLine(models.Model):
         related_name="estimate_raw_material_lines",
     )
     quantity_mt = models.DecimalField(max_digits=15, decimal_places=6, default=0)
-    final_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    lowest_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    final_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    lowest_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     total_amount = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     sort_order = models.PositiveIntegerField(default=1)
 
@@ -244,7 +244,7 @@ class EstimateRawMaterialRate(models.Model):
         on_delete=models.PROTECT,
         related_name="raw_material_rates",
     )
-    rate_per_mt = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rate_per_mt = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
 
     class Meta:
         ordering = ["supplier__name"]

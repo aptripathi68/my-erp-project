@@ -428,11 +428,11 @@
                         <td>{{ line.quantity_mt }}</td>
                         {% for rate in row_rates %}
                         <td>
-                            <input type="number" step="0.01" name="rate_{{ line.id }}_{{ rate.supplier_id }}" value="{{ rate.rate_per_mt|default_if_none:'' }}" {% if not can_manage_rates %}disabled{% endif %}>
+                            <input type="number" step="0.001" name="rate_{{ line.id }}_{{ rate.supplier_id }}" value="{{ rate.rate_per_mt|default_if_none:'' }}" {% if not can_manage_rates %}disabled{% endif %}>
                         </td>
                         {% endfor %}
                         <td>{{ line.lowest_rate_per_mt }}</td>
-                        <td><input type="number" step="0.01" name="final_rate_{{ line.id }}" value="{{ line.final_rate_per_mt }}" {% if not can_manage_rates %}disabled{% endif %}></td>
+                        <td><input type="number" step="0.001" name="final_rate_{{ line.id }}" value="{{ line.final_rate_per_mt }}" {% if not can_manage_rates %}disabled{% endif %}></td>
                         <td>{{ line.total_amount }}</td>
                     </tr>
                     {% empty %}
