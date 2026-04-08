@@ -42,7 +42,7 @@ class EstimateProject(models.Model):
     inquiry_no = models.CharField(max_length=30, unique=True, editable=False, db_index=True)
     client_name = models.CharField(max_length=255)
     project_name = models.CharField(max_length=255)
-    quantity_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    quantity_mt = models.DecimalField(max_digits=15, decimal_places=6, default=0)
 
     status = models.CharField(
         max_length=30,
@@ -204,7 +204,7 @@ class EstimateRawMaterialLine(models.Model):
         on_delete=models.PROTECT,
         related_name="estimate_raw_material_lines",
     )
-    quantity_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    quantity_mt = models.DecimalField(max_digits=15, decimal_places=6, default=0)
     final_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     lowest_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=16, decimal_places=2, default=0)
