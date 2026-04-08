@@ -94,6 +94,13 @@ ALIASES = {
         "quality",
     ],
     "gross_weight": [
+        "rm wt. (5%)",
+        "rm wt.(5%)",
+        "rm wt (5%)",
+        "rm wt",
+        "raw wt (kg)",
+        "raw wt.",
+        "raw wt",
         "drg gross wt.",
         "drg gross wt",
         "drg wt.",
@@ -114,6 +121,16 @@ ALIASES = {
         "weight",
         "wt",
     ],
+    "finished_weight": [
+        "fin wt (kg)",
+        "fin wt. (kg)",
+        "fin wt",
+        "finished wt (kg)",
+        "finished wt.",
+        "finished wt",
+        "finished weight",
+        "finished weight (kg)",
+    ],
 }
 
 IGNORE_SHEET_NAME_CONTAINS = ["summary", "notes", "index", "cover"]
@@ -126,6 +143,7 @@ class TentativeBOMRow:
     section_name_raw: str
     grade_raw: str
     gross_weight_kg: Decimal
+    finished_weight_kg: Decimal
     item_id: int
 
 
@@ -289,7 +307,7 @@ def validate_and_extract_tentative_bom(
         sheet_mapping = (user_sheet_mappings or {}).get(sheet_name, {})
         col_map = build_user_col_map(headers, sheet_mapping) if sheet_mapping else build_col_map(headers)
 
-        missing_fields = [field for field in ("section_name", "gross_weight") if field not in col_map]
+        missing_fields = [field for field in ("section_name", "gross_weight", "finished_weight") if field not in col_map]
         if missing_fields:
             detected[sheet_name] = {"skipped": True, "reason": f"missing_columns:{','.join(missing_fields)}"}
             continue
@@ -307,12 +325,14 @@ def validate_and_extract_tentative_bom(
             section_val = get_cell(row_vals, col_map, "section_name")
             grade_val = get_cell(row_vals, col_map, "grade")
             gross_weight_val = get_cell(row_vals, col_map, "gross_weight")
+            finished_weight_val = get_cell(row_vals, col_map, "finished_weight")
 
             section_raw = str(section_val).strip() if section_val is not None else ""
             grade_raw = str(grade_val).strip() if grade_val is not None else ""
             gross_weight = _to_decimal(gross_weight_val)
+            finished_weight = _to_decimal(finished_weight_val)
 
-            if not section_raw and not grade_raw and gross_weight is None:
+            if not section_raw and not grade_raw and gross_weight is None and finished_weight is None:
                 continue
 
             # Ignore section/group headers and assembly summary rows that do not identify a raw material profile.
@@ -323,6 +343,8 @@ def validate_and_extract_tentative_bom(
             if not grade_raw:
                 grade_raw = DEFAULT_GRADE_DISPLAY
             if gross_weight is None or gross_weight <= 0:
+                continue
+            if finished_weight is None or finished_weight <= 0:
                 continue
 
             matched_item = None
@@ -349,6 +371,7 @@ def validate_and_extract_tentative_bom(
                         "section_name": section_raw,
                         "grade": grade_raw,
                         "gross_weight": gross_weight_val,
+                        "finished_weight": finished_weight_val,
                         "errors": row_errors,
                     }
                 )
@@ -361,6 +384,7 @@ def validate_and_extract_tentative_bom(
                     section_name_raw=section_raw,
                     grade_raw=grade_raw,
                     gross_weight_kg=gross_weight,
+                    finished_weight_kg=finished_weight,
                     item_id=matched_item.id,
                 )
             )
@@ -372,19 +396,24 @@ def validate_and_extract_tentative_bom(
             {
                 "item": Item.objects.select_related("grade").get(pk=row.item_id),
                 "gross_weight_kg": Decimal("0"),
+                "finished_weight_kg": Decimal("0"),
                 "source_rows": 0,
             },
         )
         bucket["gross_weight_kg"] += row.gross_weight_kg
+        bucket["finished_weight_kg"] += row.finished_weight_kg
         bucket["source_rows"] += 1
 
     aggregated_lines = []
     for item_id, bucket in aggregated.items():
         gross_weight_kg = bucket["gross_weight_kg"]
+        finished_weight_kg = bucket["finished_weight_kg"]
         aggregated_lines.append(
             {
                 "item": bucket["item"],
                 "gross_weight_kg": gross_weight_kg.quantize(Decimal("0.001")),
+                "finished_weight_kg": finished_weight_kg.quantize(Decimal("0.001")),
+                "finished_weight_mt": (finished_weight_kg / Decimal("1000")).quantize(Decimal("0.001")),
                 "quantity_mt": (gross_weight_kg / Decimal("1000")).quantize(Decimal("0.001")),
                 "source_rows": bucket["source_rows"],
             }

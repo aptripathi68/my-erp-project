@@ -204,6 +204,7 @@ class EstimateRawMaterialLine(models.Model):
         on_delete=models.PROTECT,
         related_name="estimate_raw_material_lines",
     )
+    finished_weight_mt = models.DecimalField(max_digits=15, decimal_places=6, default=0)
     quantity_mt = models.DecimalField(max_digits=15, decimal_places=6, default=0)
     final_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     lowest_rate_per_mt = models.DecimalField(max_digits=12, decimal_places=3, default=0)

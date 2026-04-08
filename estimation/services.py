@@ -166,17 +166,22 @@ def sync_project_supplier_rates(project: EstimateProject) -> None:
 def update_material_totals(project: EstimateProject) -> None:
     total_amount = ZERO
     total_qty_mt = ZERO
-    for line in project.raw_material_lines.prefetch_related("supplier_rates"):
+    total_finished_mt = ZERO
+    lines = list(project.raw_material_lines.prefetch_related("supplier_rates"))
+    for line in lines:
         line.recalculate_from_rates(save=True)
         total_amount += line.total_amount or ZERO
         total_qty_mt += line.quantity_mt or ZERO
+        total_finished_mt += (line.finished_weight_mt or line.quantity_mt or ZERO)
 
     raw_cost_per_kg = ZERO
-    if total_qty_mt:
-        raw_cost_per_kg = total_amount / (total_qty_mt * Decimal("1000"))
+    if total_finished_mt:
+        raw_cost_per_kg = total_amount / (total_finished_mt * Decimal("1000"))
 
-    if total_qty_mt:
-        project.quantity_mt = quantize2(total_qty_mt)
+    if lines:
+        project.quantity_mt = total_qty_mt.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    elif project.status != EstimateProject.Status.DRAFT:
+        project.quantity_mt = ZERO
     project.raw_material_cost_per_kg = quantize2(raw_cost_per_kg)
     project.save(update_fields=["quantity_mt", "raw_material_cost_per_kg", "updated_at"])
 

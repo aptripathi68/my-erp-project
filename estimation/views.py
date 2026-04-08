@@ -50,7 +50,7 @@ from .services_tentative_bom import (
 )
 
 
-TENTATIVE_BOM_MAPPING_FIELDS = ("section_name", "grade", "gross_weight")
+TENTATIVE_BOM_MAPPING_FIELDS = ("section_name", "grade", "gross_weight", "finished_weight")
 
 
 def _format_percentage_for_display(value):
@@ -230,6 +230,15 @@ def _build_estimate_detail_context(request, project):
             Decimal("0"),
         )
         tentative_result["total_quantity_mt"] = str(total_quantity_mt.quantize(Decimal("0.001")))
+    if tentative_result and tentative_result.get("aggregated_lines") and not tentative_result.get("total_finished_weight_mt"):
+        total_finished_weight_mt = sum(
+            (
+                _parse_decimal(row.get("finished_weight_mt"), default=Decimal("0"))
+                for row in tentative_result.get("aggregated_lines", [])
+            ),
+            Decimal("0"),
+        )
+        tentative_result["total_finished_weight_mt"] = str(total_finished_weight_mt.quantize(Decimal("0.001")))
     preferred_sheet_names = [
         sheet_name
         for sheet_name, info in tentative_headers_info.items()
@@ -569,17 +578,20 @@ def import_tentative_bom(request, project_id: int):
 
     result = validate_and_extract_tentative_bom(tmp_path, user_sheet_mappings=selected_mappings)
     total_quantity_mt = sum((row["quantity_mt"] for row in result.get("aggregated_lines", [])), Decimal("0"))
+    total_finished_weight_mt = sum((row["finished_weight_mt"] for row in result.get("aggregated_lines", [])), Decimal("0"))
     request.session[_tentative_key(project.id, "result")] = {
         "ok": result["ok"],
         "errors": _session_safe_errors(result.get("errors", [])),
         "sheets_used": result.get("sheets_used", 0),
         "matched_rows": result.get("matched_rows", 0),
         "total_quantity_mt": str(total_quantity_mt.quantize(Decimal("0.001"))),
+        "total_finished_weight_mt": str(total_finished_weight_mt.quantize(Decimal("0.001"))),
         "aggregated_lines": [
             {
                 "item_description": row["item"].item_description,
                 "grade_name": row["item"].grade.name,
                 "section_name": row["item"].section_name,
+                "finished_weight_mt": str(row["finished_weight_mt"]),
                 "quantity_mt": str(row["quantity_mt"]),
             }
             for row in result.get("aggregated_lines", [])
@@ -597,6 +609,7 @@ def import_tentative_bom(request, project_id: int):
             EstimateRawMaterialLine.objects.create(
                 project=project,
                 item=row["item"],
+                finished_weight_mt=row["finished_weight_mt"],
                 quantity_mt=row["quantity_mt"],
                 sort_order=index,
             )
@@ -628,6 +641,7 @@ def add_raw_material_line(request, project_id: int):
 
     item_id = request.POST.get("item_id")
     quantity_mt = _parse_decimal(request.POST.get("quantity_mt"))
+    finished_weight_mt = _parse_decimal(request.POST.get("finished_weight_mt"), default=quantity_mt)
     if not item_id or quantity_mt <= 0:
         messages.error(request, "Select a raw material item and enter quantity in MT.")
         return redirect("estimation:estimate_detail", project_id=project.id)
@@ -636,6 +650,7 @@ def add_raw_material_line(request, project_id: int):
     EstimateRawMaterialLine.objects.create(
         project=project,
         item=item,
+        finished_weight_mt=finished_weight_mt if finished_weight_mt > 0 else quantity_mt,
         quantity_mt=quantity_mt,
         sort_order=project.raw_material_lines.count() + 1,
     )
@@ -1207,12 +1222,13 @@ def export_quotation_excel(request, project_id: int):
         ])
 
     raw_ws = wb.create_sheet("Raw Material Selection")
-    raw_ws.append(["Item Description", "Grade", "Section", "Quantity MT", "Final Rate/MT", "Total Amount"])
+    raw_ws.append(["Item Description", "Grade", "Section", "Finished Weight MT", "Quantity MT", "Final Rate/MT", "Total Amount"])
     for line in project.raw_material_lines.select_related("item__grade").all():
         raw_ws.append([
             line.item.item_description,
             line.item.grade.name,
             line.item.section_name,
+            float(line.finished_weight_mt or 0),
             float(line.quantity_mt or 0),
             float(line.final_rate_per_mt or 0),
             float(line.total_amount or 0),

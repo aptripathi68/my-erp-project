@@ -132,7 +132,12 @@ class EstimationFlowTests(TestCase):
         EstimateProjectSupplier.objects.create(project=project, supplier=supplier_1, column_order=1)
         EstimateProjectSupplier.objects.create(project=project, supplier=supplier_2, column_order=2)
 
-        line = project.raw_material_lines.create(item=self.item, quantity_mt=Decimal("40"), sort_order=1)
+        line = project.raw_material_lines.create(
+            item=self.item,
+            finished_weight_mt=Decimal("35"),
+            quantity_mt=Decimal("40"),
+            sort_order=1,
+        )
         sync_project_supplier_rates(project)
         rate_1 = line.supplier_rates.get(supplier=supplier_1)
         rate_1.rate_per_mt = Decimal("56000")
@@ -149,7 +154,7 @@ class EstimationFlowTests(TestCase):
 
         self.assertEqual(line.lowest_rate_per_mt, Decimal("56000"))
         self.assertEqual(line.total_amount, Decimal("2240000.00"))
-        self.assertEqual(project.raw_material_cost_per_kg, Decimal("56.00"))
+        self.assertEqual(project.raw_material_cost_per_kg, Decimal("64.00"))
         self.assertEqual(project.quantity_mt, Decimal("40.00"))
 
     def test_budget_generation_and_expense_approval(self):
@@ -241,6 +246,12 @@ class EstimationFlowTests(TestCase):
             updated_by=self.user,
         )
         ensure_project_cost_heads(project)
+        project.raw_material_lines.create(
+            item=self.item,
+            finished_weight_mt=Decimal("330"),
+            quantity_mt=Decimal("330"),
+            sort_order=1,
+        )
         primer = project.cost_heads.get(code="PRIMER")
         mio = project.cost_heads.get(code="MIO")
         finish = project.cost_heads.get(code="FINISH_PAINT")
@@ -295,6 +306,12 @@ class EstimationFlowTests(TestCase):
             updated_by=self.user,
         )
         ensure_project_cost_heads(project)
+        project.raw_material_lines.create(
+            item=self.item,
+            finished_weight_mt=Decimal("330"),
+            quantity_mt=Decimal("330"),
+            sort_order=1,
+        )
         recalculate_cost_heads(project)
 
         self.client.login(username="planner", password="test123")
@@ -358,9 +375,9 @@ class EstimationFlowTests(TestCase):
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "Sheet1"
-            ws.append(["Section Name", "Grade Name", "Drawing Gross Weight"])
-            ws.append(["PL10", "E250BR", 1200])
-            ws.append(["PL10", "E250BR", 800])
+            ws.append(["Section Name", "Grade Name", "Drawing Gross Weight", "Finished Weight"])
+            ws.append(["PL10", "E250BR", 1200, 1100])
+            ws.append(["PL10", "E250BR", 800, 700])
             wb.save(tmp.name)
 
             result = validate_and_extract_tentative_bom(tmp.name)
@@ -370,13 +387,14 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(len(result["aggregated_lines"]), 1)
         self.assertEqual(result["aggregated_lines"][0]["item"].id, self.item.id)
         self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("2.000"))
+        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1.800"))
 
     def test_tentative_bom_headers_are_detected_with_practical_column_names(self):
         with NamedTemporaryFile(suffix=".xlsx") as tmp:
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "BOM"
-            ws.append(["Profile Size", "Specification", "Gross Wt (KG)"])
+            ws.append(["Profile Size", "Specification", "Gross Wt (KG)", "Fin Wt (KG)"])
             wb.save(tmp.name)
 
             headers = workbook_sheet_headers(tmp.name)
@@ -389,16 +407,18 @@ class EstimationFlowTests(TestCase):
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "BOM"
-            ws.append(["Profile", "Quality", "Drg Gross Wt.", "Total weight"])
-            ws.append(["PL10", "", 1200, 9999])
+            ws.append(["Profile", "Quality", "Drg Gross Wt.", "Fin Wt (KG)", "Total weight"])
+            ws.append(["PL10", "", 1200, 1000, 9999])
             wb.save(tmp.name)
 
             headers = workbook_sheet_headers(tmp.name)
             result = validate_and_extract_tentative_bom(tmp.name)
 
         self.assertEqual(headers["BOM"]["mapping"]["gross_weight"], "drg gross wt.")
+        self.assertEqual(headers["BOM"]["mapping"]["finished_weight"], "fin wt (kg)")
         self.assertTrue(result["ok"])
         self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("1.200"))
+        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1.000"))
 
     def test_grade_variants_handle_br_b_and_spacing_variations(self):
         variants = _grade_variants("IS:2062 E250 BR")
@@ -411,8 +431,8 @@ class EstimationFlowTests(TestCase):
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "BOM"
-            ws.append(["Thickness", "Quality", "Drg Gross Wt."])
-            ws.append(["PL10", "E250 B", 1200])
+            ws.append(["Thickness", "Quality", "Drg Gross Wt.", "Fin Wt (KG)"])
+            ws.append(["PL10", "E250 B", 1200, 1000])
             wb.save(tmp.name)
 
             result = validate_and_extract_tentative_bom(tmp.name)
@@ -433,9 +453,9 @@ class EstimationFlowTests(TestCase):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Sheet1"
-        ws.append(["Section Name", "Grade Name", "Drawing Gross Weight"])
-        ws.append(["PL10", "E250BR", 1500])
-        ws.append(["PL10", "E250BR", 500])
+        ws.append(["Section Name", "Grade Name", "Drawing Gross Weight", "Finished Weight"])
+        ws.append(["PL10", "E250BR", 1500, 1400])
+        ws.append(["PL10", "E250BR", 500, 450])
         with NamedTemporaryFile(suffix=".xlsx") as tmp:
             wb.save(tmp.name)
             with open(tmp.name, "rb") as fh:
@@ -456,6 +476,7 @@ class EstimationFlowTests(TestCase):
                     "Sheet1__section_name": "Section Name",
                     "Sheet1__grade": "Grade Name",
                     "Sheet1__gross_weight": "Drawing Gross Weight",
+                    "Sheet1__finished_weight": "Finished Weight",
                 },
                 follow=True,
             )
@@ -463,6 +484,7 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(project.raw_material_lines.count(), 1)
         self.assertEqual(project.raw_material_lines.first().quantity_mt, Decimal("2.000"))
+        self.assertEqual(project.raw_material_lines.first().finished_weight_mt, Decimal("1.850"))
         self.assertContains(response, "Tentative BOM imported and 1 raw material line(s) created.")
 
     def test_planning_cannot_add_supplier_column(self):
