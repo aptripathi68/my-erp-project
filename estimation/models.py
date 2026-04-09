@@ -102,7 +102,7 @@ class EstimateProject(models.Model):
 
     @property
     def quantity_kg(self) -> Decimal:
-        return (self.quantity_mt or ZERO) * Decimal("1000")
+        return self.quantity_mt or ZERO
 
     @property
     def estimated_price_per_mt(self) -> Decimal:

@@ -68,7 +68,7 @@
     <div class="card">
         <div class="grid">
             <div class="stat">
-                <div class="label">Quantity (MT)</div>
+                <div class="label">Quantity (Kgs)</div>
                 <div class="value">{{ project.quantity_mt }}</div>
             </div>
             <div class="stat">
@@ -80,15 +80,15 @@
                 <div class="value">{{ project.total_estimated_cost_per_kg }}</div>
             </div>
             <div class="stat">
-                <div class="label">Estimated Price /MT</div>
+                <div class="label">Estimated Price /Kg</div>
                 <div class="value">{{ project.estimated_price_per_mt }}</div>
             </div>
             <div class="stat">
-                <div class="label">Quoted Price /MT</div>
+                <div class="label">Quoted Price /Kg</div>
                 <div class="value">{{ project.quoted_price_per_mt }}</div>
             </div>
             <div class="stat">
-                <div class="label">Approved Price /MT</div>
+                <div class="label">Approved Price /Kg</div>
                 <div class="value">{{ project.approved_price_per_mt }}</div>
             </div>
             <div class="stat">
@@ -107,7 +107,7 @@
 
     <div class="card sheet-panel {% if active_sheet == 'raw-material-selection' %}active{% endif %}" id="raw-material-selection">
         <h2 class="section-title">Raw Material Selection</h2>
-        <p class="muted">Planning can upload a tentative BOM, map the Section Name, Grade Name, and Drawing Gross Weight columns, validate the matching with Item Master, and import summed raw-material quantities in MT. Manual addition and deletion remain available after import.</p>
+        <p class="muted">Planning can upload a tentative BOM, map the Section Name, Grade Name, Raw Weight, and Finished Weight columns, validate the matching with Item Master, and import summed raw-material quantities in kilograms. Manual addition and deletion remain available after import.</p>
 
         <div class="card" style="margin-bottom:16px;background:#f8fbfd;">
             <h3 style="margin-top:0;">Tentative BOM Upload</h3>
@@ -163,7 +163,7 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td>Drawing Gross Weight (KG)</td>
+                                    <td>Raw Weight (KG)</td>
                                     <td>
                                         <select name="{{ sheet_name }}__gross_weight" {% if not can_manage_raw_materials %}disabled{% endif %}>
                                             <option value="">Select column</option>
@@ -215,7 +215,7 @@
                             <th>Excel Row</th>
                             <th>Section Name</th>
                             <th>Grade Name</th>
-                            <th>Gross Weight</th>
+                            <th>Raw Weight</th>
                             <th>Finished Weight</th>
                             <th>Error</th>
                         </tr>
@@ -238,15 +238,15 @@
 
                 {% if tentative_result.aggregated_lines %}
                 <h4 style="margin-top:16px;">Import Preview</h4>
-                <p class="small" style="margin:0 0 10px;"><strong>Total Quantity in MT:</strong> {{ tentative_result.total_quantity_mt }}</p>
+                <p class="small" style="margin:0 0 10px;"><strong>Total Quantity in Kgs:</strong> {{ tentative_result.total_quantity_mt }}</p>
                 <table>
                     <thead>
                         <tr>
                             <th>Item Description</th>
                             <th>Grade Name</th>
                             <th>Section Name</th>
-                            <th>Finished Weight in MT</th>
-                            <th>Quantity in MT</th>
+                            <th>Finished Weight in Kgs</th>
+                            <th>Quantity in Kgs</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -296,11 +296,11 @@
                     </select>
                 </div>
                 <div>
-                    <label for="finished_weight_mt">Finished Weight (MT)</label>
+                    <label for="finished_weight_mt">Finished Weight (Kgs)</label>
                     <input id="finished_weight_mt" type="number" step="0.000001" name="finished_weight_mt">
                 </div>
                 <div>
-                    <label for="quantity_mt">Quantity (MT)</label>
+                    <label for="quantity_mt">Quantity (Kgs)</label>
                     <input id="quantity_mt" type="number" step="0.000001" name="quantity_mt" required>
                 </div>
             </div>
@@ -318,9 +318,9 @@
                     <th>Item Description</th>
                     <th>Grade Name</th>
                     <th>Section Name</th>
-                    <th>Finished Weight in MT</th>
-                    <th>Quantity in MT</th>
-                    <th>Final Rate/MT</th>
+                    <th>Finished Weight in Kgs</th>
+                    <th>Quantity in Kgs</th>
+                    <th>Final Rate/Kg</th>
                     <th>Total Amount</th>
                     <th>Action</th>
                 </tr>
@@ -358,7 +358,7 @@
 
     <div class="card sheet-panel {% if active_sheet == 'rate-finalisation' %}active{% endif %}" id="rate-finalisation">
         <h2 class="section-title">Rate Finalisation</h2>
-        <p class="muted">Supplier firms once added remain available for future quotations. Add the suppliers you want as columns for this inquiry, then enter the market rates.</p>
+        <p class="muted">Supplier firms once added remain available for future quotations. Add the suppliers you want as columns for this inquiry, then enter the market rates per kilogram.</p>
         {% if not can_manage_rates %}
         <p class="small">Supplier creation, supplier-column selection, and market-rate entry are restricted to Marketing, Management, or Admin users.</p>
         {% endif %}
@@ -433,12 +433,12 @@
                         <th>Item Description</th>
                         <th>Grade</th>
                         <th>Section</th>
-                        <th>Quantity in MT</th>
+                        <th>Quantity in Kgs</th>
                         {% for link in supplier_links %}
-                        <th>{{ link.supplier.name }} Rate/MT</th>
+                        <th>{{ link.supplier.name }} Rate/Kg</th>
                         {% endfor %}
-                        <th>Lowest (L1) Rate/MT</th>
-                        <th>Final Rate/MT</th>
+                        <th>Lowest (L1) Rate/Kg</th>
+                        <th>Final Rate/Kg</th>
                         <th>Total Amount</th>
                     </tr>
                 </thead>
@@ -546,7 +546,7 @@
 
     <div class="card sheet-panel {% if active_sheet == 'quotation-calculation' %}active{% endif %}" id="quotation-calculation">
         <h2 class="section-title">Quotation Calculation</h2>
-        <p class="muted">Default percentage is 100% for most rows. Scrap Burning and Offcut Recovery can be negative or positive based on planning input. Paint Procurement is auto-calculated from PRIMER, MIO, FINISH PAINT, and THINNER using their rate per litre and editable consumption per MT.</p>
+        <p class="muted">Default percentage is 100% for most rows. Scrap Burning and Offcut Recovery can be negative or positive based on planning input. Paint Procurement is auto-calculated from PRIMER, MIO, FINISH PAINT, and THINNER using their rate per litre and editable consumption per kilogram.</p>
         <form method="post" action="{% url 'estimation:update_cost_heads' project.id %}">
             {% csrf_token %}
             <table>
@@ -586,8 +586,8 @@
                             {{ head.remarks }}
                             {% elif cost_head.is_paint_component %}
                             <div style="display:flex; gap:8px; align-items:center;">
-                                <input type="number" step="0.001" name="consumption_{{ head.id }}" value="{{ cost_head.display_consumption }}" title="Consumption/MT (LTR)" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
-                                <span class="small">LTR/MT</span>
+                                <input type="number" step="0.000001" name="consumption_{{ head.id }}" value="{{ cost_head.display_consumption }}" title="Consumption/Kg (LTR)" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
+                                <span class="small">LTR/Kg</span>
                             </div>
                             {% else %}
                             <input type="text" name="remarks_{{ head.id }}" value="{{ head.remarks }}" {% if not can_manage_costs or project.status == 'CLOSED' %}disabled{% endif %}>
@@ -612,15 +612,15 @@
                 {% csrf_token %}
                 <div class="grid">
                     <div>
-                        <label>Estimated Price /MT (Round-Off)</label>
+                        <label>Estimated Price /Kg (Round-Off)</label>
                         <input type="number" step="0.01" value="{{ management_estimated_price }}" disabled>
                     </div>
                     <div>
-                        <label for="quoted_price_per_mt">Quoted Price</label>
+                        <label for="quoted_price_per_mt">Quoted Price /Kg</label>
                         <input id="quoted_price_per_mt" type="number" step="0.01" name="quoted_price_per_mt" value="{{ project.quoted_price_per_mt }}" {% if not can_manage_decision or project.status == 'CLOSED' %}disabled{% endif %}>
                     </div>
                     <div>
-                        <label for="approved_price_per_mt">Approved Price</label>
+                        <label for="approved_price_per_mt">Approved Price /Kg</label>
                         <input id="approved_price_per_mt" type="number" step="0.01" name="approved_price_per_mt" value="{{ project.approved_price_per_mt }}" {% if not can_manage_decision or project.status == 'CLOSED' %}disabled{% endif %}>
                     </div>
                 </div>

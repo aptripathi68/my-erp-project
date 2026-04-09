@@ -20,10 +20,10 @@ THREEPLACES = Decimal("0.001")
 
 PAINT_COMPONENT_CODES = ["PRIMER", "MIO", "FINISH_PAINT", "THINNER"]
 PAINT_COMPONENT_DEFAULTS = {
-    "PRIMER": {"consumption_per_mt": Decimal("8"), "rate_per_ltr": Decimal("95")},
-    "MIO": {"consumption_per_mt": Decimal("6"), "rate_per_ltr": Decimal("0")},
-    "FINISH_PAINT": {"consumption_per_mt": Decimal("8"), "rate_per_ltr": Decimal("220")},
-    "THINNER": {"consumption_per_mt": Decimal("0.4"), "rate_per_ltr": Decimal("120")},
+    "PRIMER": {"consumption_per_kg": Decimal("0.008"), "rate_per_ltr": Decimal("95")},
+    "MIO": {"consumption_per_kg": Decimal("0.006"), "rate_per_ltr": Decimal("0")},
+    "FINISH_PAINT": {"consumption_per_kg": Decimal("0.008"), "rate_per_ltr": Decimal("220")},
+    "THINNER": {"consumption_per_kg": Decimal("0.0004"), "rate_per_ltr": Decimal("120")},
 }
 ROLLUP_ONLY_CODES = set(PAINT_COMPONENT_CODES)
 
@@ -42,22 +42,22 @@ DEFAULT_COST_HEAD_CONFIG = [
     {"code": "NDT_INSPECTION", "name": "NDT (Inspection)", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": ""},
     {"code": "INSPECTION", "name": "Inspection", "percentage": Decimal("1"), "rate_per_kg": Decimal("0.15"), "remarks": ""},
     {"code": "PAINT_PROCUREMENT", "name": "Paint Procurement", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": "130 Micron painted"},
-    {"code": "PRIMER", "name": "PRIMER (Inorganic ethyl zinc silicate)", "percentage": Decimal("8"), "rate_per_kg": Decimal("95"), "remarks": "Rate/LTR | Consumption/MT"},
-    {"code": "MIO", "name": "MIO (Epoxypolyamide MIO)", "percentage": Decimal("6"), "rate_per_kg": Decimal("0"), "remarks": "Rate/LTR | Consumption/MT"},
-    {"code": "FINISH_PAINT", "name": "FINISH PAINT (Aliphatic polyurethane)", "percentage": Decimal("8"), "rate_per_kg": Decimal("220"), "remarks": "Rate/LTR | Consumption/MT"},
-    {"code": "THINNER", "name": "THINNER", "percentage": Decimal("0.4"), "rate_per_kg": Decimal("120"), "remarks": "Rate/LTR | Consumption/MT"},
+    {"code": "PRIMER", "name": "PRIMER (Inorganic ethyl zinc silicate)", "percentage": Decimal("0.008"), "rate_per_kg": Decimal("95"), "remarks": "Rate/LTR | Consumption/Kg"},
+    {"code": "MIO", "name": "MIO (Epoxypolyamide MIO)", "percentage": Decimal("0.006"), "rate_per_kg": Decimal("0"), "remarks": "Rate/LTR | Consumption/Kg"},
+    {"code": "FINISH_PAINT", "name": "FINISH PAINT (Aliphatic polyurethane)", "percentage": Decimal("0.008"), "rate_per_kg": Decimal("220"), "remarks": "Rate/LTR | Consumption/Kg"},
+    {"code": "THINNER", "name": "THINNER", "percentage": Decimal("0.0004"), "rate_per_kg": Decimal("120"), "remarks": "Rate/LTR | Consumption/Kg"},
     {"code": "BLASTING_PAINT_APPLICATION", "name": "Blasting & Paint Application", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": ""},
     {"code": "PAINT_TESTING", "name": "Paint Testing", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": ""},
     {"code": "LOADING_DISPATCH", "name": "Loading for Dispatch", "percentage": Decimal("1"), "rate_per_kg": Decimal("0.2"), "remarks": ""},
     {"code": "PACKING", "name": "Packing", "percentage": Decimal("1"), "rate_per_kg": Decimal("0.15"), "remarks": ""},
     {"code": "TRANSPORTATION", "name": "Transportation", "percentage": Decimal("1"), "rate_per_kg": Decimal("0"), "remarks": "Ex-Works"},
     {"code": "TOTAL_CONVERSION_COST", "name": "Total Conversion Cost", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
-    {"code": "ELECTRICITY", "name": "Electricity", "percentage": Decimal("1"), "rate_per_kg": Decimal("0.95"), "remarks": "200 MT PER MONTH"},
-    {"code": "PLANT_OVERHEAD_FE", "name": "Plant Over Head/FE", "percentage": Decimal("1"), "rate_per_kg": Decimal("4.22"), "remarks": "200 MT PER MONTH"},
+    {"code": "ELECTRICITY", "name": "Electricity", "percentage": Decimal("1"), "rate_per_kg": Decimal("0.95"), "remarks": "200000 Kg PER MONTH"},
+    {"code": "PLANT_OVERHEAD_FE", "name": "Plant Over Head/FE", "percentage": Decimal("1"), "rate_per_kg": Decimal("4.22"), "remarks": "200000 Kg PER MONTH"},
     {"code": "TOTAL_ESTIMATED_COST", "name": "Total Estimated Cost", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
     {"code": "BANK_INTEREST", "name": "Bank Interest", "percentage": Decimal("1"), "rate_per_kg": Decimal("1.01"), "remarks": ""},
     {"code": "MARGIN", "name": "Margin @ 8%", "percentage": Decimal("1"), "rate_per_kg": Decimal("6.93"), "remarks": ""},
-    {"code": "QUOTATION_PRICE", "name": "Estimated Price /MT (Round-Off)", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
+    {"code": "QUOTATION_PRICE", "name": "Estimated Price /Kg (Round-Off)", "line_type": EstimateCostHead.LineType.TOTAL, "remarks": ""},
 ]
 
 
@@ -140,9 +140,13 @@ def ensure_project_cost_heads(project: EstimateProject) -> None:
         if (
             obj.code in PAINT_COMPONENT_DEFAULTS
             and obj.percentage == Decimal("1")
-            and ("LTR/MT" in (obj.remarks or "").upper() or (obj.remarks or "").strip().startswith("@"))
+            and (
+                "LTR/MT" in (obj.remarks or "").upper()
+                or "LTR/KG" in (obj.remarks or "").upper()
+                or (obj.remarks or "").strip().startswith("@")
+            )
         ):
-            obj.percentage = PAINT_COMPONENT_DEFAULTS[obj.code]["consumption_per_mt"]
+            obj.percentage = PAINT_COMPONENT_DEFAULTS[obj.code]["consumption_per_kg"]
         if (obj.rate_per_kg or ZERO) == ZERO and default_rate != ZERO:
             obj.rate_per_kg = default_rate
         if not obj.remarks and default_remarks:
@@ -176,7 +180,7 @@ def update_material_totals(project: EstimateProject) -> None:
 
     raw_cost_per_kg = ZERO
     if total_finished_mt:
-        raw_cost_per_kg = total_amount / (total_finished_mt * Decimal("1000"))
+        raw_cost_per_kg = total_amount / total_finished_mt
 
     if lines:
         project.quantity_mt = total_qty_mt.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
@@ -204,9 +208,9 @@ def recalculate_cost_heads(project: EstimateProject) -> None:
             continue
         head = cost_heads[code]
         if code in PAINT_COMPONENT_CODES:
-            consumption_per_mt = head.percentage if head.percentage is not None else ZERO
+            consumption_per_kg = head.percentage if head.percentage is not None else ZERO
             rate_per_ltr = head.rate_per_kg or ZERO
-            head.amount = quantize2((project.quantity_mt or ZERO) * consumption_per_mt * rate_per_ltr)
+            head.amount = quantize2((project.quantity_kg or ZERO) * consumption_per_kg * rate_per_ltr)
             paint_total += head.amount
         else:
             percentage = head.percentage if head.percentage is not None else Decimal("1")
@@ -270,7 +274,7 @@ def recalculate_cost_heads(project: EstimateProject) -> None:
 
     project.total_estimated_cost_per_kg = quantize2(cost_heads["TOTAL_ESTIMATED_COST"].rate_per_kg)
     project.quotation_price_per_kg = quantize2(quotation_rate_per_kg)
-    project.quotation_price_per_mt = quantize2(quotation_rate_per_kg * Decimal("1000"))
+    project.quotation_price_per_mt = quantize2(quotation_rate_per_kg)
     project.quotation_value = quantize2(quotation_total)
     project.save(
         update_fields=[

@@ -67,7 +67,11 @@ def _format_consumption_for_display(value):
         return ""
     if value == value.quantize(Decimal("0.01")):
         return f"{value.quantize(Decimal('0.01'))}"
-    return f"{value.quantize(Decimal('0.001'))}"
+    if value == value.quantize(Decimal("0.001")):
+        return f"{value.quantize(Decimal('0.001'))}"
+    if value == value.quantize(Decimal("0.0001")):
+        return f"{value.quantize(Decimal('0.0001'))}"
+    return f"{value.quantize(Decimal('0.000001'))}"
 
 
 def _parse_decimal(value: str, default: Decimal = Decimal("0")) -> Decimal:
@@ -289,7 +293,7 @@ def _build_estimate_detail_context(request, project):
                 "display_consumption": _format_consumption_for_display(head.percentage)
                 if head.code in PAINT_COMPONENT_CODES
                 else "",
-                "input_label": "Consumption/MT (LTR)"
+                "input_label": "Consumption/Kg (LTR)"
                 if head.code in PAINT_COMPONENT_CODES
                 else "Percentage",
                 "rate_label": "Rate/LTR" if head.code in PAINT_COMPONENT_CODES else "Cost per Kg",
@@ -643,7 +647,7 @@ def add_raw_material_line(request, project_id: int):
     quantity_mt = _parse_decimal(request.POST.get("quantity_mt"))
     finished_weight_mt = _parse_decimal(request.POST.get("finished_weight_mt"), default=quantity_mt)
     if not item_id or quantity_mt <= 0:
-        messages.error(request, "Select a raw material item and enter quantity in MT.")
+        messages.error(request, "Select a raw material item and enter quantity in Kg.")
         return redirect("estimation:estimate_detail", project_id=project.id)
 
     item = get_object_or_404(Item, pk=item_id, is_active=True)
@@ -746,16 +750,16 @@ def download_rate_sheet(request, project_id: int):
     ws["B5"] = "Item Description"
     ws["C5"] = "Grade"
     ws["D5"] = "Section"
-    ws["E5"] = "Quantity MT"
+    ws["E5"] = "Quantity Kg"
 
     supplier_start_col = 6
     for idx, link in enumerate(supplier_links, start=supplier_start_col):
-        ws.cell(row=5, column=idx, value=f"{link.supplier.name} Rate/MT")
+        ws.cell(row=5, column=idx, value=f"{link.supplier.name} Rate/Kg")
 
     lowest_rate_col = supplier_start_col + len(supplier_links)
     final_rate_col = lowest_rate_col + 1
-    ws.cell(row=5, column=lowest_rate_col, value="Lowest (L1) Rate/MT")
-    ws.cell(row=5, column=final_rate_col, value="Final Rate/MT")
+    ws.cell(row=5, column=lowest_rate_col, value="Lowest (L1) Rate/Kg")
+    ws.cell(row=5, column=final_rate_col, value="Final Rate/Kg")
     ws.cell(row=5, column=final_rate_col + 1, value="Total Amount")
 
     current_row = 6
@@ -818,12 +822,16 @@ def upload_rate_sheet(request, project_id: int):
         for col in range(1, ws.max_column + 1)
     }
     line_id_col = headers.get("Line ID")
-    final_rate_col = headers.get("Final Rate/MT")
+    final_rate_col = headers.get("Final Rate/Kg") or headers.get("Final Rate/MT")
     supplier_columns = {}
     for link in project.project_suppliers.select_related("supplier"):
-        header = f"{link.supplier.name} Rate/MT"
+        header = f"{link.supplier.name} Rate/Kg"
         if header in headers:
             supplier_columns[link.supplier_id] = headers[header]
+            continue
+        legacy_header = f"{link.supplier.name} Rate/MT"
+        if legacy_header in headers:
+            supplier_columns[link.supplier_id] = headers[legacy_header]
 
     updated_lines = 0
     for row_no in range(header_row + 1, ws.max_row + 1):
@@ -1200,11 +1208,11 @@ def export_quotation_excel(request, project_id: int):
     ws["A2"] = "Quotation Sheet"
     ws["A3"] = f"Client: {project.client_name}"
     ws["C3"] = f"Project: {project.project_name}"
-    ws["E3"] = f"Quantity MT: {float(project.quantity_mt)}"
+    ws["E3"] = f"Quantity Kg: {float(project.quantity_mt)}"
     ws["A4"] = f"Status: {project.get_status_display()}"
-    ws["C4"] = f"Estimated Price /MT: {float(project.estimated_price_per_mt or 0)}"
-    ws["E4"] = f"Quoted Price /MT: {float(project.quoted_price_per_mt or 0)}"
-    ws["G4"] = f"Approved Price /MT: {float(project.approved_price_per_mt or 0)}"
+    ws["C4"] = f"Estimated Price /Kg: {float(project.estimated_price_per_mt or 0)}"
+    ws["E4"] = f"Quoted Price /Kg: {float(project.quoted_price_per_mt or 0)}"
+    ws["G4"] = f"Approved Price /Kg: {float(project.approved_price_per_mt or 0)}"
     ws.append([])
     ws.append(["Cost Head", "Percentage / Consumption", "Cost per Kg / Rate per LTR", "Cost", "Remarks"])
     for head in project.cost_heads.all():
@@ -1222,7 +1230,7 @@ def export_quotation_excel(request, project_id: int):
         ])
 
     raw_ws = wb.create_sheet("Raw Material Selection")
-    raw_ws.append(["Item Description", "Grade", "Section", "Finished Weight MT", "Quantity MT", "Final Rate/MT", "Total Amount"])
+    raw_ws.append(["Item Description", "Grade", "Section", "Finished Weight Kg", "Quantity Kg", "Final Rate/Kg", "Total Amount"])
     for line in project.raw_material_lines.select_related("item__grade").all():
         raw_ws.append([
             line.item.item_description,
@@ -1236,9 +1244,9 @@ def export_quotation_excel(request, project_id: int):
 
     rate_ws = wb.create_sheet("Rate Finalisation")
     supplier_links = list(project.project_suppliers.select_related("supplier"))
-    rate_headers = ["Item Description", "Grade", "Section", "Quantity MT"] + [
-        f"{link.supplier.name} Rate/MT" for link in supplier_links
-    ] + ["Lowest (L1) Rate/MT", "Final Rate/MT", "Total Amount"]
+    rate_headers = ["Item Description", "Grade", "Section", "Quantity Kg"] + [
+        f"{link.supplier.name} Rate/Kg" for link in supplier_links
+    ] + ["Lowest (L1) Rate/Kg", "Final Rate/Kg", "Total Amount"]
     rate_ws.append(rate_headers)
     for line in project.raw_material_lines.select_related("item__grade").prefetch_related("supplier_rates").all():
         supplier_map = {rate.supplier_id: rate for rate in line.supplier_rates.all()}
@@ -1312,15 +1320,15 @@ def export_quotation_pdf(request, project_id: int):
     y -= 6 * mm
     pdf.drawString(15 * mm, y, f"Project: {project.project_name}")
     y -= 6 * mm
-    pdf.drawString(15 * mm, y, f"Quantity (MT): {project.quantity_mt}")
+    pdf.drawString(15 * mm, y, f"Quantity (Kg): {project.quantity_mt}")
     y -= 6 * mm
     pdf.drawString(15 * mm, y, f"Status: {project.get_status_display()}")
     y -= 6 * mm
-    pdf.drawString(15 * mm, y, f"Estimated Price /MT: {project.estimated_price_per_mt}")
+    pdf.drawString(15 * mm, y, f"Estimated Price /Kg: {project.estimated_price_per_mt}")
     y -= 6 * mm
-    pdf.drawString(15 * mm, y, f"Quoted Price /MT: {project.quoted_price_per_mt}")
+    pdf.drawString(15 * mm, y, f"Quoted Price /Kg: {project.quoted_price_per_mt}")
     y -= 6 * mm
-    pdf.drawString(15 * mm, y, f"Approved Price /MT: {project.approved_price_per_mt}")
+    pdf.drawString(15 * mm, y, f"Approved Price /Kg: {project.approved_price_per_mt}")
     y -= 10 * mm
 
     pdf.setFont("Helvetica-Bold", 9)
@@ -1341,7 +1349,7 @@ def export_quotation_pdf(request, project_id: int):
         pct = ""
         if head.percentage is not None:
             if head.code in PAINT_COMPONENT_CODES:
-                pct = f"{head.percentage.quantize(Decimal('0.001'))} LTR/MT"
+                pct = f"{head.percentage.quantize(Decimal('0.000001'))} LTR/Kg"
             else:
                 pct_value = head.percentage * Decimal("100")
                 pct = f"{pct_value.quantize(Decimal('0.001'))}%"

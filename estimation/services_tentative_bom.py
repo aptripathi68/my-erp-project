@@ -413,8 +413,8 @@ def validate_and_extract_tentative_bom(
                 "item": bucket["item"],
                 "gross_weight_kg": gross_weight_kg.quantize(Decimal("0.001")),
                 "finished_weight_kg": finished_weight_kg.quantize(Decimal("0.001")),
-                "finished_weight_mt": (finished_weight_kg / Decimal("1000")).quantize(Decimal("0.001")),
-                "quantity_mt": (gross_weight_kg / Decimal("1000")).quantize(Decimal("0.001")),
+                "finished_weight_mt": finished_weight_kg.quantize(Decimal("0.001")),
+                "quantity_mt": gross_weight_kg.quantize(Decimal("0.001")),
                 "source_rows": bucket["source_rows"],
             }
         )

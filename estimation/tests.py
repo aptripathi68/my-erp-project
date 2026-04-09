@@ -134,28 +134,28 @@ class EstimationFlowTests(TestCase):
 
         line = project.raw_material_lines.create(
             item=self.item,
-            finished_weight_mt=Decimal("35"),
-            quantity_mt=Decimal("40"),
+            finished_weight_mt=Decimal("35000"),
+            quantity_mt=Decimal("40000"),
             sort_order=1,
         )
         sync_project_supplier_rates(project)
         rate_1 = line.supplier_rates.get(supplier=supplier_1)
-        rate_1.rate_per_mt = Decimal("56000")
+        rate_1.rate_per_mt = Decimal("56")
         rate_1.save()
         rate_2 = line.supplier_rates.get(supplier=supplier_2)
-        rate_2.rate_per_mt = Decimal("58000")
+        rate_2.rate_per_mt = Decimal("58")
         rate_2.save()
-        line.final_rate_per_mt = Decimal("56000")
+        line.final_rate_per_mt = Decimal("56")
         line.save()
 
         recalculate_cost_heads(project)
         line.refresh_from_db()
         project.refresh_from_db()
 
-        self.assertEqual(line.lowest_rate_per_mt, Decimal("56000"))
+        self.assertEqual(line.lowest_rate_per_mt, Decimal("56"))
         self.assertEqual(line.total_amount, Decimal("2240000.00"))
         self.assertEqual(project.raw_material_cost_per_kg, Decimal("64.00"))
-        self.assertEqual(project.quantity_mt, Decimal("40.00"))
+        self.assertEqual(project.quantity_mt, Decimal("40000.000000"))
 
     def test_budget_generation_and_expense_approval(self):
         project = EstimateProject.objects.create(
@@ -241,15 +241,15 @@ class EstimationFlowTests(TestCase):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
             project_name="Paint Rollup",
-            quantity_mt=Decimal("330"),
+            quantity_mt=Decimal("330000"),
             created_by=self.user,
             updated_by=self.user,
         )
         ensure_project_cost_heads(project)
         project.raw_material_lines.create(
             item=self.item,
-            finished_weight_mt=Decimal("330"),
-            quantity_mt=Decimal("330"),
+            finished_weight_mt=Decimal("330000"),
+            quantity_mt=Decimal("330000"),
             sort_order=1,
         )
         primer = project.cost_heads.get(code="PRIMER")
@@ -301,15 +301,15 @@ class EstimationFlowTests(TestCase):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
             project_name="Paint Edit",
-            quantity_mt=Decimal("330"),
+            quantity_mt=Decimal("330000"),
             created_by=self.user,
             updated_by=self.user,
         )
         ensure_project_cost_heads(project)
         project.raw_material_lines.create(
             item=self.item,
-            finished_weight_mt=Decimal("330"),
-            quantity_mt=Decimal("330"),
+            finished_weight_mt=Decimal("330000"),
+            quantity_mt=Decimal("330000"),
             sort_order=1,
         )
         recalculate_cost_heads(project)
@@ -322,13 +322,13 @@ class EstimationFlowTests(TestCase):
             elif h.code == "OFFCUT_RECOVERY":
                 payload[f"percentage_{h.id}"] = "-5.830"
             elif h.code == "PRIMER":
-                payload[f"consumption_{h.id}"] = "8.5"
+                payload[f"consumption_{h.id}"] = "0.0085"
             elif h.code == "MIO":
-                payload[f"consumption_{h.id}"] = "6"
+                payload[f"consumption_{h.id}"] = "0.006"
             elif h.code == "FINISH_PAINT":
-                payload[f"consumption_{h.id}"] = "8"
+                payload[f"consumption_{h.id}"] = "0.008"
             elif h.code == "THINNER":
-                payload[f"consumption_{h.id}"] = "0.4"
+                payload[f"consumption_{h.id}"] = "0.0004"
             else:
                 payload[f"percentage_{h.id}"] = "100.00"
             payload[f"rate_{h.id}"] = "180" if h.code == "MIO" else str(h.rate_per_kg)
@@ -344,7 +344,7 @@ class EstimationFlowTests(TestCase):
         paint = project.cost_heads.get(code="PAINT_PROCUREMENT")
         primer.refresh_from_db()
         paint.refresh_from_db()
-        self.assertEqual(primer.percentage, Decimal("8.5"))
+        self.assertEqual(primer.percentage, Decimal("0.0085"))
         self.assertEqual(primer.amount, Decimal("266475.00"))
         self.assertEqual(paint.amount, Decimal("1219515.00"))
 
@@ -352,23 +352,23 @@ class EstimationFlowTests(TestCase):
         project = EstimateProject.objects.create(
             client_name="PAHARPUR",
             project_name="Legacy Paint",
-            quantity_mt=Decimal("330"),
+            quantity_mt=Decimal("330000"),
             created_by=self.user,
             updated_by=self.user,
         )
         ensure_project_cost_heads(project)
-        project.cost_heads.filter(code="PRIMER").update(percentage=Decimal("1"), remarks="@8 LTR/MT")
-        project.cost_heads.filter(code="MIO").update(percentage=Decimal("1"), remarks="@6 LTR/MT")
-        project.cost_heads.filter(code="FINISH_PAINT").update(percentage=Decimal("1"), remarks="@8 LTR/MT")
-        project.cost_heads.filter(code="THINNER").update(percentage=Decimal("1"), remarks="@0.4 LTR/MT")
+        project.cost_heads.filter(code="PRIMER").update(percentage=Decimal("1"), remarks="@0.008 LTR/Kg")
+        project.cost_heads.filter(code="MIO").update(percentage=Decimal("1"), remarks="@0.006 LTR/Kg")
+        project.cost_heads.filter(code="FINISH_PAINT").update(percentage=Decimal("1"), remarks="@0.008 LTR/Kg")
+        project.cost_heads.filter(code="THINNER").update(percentage=Decimal("1"), remarks="@0.0004 LTR/Kg")
 
         ensure_project_cost_heads(project)
         recalculate_cost_heads(project)
 
-        self.assertEqual(project.cost_heads.get(code="PRIMER").percentage, Decimal("8"))
-        self.assertEqual(project.cost_heads.get(code="MIO").percentage, Decimal("6"))
-        self.assertEqual(project.cost_heads.get(code="FINISH_PAINT").percentage, Decimal("8"))
-        self.assertEqual(project.cost_heads.get(code="THINNER").percentage, Decimal("0.4"))
+        self.assertEqual(project.cost_heads.get(code="PRIMER").percentage, Decimal("0.008"))
+        self.assertEqual(project.cost_heads.get(code="MIO").percentage, Decimal("0.006"))
+        self.assertEqual(project.cost_heads.get(code="FINISH_PAINT").percentage, Decimal("0.008"))
+        self.assertEqual(project.cost_heads.get(code="THINNER").percentage, Decimal("0.0004"))
 
     def test_tentative_bom_validation_aggregates_by_item_master_match(self):
         with NamedTemporaryFile(suffix=".xlsx") as tmp:
@@ -386,8 +386,8 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(result["matched_rows"], 2)
         self.assertEqual(len(result["aggregated_lines"]), 1)
         self.assertEqual(result["aggregated_lines"][0]["item"].id, self.item.id)
-        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("2.000"))
-        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1.800"))
+        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("2000.000"))
+        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1800.000"))
 
     def test_tentative_bom_headers_are_detected_with_practical_column_names(self):
         with NamedTemporaryFile(suffix=".xlsx") as tmp:
@@ -417,8 +417,8 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(headers["BOM"]["mapping"]["gross_weight"], "drg gross wt.")
         self.assertEqual(headers["BOM"]["mapping"]["finished_weight"], "fin wt (kg)")
         self.assertTrue(result["ok"])
-        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("1.200"))
-        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1.000"))
+        self.assertEqual(result["aggregated_lines"][0]["quantity_mt"], Decimal("1200.000"))
+        self.assertEqual(result["aggregated_lines"][0]["finished_weight_mt"], Decimal("1000.000"))
 
     def test_grade_variants_handle_br_b_and_spacing_variations(self):
         variants = _grade_variants("IS:2062 E250 BR")
@@ -483,8 +483,8 @@ class EstimationFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(project.raw_material_lines.count(), 1)
-        self.assertEqual(project.raw_material_lines.first().quantity_mt, Decimal("2.000"))
-        self.assertEqual(project.raw_material_lines.first().finished_weight_mt, Decimal("1.850"))
+        self.assertEqual(project.raw_material_lines.first().quantity_mt, Decimal("2000.000000"))
+        self.assertEqual(project.raw_material_lines.first().finished_weight_mt, Decimal("1850.000000"))
         self.assertContains(response, "Tentative BOM imported and 1 raw material line(s) created.")
 
     def test_planning_cannot_add_supplier_column(self):
@@ -538,7 +538,7 @@ class EstimationFlowTests(TestCase):
         EstimateProjectSupplier.objects.create(project=project, supplier=supplier, column_order=1)
         line = project.raw_material_lines.create(item=self.item, quantity_mt=Decimal("10"), sort_order=1)
         sync_project_supplier_rates(project)
-        line.supplier_rates.filter(supplier=supplier).update(rate_per_mt=Decimal("55000"))
+        line.supplier_rates.filter(supplier=supplier).update(rate_per_mt=Decimal("55"))
         EstimateSupplierQuotationFile.objects.create(
             project=project,
             supplier=supplier,
@@ -579,10 +579,10 @@ class EstimationFlowTests(TestCase):
         wb = openpyxl.load_workbook(BytesIO(download.content))
         ws = wb.active
         self.assertEqual(ws["B5"].value, "Item Description")
-        self.assertEqual(ws["G5"].value, "Lowest (L1) Rate/MT")
-        self.assertEqual(ws["H5"].value, "Final Rate/MT")
-        ws["F6"] = 57500.125
-        ws["H6"] = 57500.125
+        self.assertEqual(ws["G5"].value, "Lowest (L1) Rate/Kg")
+        self.assertEqual(ws["H5"].value, "Final Rate/Kg")
+        ws["F6"] = 57.500
+        ws["H6"] = 57.500
 
         out = BytesIO()
         wb.save(out)
@@ -600,8 +600,8 @@ class EstimationFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         line.refresh_from_db()
-        self.assertEqual(line.final_rate_per_mt, Decimal("57500.125"))
-        self.assertEqual(line.supplier_rates.get(supplier=supplier).rate_per_mt, Decimal("57500.125"))
+        self.assertEqual(line.final_rate_per_mt, Decimal("57.500"))
+        self.assertEqual(line.supplier_rates.get(supplier=supplier).rate_per_mt, Decimal("57.500"))
 
     @patch("estimation.views.upload_supplier_quotation_file")
     def test_marketing_can_upload_supplier_quotation_file(self, mocked_upload):
@@ -689,8 +689,8 @@ class EstimationFlowTests(TestCase):
             reverse("estimation:submit_management_decision", args=[project.id]),
             {
                 "decision": "approve",
-                "quoted_price_per_mt": "78000",
-                "approved_price_per_mt": "76500",
+                "quoted_price_per_mt": "78",
+                "approved_price_per_mt": "76.5",
                 "decision_notes": "Approved after rate negotiation.",
                 "management_notes": "Keep estimated budget tighter than approved price.",
             },
@@ -700,8 +700,8 @@ class EstimationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         project.refresh_from_db()
         self.assertEqual(project.status, EstimateProject.Status.APPROVED)
-        self.assertEqual(project.quoted_price_per_mt, Decimal("78000.00"))
-        self.assertEqual(project.approved_price_per_mt, Decimal("76500.00"))
+        self.assertEqual(project.quoted_price_per_mt, Decimal("78.00"))
+        self.assertEqual(project.approved_price_per_mt, Decimal("76.50"))
         self.assertEqual(project.decision_notes, "Approved after rate negotiation.")
 
     def test_accounts_cannot_mark_po_received_until_quotation_is_approved(self):
@@ -766,8 +766,9 @@ class EstimationFlowTests(TestCase):
         project.refresh_from_db()
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Estimated Price /Kg (Round-Off)")
         self.assertContains(response, f'value="{project.quotation_price_per_kg}"', html=False)
-        self.assertNotContains(response, f'value="{project.quotation_price_per_mt}"', html=False)
+        self.assertNotContains(response, "Estimated Price /MT", html=False)
 
     def test_management_cannot_reopen_approved_quotation_after_budget_creation(self):
         project = EstimateProject.objects.create(
