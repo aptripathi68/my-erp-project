@@ -93,6 +93,13 @@ def _inventory_context(request):
     store_locations = StockLocation.objects.filter(location_type="STORE").order_by("is_active", "name")
     active_store_locations = store_locations.filter(is_active=True)
     inactive_store_locations = store_locations.filter(is_active=False)
+    stock_by_location_rows = stock_by_location()
+    store_stock_rows = [row for row in stock_by_location_rows if row["location_type"] == "STORE"]
+    process_stock_rows = [
+        row
+        for row in stock_by_location_rows
+        if row["location_type"] in {"FABRICATION", "PAINTING", "DISPATCH_SECTION"}
+    ]
     issue_rows = []
     inactive_store_location_rows = [
         {
@@ -130,7 +137,9 @@ def _inventory_context(request):
         "store_location_count": active_store_locations.count(),
         "inactive_store_location_count": inactive_store_locations.count(),
         "stock_by_item": stock_by_item(),
-        "stock_by_location": stock_by_location(),
+        "stock_by_location": stock_by_location_rows,
+        "store_stock_rows": store_stock_rows,
+        "process_stock_rows": process_stock_rows,
         "temporary_issue_rows": issue_rows,
         "pending_issue_count": sum(1 for row in issue_rows if row["txn"].bridge_status != "RETURNED"),
         "can_manage_inventory": _can_manage_inventory(request.user),

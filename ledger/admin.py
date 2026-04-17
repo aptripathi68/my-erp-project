@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from .models import (
     StockLocation,
     StockObject,
@@ -11,6 +12,17 @@ from .models import (
 class StockTxnLineInline(admin.TabularInline):
     model = StockTxnLine
     extra = 1
+
+
+class StoreLocationAdminForm(forms.ModelForm):
+    class Meta:
+        model = StockLocation
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["location_type"].choices = [("STORE", "Store")]
+        self.fields["location_type"].initial = "STORE"
 
 
 @admin.register(StockTxn)
@@ -30,9 +42,13 @@ class StockTxnAdmin(admin.ModelAdmin):
 
 @admin.register(StockLocation)
 class StockLocationAdmin(admin.ModelAdmin):
-    list_display = ["name", "location_type", "rack_number", "shelf_number", "bin_number", "is_active"]
-    list_filter = ["location_type", "is_active"]
-    search_fields = ["name", "rack_number", "shelf_number", "bin_number"]
+    form = StoreLocationAdminForm
+    list_display = ["name", "latitude", "longitude", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["name", "remarks"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(location_type="STORE")
 
 
 @admin.register(StockObject)
