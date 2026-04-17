@@ -18,11 +18,17 @@ from .services.stock_queries import stock_by_item, stock_by_location
 
 
 def _has_inventory_access(user):
-    return user.is_authenticated and user.role in {"Admin", "Store", "Management", "Planning", "Procurement"}
+    return user.is_authenticated and (
+        user.is_superuser
+        or user.role in {"Admin", "Store", "Management", "Planning", "Procurement"}
+    )
 
 
 def _can_manage_inventory(user):
-    return user.is_authenticated and user.role in {"Admin", "Store", "Management"}
+    return user.is_authenticated and (
+        user.is_superuser
+        or user.role in {"Admin", "Store", "Management"}
+    )
 
 
 def _temporary_return_totals(issue_txn):
