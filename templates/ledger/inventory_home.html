@@ -55,6 +55,10 @@
             <div class="value">{{ store_location_count }}</div>
         </div>
         <div class="stat">
+            <div class="label">Reserved Stores</div>
+            <div class="value">{{ inactive_store_location_count }}</div>
+        </div>
+        <div class="stat">
             <div class="label">Item Stock Buckets</div>
             <div class="value">{{ stock_by_item|length }}</div>
         </div>
@@ -105,12 +109,12 @@
                 </tr>
             </thead>
             <tbody>
-                {% for location in store_locations %}
+                {% for location in active_store_locations %}
                 <tr>
                     <td>{{ location.name }}</td>
                     <td>{{ location.latitude|default:"-" }}</td>
                     <td>{{ location.longitude|default:"-" }}</td>
-                    <td>{{ location.is_active|yesno:"Yes,No" }}</td>
+                    <td>Yes</td>
                     <td>
                         {% if can_manage_inventory %}
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -129,6 +133,44 @@
                 </tr>
                 {% empty %}
                 <tr><td colspan="5">No store locations created yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">Reserved / Inactive Store Locations</h2>
+        <p class="muted">When a user deletes a wrongly created store, it moves here in reserved state. Admin can permanently delete only from this section.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Active</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for location in inactive_store_locations %}
+                <tr>
+                    <td>{{ location.name }}</td>
+                    <td>{{ location.latitude|default:"-" }}</td>
+                    <td>{{ location.longitude|default:"-" }}</td>
+                    <td>No</td>
+                    <td>
+                        {% if can_admin_inventory %}
+                        <form method="post" action="{% url 'ledger:permanent_delete_location' location.id %}" onsubmit="return confirm('Permanently delete this reserved store location? This cannot be undone.');" style="margin:0;">
+                            {% csrf_token %}
+                            <button class="btn btn-primary" type="submit" style="background:#b42318;">Permanent Delete</button>
+                        </form>
+                        {% else %}
+                        Admin Only
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No reserved store locations.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

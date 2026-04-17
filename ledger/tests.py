@@ -43,6 +43,7 @@ class InventoryManagementTests(TestCase):
         self.assertContains(response, "Existing Store Locations")
         self.assertContains(response, "Edit")
         self.assertContains(response, "Delete")
+        self.assertContains(response, "Reserved / Inactive Store Locations")
 
     def test_opening_raw_inward_posts_to_ledger(self):
         response = self.client.post(
@@ -158,3 +159,22 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         issue_txn.refresh_from_db()
         self.assertEqual(issue_txn.bridge_status, "RETURNED")
+
+    def test_delete_location_marks_store_inactive(self):
+        response = self.client.post(reverse("ledger:delete_location", args=[self.store.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.store.refresh_from_db()
+        self.assertFalse(self.store.is_active)
+
+    def test_admin_can_permanently_delete_inactive_unused_store(self):
+        admin_user = User.objects.create_user(
+            username="admin1",
+            password="testpass123",
+            role="Admin",
+            is_staff=True,
+        )
+        inactive_store = StockLocation.objects.create(name="Unused Store", location_type="STORE", is_active=False)
+        self.client.login(username="admin1", password="testpass123")
+        response = self.client.post(reverse("ledger:permanent_delete_location", args=[inactive_store.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(StockLocation.objects.filter(id=inactive_store.id).exists())

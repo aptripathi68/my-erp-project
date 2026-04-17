@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -29,6 +30,10 @@ def _can_manage_inventory(user):
         user.is_superuser
         or user.role in {"Admin", "Store", "Management"}
     )
+
+
+def _can_admin_inventory(user):
+    return user.is_authenticated and (user.is_superuser or user.role == "Admin")
 
 
 def _temporary_return_totals(issue_txn):
@@ -71,7 +76,9 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks=
 
 
 def _inventory_context(request):
-    store_locations = StockLocation.objects.filter(location_type="STORE").order_by("name")
+    store_locations = StockLocation.objects.filter(location_type="STORE").order_by("is_active", "name")
+    active_store_locations = store_locations.filter(is_active=True)
+    inactive_store_locations = store_locations.filter(is_active=False)
     issue_rows = []
     issue_qs = (
         StockTxn.objects.filter(txn_type="TEMP_ISSUE", posted=True)
@@ -96,12 +103,16 @@ def _inventory_context(request):
     return {
         "locations": StockLocation.objects.order_by("location_type", "name"),
         "store_locations": store_locations,
-        "store_location_count": store_locations.count(),
+        "active_store_locations": active_store_locations,
+        "inactive_store_locations": inactive_store_locations,
+        "store_location_count": active_store_locations.count(),
+        "inactive_store_location_count": inactive_store_locations.count(),
         "stock_by_item": stock_by_item(),
         "stock_by_location": stock_by_location(),
         "temporary_issue_rows": issue_rows,
         "pending_issue_count": sum(1 for row in issue_rows if row["txn"].bridge_status != "RETURNED"),
         "can_manage_inventory": _can_manage_inventory(request.user),
+        "can_admin_inventory": _can_admin_inventory(request.user),
     }
 
 
@@ -131,7 +142,7 @@ def _render_store_form(request, *, form, page_title="Store Creation", editing_lo
             "post_url": "ledger:create_location" if editing_location is None else "ledger:edit_location",
             "post_kwargs": {} if editing_location is None else {"location_id": editing_location.id},
             "back_url": "ledger:inventory_dashboard",
-            "store_locations": StockLocation.objects.filter(location_type="STORE").order_by("name"),
+            "store_locations": StockLocation.objects.filter(location_type="STORE").order_by("is_active", "name"),
             "editing_location": editing_location,
         }
     )
@@ -191,6 +202,26 @@ def delete_location(request, location_id: int):
     location.is_active = False
     location.save(update_fields=["is_active"])
     messages.success(request, "Store location removed from active use.")
+    return redirect("ledger:create_location")
+
+
+@login_required
+def permanent_delete_location(request, location_id: int):
+    if request.method != "POST":
+        return redirect("ledger:create_location")
+    if not _can_admin_inventory(request.user):
+        messages.error(request, "Only Admin can permanently delete reserved store locations.")
+        return redirect("ledger:create_location")
+    location = get_object_or_404(StockLocation, pk=location_id, location_type="STORE", is_active=False)
+    try:
+        location.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            "This store location is already linked with stock records and cannot be permanently deleted.",
+        )
+    else:
+        messages.success(request, "Reserved store location permanently deleted.")
     return redirect("ledger:create_location")
 
 

@@ -96,6 +96,11 @@
                                     {% csrf_token %}
                                     <button class="btn btn-danger" type="submit">Delete</button>
                                 </form>
+                                {% elif can_admin_inventory %}
+                                <form method="post" action="{% url 'ledger:permanent_delete_location' location.id %}" onsubmit="return confirm('Permanently delete this reserved store location? This cannot be undone.');">
+                                    {% csrf_token %}
+                                    <button class="btn btn-danger" type="submit">Permanent Delete</button>
+                                </form>
                                 {% endif %}
                             </div>
                         </td>
