@@ -23,9 +23,23 @@ class StockLocationForm(forms.ModelForm):
             "remarks",
             "is_active",
         ]
+        labels = {
+            "name": "Store / Location Name",
+            "location_type": "Location Type",
+            "rack_number": "Rack Number",
+            "shelf_number": "Shelf Number",
+            "bin_number": "Bin Number",
+            "latitude": "Latitude",
+            "longitude": "Longitude",
+        }
 
 
 class InventoryInwardForm(forms.Form):
+    STOCK_FOR_CHOICES = [
+        ("PROJECT", "Item entry against project"),
+        ("SPARE", "Item entry of spare store"),
+    ]
+
     entry_type = forms.ChoiceField(
         choices=[
             ("OPENING", "Opening Stock"),
@@ -34,6 +48,7 @@ class InventoryInwardForm(forms.Form):
             ("CORRECTION", "Correction Entry"),
         ]
     )
+    stock_for = forms.ChoiceField(choices=STOCK_FOR_CHOICES, initial="PROJECT")
     object_type = forms.ChoiceField(
         choices=[
             ("RAW", "Fresh Raw Material"),
@@ -43,12 +58,12 @@ class InventoryInwardForm(forms.Form):
     )
     item = forms.ModelChoiceField(queryset=Item.objects.filter(is_active=True).order_by("item_description"))
     location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).order_by("name"))
+    project_reference = forms.CharField(required=False, max_length=100)
+    project_name = forms.CharField(required=False, max_length=255)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(required=False, max_length=16)
     photo_url = forms.URLField(required=False)
-    capture_latitude = forms.DecimalField(required=False, max_digits=9, decimal_places=6)
-    capture_longitude = forms.DecimalField(required=False, max_digits=9, decimal_places=6)
     reference_no = forms.CharField(required=False, max_length=100)
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
@@ -56,6 +71,8 @@ class InventoryInwardForm(forms.Form):
         cleaned = super().clean()
         object_type = cleaned.get("object_type")
         qr_code = (cleaned.get("qr_code") or "").strip()
+        stock_for = cleaned.get("stock_for")
+        project_reference = (cleaned.get("project_reference") or "").strip()
         if object_type == "OFFCUT":
             if not qr_code:
                 self.add_error("qr_code", "QR code is compulsory for off-cuts.")
@@ -63,6 +80,8 @@ class InventoryInwardForm(forms.Form):
                 self.add_error("qr_code", "QR code must be exactly 16 digits.")
             elif StockObject.objects.filter(qr_code=qr_code).exists():
                 self.add_error("qr_code", "This QR code already exists.")
+        if stock_for == "PROJECT" and not project_reference:
+            self.add_error("project_reference", "Project reference is required for item entry against project.")
         return cleaned
 
 
@@ -107,8 +126,6 @@ class TemporaryReturnForm(forms.Form):
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(required=False, max_length=16)
     photo_url = forms.URLField(required=False)
-    capture_latitude = forms.DecimalField(required=False, max_digits=9, decimal_places=6)
-    capture_longitude = forms.DecimalField(required=False, max_digits=9, decimal_places=6)
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def clean(self):

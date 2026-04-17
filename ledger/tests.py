@@ -38,15 +38,20 @@ class InventoryManagementTests(TestCase):
         response = self.client.get(reverse("ledger:inventory_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Inventory Management")
+        self.assertContains(response, "Store Creation")
+        self.assertContains(response, "Item Entry In Store")
 
     def test_opening_raw_inward_posts_to_ledger(self):
         response = self.client.post(
             reverse("ledger:create_inventory_inward"),
             {
                 "entry_type": "OPENING",
+                "stock_for": "PROJECT",
                 "object_type": "RAW",
                 "item": self.item.id,
                 "location": self.store.id,
+                "project_reference": "PRJ-OPEN-01",
+                "project_name": "Opening Capture",
                 "qty": "2.000",
                 "weight": "125.500",
                 "reference_no": "OPEN-001",
@@ -66,15 +71,33 @@ class InventoryManagementTests(TestCase):
             reverse("ledger:create_inventory_inward"),
             {
                 "entry_type": "OPENING",
+                "stock_for": "PROJECT",
                 "object_type": "OFFCUT",
                 "item": self.item.id,
                 "location": self.store.id,
+                "project_reference": "PRJ-02",
                 "qty": "1.000",
                 "weight": "22.000",
             },
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "QR code is compulsory for off-cuts.")
+
+    def test_project_entry_requires_project_reference(self):
+        response = self.client.post(
+            reverse("ledger:create_inventory_inward"),
+            {
+                "entry_type": "OPENING",
+                "stock_for": "PROJECT",
+                "object_type": "RAW",
+                "item": self.item.id,
+                "location": self.store.id,
+                "qty": "1.000",
+                "weight": "10.000",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Project reference is required")
 
     def test_temporary_issue_and_return_update_bridge_status(self):
         stock_object = StockObject.objects.create(

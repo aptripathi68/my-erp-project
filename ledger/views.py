@@ -57,7 +57,7 @@ def _refresh_temporary_issue_status(issue_txn):
         issue_txn.save(update_fields=["bridge_status"])
 
 
-def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks="", qr_code="", photo_url="", latitude=None, longitude=None):
+def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks="", qr_code="", photo_url=""):
     return StockObject.objects.create(
         object_type=object_type,
         source_type=source_type,
@@ -66,8 +66,6 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks=
         weight=weight,
         qr_code=qr_code or None,
         photo_url=photo_url or "",
-        capture_latitude=latitude,
-        capture_longitude=longitude,
         remarks=remarks,
     )
 
@@ -95,10 +93,6 @@ def _inventory_context(request):
         )
 
     return {
-        "location_form": StockLocationForm(),
-        "inward_form": InventoryInwardForm(),
-        "issue_form": TemporaryIssueForm(),
-        "return_form": TemporaryReturnForm(),
         "locations": StockLocation.objects.order_by("location_type", "name"),
         "stock_by_item": stock_by_item(),
         "stock_by_location": stock_by_location(),
@@ -108,18 +102,43 @@ def _inventory_context(request):
     }
 
 
+def _render_inventory_form(request, *, page_title, page_intro, form, submit_label, post_url):
+    context = _inventory_context(request)
+    context.update(
+        {
+            "page_title": page_title,
+            "page_intro": page_intro,
+            "form": form,
+            "submit_label": submit_label,
+            "post_url": post_url,
+            "back_url": "ledger:inventory_dashboard",
+        }
+    )
+    return render(request, "ledger/inventory_form.html", context)
+
+
 @login_required
 def inventory_dashboard(request):
     if not _has_inventory_access(request.user):
         messages.error(request, "You do not have permission to access inventory management.")
         return redirect("dashboard_home")
-    return render(request, "ledger/inventory_dashboard.html", _inventory_context(request))
+    return render(request, "ledger/inventory_home.html", _inventory_context(request))
 
 
 @login_required
 def create_location(request):
-    if request.method != "POST":
-        return redirect("ledger:inventory_dashboard")
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_inventory_form(
+            request,
+            page_title="Store Creation",
+            page_intro="Create the store location first. GPS latitude and longitude should be stored here only. Normal item entries will use the already-created store and will not ask again for GPS.",
+            form=StockLocationForm(),
+            submit_label="Save Store Location",
+            post_url="ledger:create_location",
+        )
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can create stock locations.")
         return redirect("ledger:inventory_dashboard")
@@ -128,15 +147,30 @@ def create_location(request):
         form.save()
         messages.success(request, "Stock location saved.")
         return redirect("ledger:inventory_dashboard")
-    context = _inventory_context(request)
-    context["location_form"] = form
-    return render(request, "ledger/inventory_dashboard.html", context)
+    return _render_inventory_form(
+        request,
+        page_title="Store Creation",
+        page_intro="Create the store location first. GPS latitude and longitude should be stored here only. Normal item entries will use the already-created store and will not ask again for GPS.",
+        form=form,
+        submit_label="Save Store Location",
+        post_url="ledger:create_location",
+    )
 
 
 @login_required
 def create_inventory_inward(request):
-    if request.method != "POST":
-        return redirect("ledger:inventory_dashboard")
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_inventory_form(
+            request,
+            page_title="Item Entry In Store",
+            page_intro="Select an already-created store location. Use this for item entry against a project, item entry of spare store, opening stock, new purchase inward, return entry, and correction entry.",
+            form=InventoryInwardForm(),
+            submit_label="Record Item Entry",
+            post_url="ledger:create_inventory_inward",
+        )
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can record inward inventory.")
         return redirect("ledger:inventory_dashboard")
@@ -183,14 +217,14 @@ def create_inventory_inward(request):
             remarks=remarks,
             qr_code=qr_code,
             photo_url=form.cleaned_data.get("photo_url") or "",
-            latitude=form.cleaned_data.get("capture_latitude"),
-            longitude=form.cleaned_data.get("capture_longitude"),
         )
 
         txn = StockTxn.objects.create(
             txn_type=txn_type_map[(entry_type, object_type)],
             reference_no=form.cleaned_data.get("reference_no") or "",
             entry_source_type=entry_type,
+            project_reference=form.cleaned_data.get("project_reference") or "",
+            project_name=form.cleaned_data.get("project_name") or "",
             remarks=remarks,
             created_by=request.user,
             bridge_status="NOT_APPLICABLE",
@@ -205,22 +239,37 @@ def create_inventory_inward(request):
         )
         try:
             post_stock_txn(txn.id)
-            messages.success(request, "Inventory inward recorded and posted.")
+            messages.success(request, "Item entry recorded in store successfully.")
             return redirect("ledger:inventory_dashboard")
         except ValidationError as exc:
             txn.delete()
             stock_object.delete()
             form.add_error(None, exc.message)
 
-    context = _inventory_context(request)
-    context["inward_form"] = form
-    return render(request, "ledger/inventory_dashboard.html", context)
+    return _render_inventory_form(
+        request,
+        page_title="Item Entry In Store",
+        page_intro="Select an already-created store location. Use this for item entry against a project, item entry of spare store, opening stock, new purchase inward, return entry, and correction entry.",
+        form=form,
+        submit_label="Record Item Entry",
+        post_url="ledger:create_inventory_inward",
+    )
 
 
 @login_required
 def create_temporary_issue(request):
-    if request.method != "POST":
-        return redirect("ledger:inventory_dashboard")
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_inventory_form(
+            request,
+            page_title="Item Exit From Store",
+            page_intro="Use this screen when a recorded store item is being utilized for fabrication before the full ERP issue flow is completed.",
+            form=TemporaryIssueForm(),
+            submit_label="Record Item Exit",
+            post_url="ledger:create_temporary_issue",
+        )
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can create temporary issues.")
         return redirect("ledger:inventory_dashboard")
@@ -253,21 +302,36 @@ def create_temporary_issue(request):
         )
         try:
             post_stock_txn(txn.id)
-            messages.success(request, "Temporary issue posted and tagged for future ERP integration.")
+            messages.success(request, "Item exit from store recorded and tagged for future ERP integration.")
             return redirect("ledger:inventory_dashboard")
         except ValidationError as exc:
             txn.delete()
             form.add_error(None, exc.message)
 
-    context = _inventory_context(request)
-    context["issue_form"] = form
-    return render(request, "ledger/inventory_dashboard.html", context)
+    return _render_inventory_form(
+        request,
+        page_title="Item Exit From Store",
+        page_intro="Use this screen when a recorded store item is being utilized for fabrication before the full ERP issue flow is completed.",
+        form=form,
+        submit_label="Record Item Exit",
+        post_url="ledger:create_temporary_issue",
+    )
 
 
 @login_required
 def create_temporary_return(request):
-    if request.method != "POST":
-        return redirect("ledger:inventory_dashboard")
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_inventory_form(
+            request,
+            page_title="Item Return To Store",
+            page_intro="Use this screen when unused material comes back to store. If the returned material is an off-cut, assign a QR code here.",
+            form=TemporaryReturnForm(),
+            submit_label="Record Item Return",
+            post_url="ledger:create_temporary_return",
+        )
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can create temporary returns.")
         return redirect("ledger:inventory_dashboard")
@@ -290,8 +354,6 @@ def create_temporary_return(request):
             remarks=remarks,
             qr_code=form.cleaned_data.get("qr_code") or "",
             photo_url=form.cleaned_data.get("photo_url") or "",
-            latitude=form.cleaned_data.get("capture_latitude"),
-            longitude=form.cleaned_data.get("capture_longitude"),
         )
 
         txn = StockTxn.objects.create(
@@ -316,21 +378,23 @@ def create_temporary_return(request):
         try:
             post_stock_txn(txn.id)
             _refresh_temporary_issue_status(issue_txn)
-            messages.success(request, "Temporary return posted and linked to the original issue.")
+            messages.success(request, "Item return to store recorded and linked to the original issue.")
             return redirect("ledger:inventory_dashboard")
         except ValidationError as exc:
             txn.delete()
             stock_object.delete()
             form.add_error(None, exc.message)
 
-    context = _inventory_context(request)
-    context["return_form"] = form
-    return render(request, "ledger/inventory_dashboard.html", context)
+    return _render_inventory_form(
+        request,
+        page_title="Item Return To Store",
+        page_intro="Use this screen when unused material comes back to store. If the returned material is an off-cut, assign a QR code here.",
+        form=form,
+        submit_label="Record Item Return",
+        post_url="ledger:create_temporary_return",
+    )
 
 
-# ------------------------------
-# STOCK BY ITEM
-# ------------------------------
 def api_stock_by_item(request):
     rows = (
         StockLedgerEntry.objects.values("item__id", "item__item_description")
@@ -431,8 +495,6 @@ def api_offcut_capture(request):
         qty = Decimal(str(data.get("qty") or "0"))
         weight = Decimal(str(data.get("weight") or "0"))
         photo_url = data.get("photo_url")
-        latitude = data.get("latitude")
-        longitude = data.get("longitude")
 
         if not qr_code:
             return JsonResponse({"error": "QR code required"}, status=400)
@@ -454,8 +516,6 @@ def api_offcut_capture(request):
             source_type="OPENING",
             qr_code=qr_code,
             photo_url=photo_url or "",
-            latitude=latitude,
-            longitude=longitude,
         )
         txn = StockTxn.objects.create(
             txn_type="IN_OFFCUT",
@@ -501,8 +561,6 @@ def api_offcut_detail(request, qr_code):
             "qty": float(obj.qty),
             "weight": float(obj.weight),
             "photo_url": obj.photo_url,
-            "capture_latitude": float(obj.capture_latitude) if obj.capture_latitude is not None else None,
-            "capture_longitude": float(obj.capture_longitude) if obj.capture_longitude is not None else None,
             "created_at": obj.created_at.isoformat(),
             "current_location": last["location__name"] if last else None,
             "current_location_id": last["location__id"] if last else None,
