@@ -36,6 +36,20 @@ def _can_admin_inventory(user):
     return user.is_authenticated and (user.is_superuser or user.role == "Admin")
 
 
+def _store_delete_status(location):
+    has_ledger_entries = StockLedgerEntry.objects.filter(location=location).exists()
+    has_txn_lines = StockTxnLine.objects.filter(from_location=location).exists() or StockTxnLine.objects.filter(to_location=location).exists()
+    if has_ledger_entries or has_txn_lines:
+        return {
+            "can_delete": False,
+            "reason": "Used in stock records",
+        }
+    return {
+        "can_delete": True,
+        "reason": "Safe to delete",
+    }
+
+
 def _temporary_return_totals(issue_txn):
     totals = (
         StockTxnLine.objects.filter(txn__parent_txn=issue_txn, txn__txn_type="TEMP_RETURN", txn__posted=True)
@@ -80,6 +94,13 @@ def _inventory_context(request):
     active_store_locations = store_locations.filter(is_active=True)
     inactive_store_locations = store_locations.filter(is_active=False)
     issue_rows = []
+    inactive_store_location_rows = [
+        {
+            "location": location,
+            **_store_delete_status(location),
+        }
+        for location in inactive_store_locations
+    ]
     issue_qs = (
         StockTxn.objects.filter(txn_type="TEMP_ISSUE", posted=True)
         .select_related("created_by")
@@ -105,6 +126,7 @@ def _inventory_context(request):
         "store_locations": store_locations,
         "active_store_locations": active_store_locations,
         "inactive_store_locations": inactive_store_locations,
+        "inactive_store_location_rows": inactive_store_location_rows,
         "store_location_count": active_store_locations.count(),
         "inactive_store_location_count": inactive_store_locations.count(),
         "stock_by_item": stock_by_item(),

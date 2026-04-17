@@ -44,6 +44,7 @@ class InventoryManagementTests(TestCase):
         self.assertContains(response, "Edit")
         self.assertContains(response, "Delete")
         self.assertContains(response, "Reserved / Inactive Store Locations")
+        self.assertContains(response, "Delete Status")
 
     def test_opening_raw_inward_posts_to_ledger(self):
         response = self.client.post(
@@ -178,3 +179,9 @@ class InventoryManagementTests(TestCase):
         response = self.client.post(reverse("ledger:permanent_delete_location", args=[inactive_store.id]), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(StockLocation.objects.filter(id=inactive_store.id).exists())
+
+    def test_reserved_store_shows_safe_to_delete_status(self):
+        StockLocation.objects.create(name="Unused Store", location_type="STORE", is_active=False)
+        response = self.client.get(reverse("ledger:inventory_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Safe to delete")

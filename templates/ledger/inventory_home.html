@@ -148,29 +148,33 @@
                     <th>Latitude</th>
                     <th>Longitude</th>
                     <th>Active</th>
+                    <th>Delete Status</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
-                {% for location in inactive_store_locations %}
+                {% for row in inactive_store_location_rows %}
                 <tr>
-                    <td>{{ location.name }}</td>
-                    <td>{{ location.latitude|default:"-" }}</td>
-                    <td>{{ location.longitude|default:"-" }}</td>
+                    <td>{{ row.location.name }}</td>
+                    <td>{{ row.location.latitude|default:"-" }}</td>
+                    <td>{{ row.location.longitude|default:"-" }}</td>
                     <td>No</td>
+                    <td>{{ row.reason }}</td>
                     <td>
-                        {% if can_admin_inventory %}
-                        <form method="post" action="{% url 'ledger:permanent_delete_location' location.id %}" onsubmit="return confirm('Permanently delete this reserved store location? This cannot be undone.');" style="margin:0;">
+                        {% if can_admin_inventory and row.can_delete %}
+                        <form method="post" action="{% url 'ledger:permanent_delete_location' row.location.id %}" onsubmit="return confirm('Permanently delete this reserved store location? This cannot be undone.');" style="margin:0;">
                             {% csrf_token %}
                             <button class="btn btn-primary" type="submit" style="background:#b42318;">Permanent Delete</button>
                         </form>
+                        {% elif can_admin_inventory %}
+                        Delete Blocked
                         {% else %}
                         Admin Only
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5">No reserved store locations.</td></tr>
+                <tr><td colspan="6">No reserved store locations.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
