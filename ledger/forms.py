@@ -35,6 +35,13 @@ class StockLocationForm(forms.ModelForm):
         self.fields["longitude"].widget.attrs.update({"readonly": "readonly", "placeholder": "Capture from mobile GPS"})
 
 
+class TransferStoreRecordsForm(forms.Form):
+    target_location = forms.ModelChoiceField(
+        queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"),
+        label="Transfer to active store",
+    )
+
+
 class InventoryInwardForm(forms.Form):
     STOCK_FOR_CHOICES = [
         ("PROJECT", "Item entry against project"),

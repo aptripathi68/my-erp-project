@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Sum
 from django.http import JsonResponse
@@ -12,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from masters.models import Item
 
-from .forms import InventoryInwardForm, StockLocationForm, TemporaryIssueForm, TemporaryReturnForm
+from .forms import InventoryInwardForm, StockLocationForm, TemporaryIssueForm, TemporaryReturnForm, TransferStoreRecordsForm
 from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn, StockTxnLine
 from .services.stock_engine import post_stock_txn
 from .services.stock_queries import stock_by_item, stock_by_location
@@ -104,6 +105,7 @@ def _inventory_context(request):
     inactive_store_location_rows = [
         {
             "location": location,
+            "transfer_form": TransferStoreRecordsForm(),
             **_store_delete_status(location),
         }
         for location in inactive_store_locations
@@ -254,6 +256,41 @@ def permanent_delete_location(request, location_id: int):
     else:
         messages.success(request, "Reserved store location permanently deleted.")
     return redirect("ledger:create_location")
+
+
+@login_required
+def transfer_store_records(request, location_id: int):
+    if request.method != "POST":
+        return redirect("ledger:inventory_dashboard")
+    if not _can_admin_inventory(request.user):
+        messages.error(request, "Only Admin can transfer reserved store records.")
+        return redirect("ledger:inventory_dashboard")
+
+    source_location = get_object_or_404(StockLocation, pk=location_id, location_type="STORE", is_active=False)
+    form = TransferStoreRecordsForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Please select a valid active store for transfer.")
+        return redirect("ledger:inventory_dashboard")
+
+    target_location = form.cleaned_data["target_location"]
+    if target_location.id == source_location.id:
+        messages.error(request, "Source and target store cannot be the same.")
+        return redirect("ledger:inventory_dashboard")
+
+    with transaction.atomic():
+        ledger_count = StockLedgerEntry.objects.filter(location=source_location).update(location=target_location)
+        from_count = StockTxnLine.objects.filter(from_location=source_location).update(from_location=target_location)
+        to_count = StockTxnLine.objects.filter(to_location=source_location).update(to_location=target_location)
+
+    messages.success(
+        request,
+        (
+            f"Transferred reserved store records to {target_location.name}. "
+            f"Ledger rows updated: {ledger_count}, from-location rows updated: {from_count}, "
+            f"to-location rows updated: {to_count}."
+        ),
+    )
+    return redirect("ledger:inventory_dashboard")
 
 
 @login_required

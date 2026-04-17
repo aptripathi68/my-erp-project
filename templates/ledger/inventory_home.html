@@ -167,7 +167,12 @@
                             <button class="btn btn-primary" type="submit" style="background:#b42318;">Permanent Delete</button>
                         </form>
                         {% elif can_admin_inventory %}
-                        Delete Blocked
+                        <form method="post" action="{% url 'ledger:transfer_store_records' row.location.id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0;">
+                            {% csrf_token %}
+                            {{ row.transfer_form.target_location }}
+                            <button class="btn btn-secondary" type="submit">Transfer Records</button>
+                        </form>
+                        <div class="small" style="margin-top:6px;">Move linked records to the correct active store, then permanent delete will become available.</div>
                         {% else %}
                         Admin Only
                         {% endif %}

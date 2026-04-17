@@ -185,3 +185,35 @@ class InventoryManagementTests(TestCase):
         response = self.client.get(reverse("ledger:inventory_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Safe to delete")
+
+    def test_admin_can_transfer_reserved_store_records_to_active_store(self):
+        admin_user = User.objects.create_user(
+            username="admin2",
+            password="testpass123",
+            role="Admin",
+            is_staff=True,
+        )
+        reserved_store = StockLocation.objects.create(name="Old Test Store", location_type="STORE", is_active=False)
+        target_store = StockLocation.objects.create(name="New Main Store", location_type="STORE", is_active=True)
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=reserved_store,
+            qty=Decimal("1.000"),
+            weight=Decimal("10.000"),
+        )
+        self.client.login(username="admin2", password="testpass123")
+        response = self.client.post(
+            reverse("ledger:transfer_store_records", args=[reserved_store.id]),
+            {"target_location": target_store.id},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(StockLedgerEntry.objects.filter(location=reserved_store).exists())
+        self.assertTrue(StockLedgerEntry.objects.filter(location=target_store).exists())
