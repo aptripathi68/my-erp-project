@@ -44,7 +44,7 @@
     {% endif %}
 
     <div class="card">
-        <form method="post" action="{% url post_url %}">
+        <form method="post" action="{% if post_kwargs %}{% url post_url post_kwargs.location_id %}{% else %}{% url post_url %}{% endif %}">
             {% csrf_token %}
             {{ form.non_field_errors }}
             {% for field in form %}

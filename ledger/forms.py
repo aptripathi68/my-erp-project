@@ -15,9 +15,6 @@ class StockLocationForm(forms.ModelForm):
         fields = [
             "name",
             "location_type",
-            "rack_number",
-            "shelf_number",
-            "bin_number",
             "latitude",
             "longitude",
             "remarks",
@@ -26,12 +23,16 @@ class StockLocationForm(forms.ModelForm):
         labels = {
             "name": "Store / Location Name",
             "location_type": "Location Type",
-            "rack_number": "Rack Number",
-            "shelf_number": "Shelf Number",
-            "bin_number": "Bin Number",
             "latitude": "Latitude",
             "longitude": "Longitude",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["location_type"].choices = [("STORE", "Store")]
+        self.fields["location_type"].initial = "STORE"
+        self.fields["latitude"].widget.attrs.update({"readonly": "readonly", "placeholder": "Capture from mobile GPS"})
+        self.fields["longitude"].widget.attrs.update({"readonly": "readonly", "placeholder": "Capture from mobile GPS"})
 
 
 class InventoryInwardForm(forms.Form):
@@ -57,9 +58,12 @@ class InventoryInwardForm(forms.Form):
         ]
     )
     item = forms.ModelChoiceField(queryset=Item.objects.filter(is_active=True).order_by("item_description"))
-    location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).order_by("name"))
+    location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
     project_reference = forms.CharField(required=False, max_length=100)
     project_name = forms.CharField(required=False, max_length=255)
+    rack_number = forms.CharField(required=False, max_length=50)
+    shelf_number = forms.CharField(required=False, max_length=50)
+    bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(required=False, max_length=16)
@@ -89,8 +93,8 @@ class TemporaryIssueForm(forms.Form):
     project_reference = forms.CharField(max_length=100)
     project_name = forms.CharField(required=False, max_length=255)
     item = forms.ModelChoiceField(queryset=Item.objects.filter(is_active=True).order_by("item_description"))
-    source_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).order_by("name"))
-    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).order_by("name"))
+    source_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
+    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).exclude(location_type="STORE").order_by("name"))
     stock_object = forms.ModelChoiceField(
         queryset=StockObject.objects.filter(object_type="OFFCUT").order_by("qr_code"),
         required=False,
@@ -104,9 +108,8 @@ class TemporaryIssueForm(forms.Form):
         cleaned = super().clean()
         item = cleaned.get("item")
         stock_object = cleaned.get("stock_object")
-        if stock_object:
-            if stock_object.item_id != item.id:
-                self.add_error("stock_object", "Selected off-cut does not belong to the selected item.")
+        if stock_object and item and stock_object.item_id != item.id:
+            self.add_error("stock_object", "Selected off-cut does not belong to the selected item.")
         return cleaned
 
 
@@ -121,7 +124,10 @@ class TemporaryReturnForm(forms.Form):
             ("SCRAP", "Scrap"),
         ]
     )
-    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).order_by("name"))
+    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
+    rack_number = forms.CharField(required=False, max_length=50)
+    shelf_number = forms.CharField(required=False, max_length=50)
+    bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(required=False, max_length=16)

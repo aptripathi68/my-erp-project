@@ -77,6 +77,9 @@ class StockObject(models.Model):
     # GPS capture for OFFCUT yard tracking
     capture_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     capture_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    rack_number = models.CharField(max_length=50, blank=True)
+    shelf_number = models.CharField(max_length=50, blank=True)
+    bin_number = models.CharField(max_length=50, blank=True)
     remarks = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

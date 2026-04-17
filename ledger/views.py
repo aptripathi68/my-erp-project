@@ -117,6 +117,24 @@ def _render_inventory_form(request, *, page_title, page_intro, form, submit_labe
     return render(request, "ledger/inventory_form.html", context)
 
 
+def _render_store_form(request, *, form, page_title="Store Creation", editing_location=None):
+    context = _inventory_context(request)
+    context.update(
+        {
+            "page_title": page_title,
+            "page_intro": "Create or maintain store locations here. Latitude and longitude should be captured from the mobile GPS only at this stage.",
+            "form": form,
+            "submit_label": "Save Store Location" if editing_location is None else "Update Store Location",
+            "post_url": "ledger:create_location" if editing_location is None else "ledger:edit_location",
+            "post_kwargs": {} if editing_location is None else {"location_id": editing_location.id},
+            "back_url": "ledger:inventory_dashboard",
+            "store_locations": StockLocation.objects.filter(location_type="STORE").order_by("name"),
+            "editing_location": editing_location,
+        }
+    )
+    return render(request, "ledger/store_location_form.html", context)
+
+
 @login_required
 def inventory_dashboard(request):
     if not _has_inventory_access(request.user):
@@ -131,14 +149,7 @@ def create_location(request):
         if not _has_inventory_access(request.user):
             messages.error(request, "You do not have permission to access inventory management.")
             return redirect("dashboard_home")
-        return _render_inventory_form(
-            request,
-            page_title="Store Creation",
-            page_intro="Create the store location first. GPS latitude and longitude should be stored here only. Normal item entries will use the already-created store and will not ask again for GPS.",
-            form=StockLocationForm(),
-            submit_label="Save Store Location",
-            post_url="ledger:create_location",
-        )
+        return _render_store_form(request, form=StockLocationForm())
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can create stock locations.")
         return redirect("ledger:inventory_dashboard")
@@ -147,14 +158,37 @@ def create_location(request):
         form.save()
         messages.success(request, "Stock location saved.")
         return redirect("ledger:inventory_dashboard")
-    return _render_inventory_form(
-        request,
-        page_title="Store Creation",
-        page_intro="Create the store location first. GPS latitude and longitude should be stored here only. Normal item entries will use the already-created store and will not ask again for GPS.",
-        form=form,
-        submit_label="Save Store Location",
-        post_url="ledger:create_location",
-    )
+    return _render_store_form(request, form=form)
+
+
+@login_required
+def edit_location(request, location_id: int):
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can edit stock locations.")
+        return redirect("ledger:inventory_dashboard")
+    location = get_object_or_404(StockLocation, pk=location_id, location_type="STORE")
+    if request.method == "GET":
+        return _render_store_form(request, form=StockLocationForm(instance=location), page_title="Edit Store Location", editing_location=location)
+    form = StockLocationForm(request.POST, instance=location)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Store location updated.")
+        return redirect("ledger:create_location")
+    return _render_store_form(request, form=form, page_title="Edit Store Location", editing_location=location)
+
+
+@login_required
+def delete_location(request, location_id: int):
+    if request.method != "POST":
+        return redirect("ledger:create_location")
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can delete stock locations.")
+        return redirect("ledger:inventory_dashboard")
+    location = get_object_or_404(StockLocation, pk=location_id, location_type="STORE")
+    location.is_active = False
+    location.save(update_fields=["is_active"])
+    messages.success(request, "Store location removed from active use.")
+    return redirect("ledger:create_location")
 
 
 @login_required
@@ -218,6 +252,10 @@ def create_inventory_inward(request):
             qr_code=qr_code,
             photo_url=form.cleaned_data.get("photo_url") or "",
         )
+        stock_object.rack_number = form.cleaned_data.get("rack_number") or ""
+        stock_object.shelf_number = form.cleaned_data.get("shelf_number") or ""
+        stock_object.bin_number = form.cleaned_data.get("bin_number") or ""
+        stock_object.save(update_fields=["rack_number", "shelf_number", "bin_number"])
 
         txn = StockTxn.objects.create(
             txn_type=txn_type_map[(entry_type, object_type)],
@@ -355,6 +393,10 @@ def create_temporary_return(request):
             qr_code=form.cleaned_data.get("qr_code") or "",
             photo_url=form.cleaned_data.get("photo_url") or "",
         )
+        stock_object.rack_number = form.cleaned_data.get("rack_number") or ""
+        stock_object.shelf_number = form.cleaned_data.get("shelf_number") or ""
+        stock_object.bin_number = form.cleaned_data.get("bin_number") or ""
+        stock_object.save(update_fields=["rack_number", "shelf_number", "bin_number"])
 
         txn = StockTxn.objects.create(
             txn_type="TEMP_RETURN",
