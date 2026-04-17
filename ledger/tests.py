@@ -40,6 +40,9 @@ class InventoryManagementTests(TestCase):
         self.assertContains(response, "Inventory Management")
         self.assertContains(response, "Store Creation")
         self.assertContains(response, "Item Entry In Store")
+        self.assertContains(response, "Existing Store Locations")
+        self.assertContains(response, "Edit")
+        self.assertContains(response, "Delete")
 
     def test_opening_raw_inward_posts_to_ledger(self):
         response = self.client.post(

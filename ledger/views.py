@@ -71,6 +71,7 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks=
 
 
 def _inventory_context(request):
+    store_locations = StockLocation.objects.filter(location_type="STORE").order_by("name")
     issue_rows = []
     issue_qs = (
         StockTxn.objects.filter(txn_type="TEMP_ISSUE", posted=True)
@@ -94,6 +95,8 @@ def _inventory_context(request):
 
     return {
         "locations": StockLocation.objects.order_by("location_type", "name"),
+        "store_locations": store_locations,
+        "store_location_count": store_locations.count(),
         "stock_by_item": stock_by_item(),
         "stock_by_location": stock_by_location(),
         "temporary_issue_rows": issue_rows,

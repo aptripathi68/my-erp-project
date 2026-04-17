@@ -51,8 +51,8 @@
 
     <div class="stat-grid">
         <div class="stat">
-            <div class="label">Stock Locations</div>
-            <div class="value">{{ locations|length }}</div>
+            <div class="label">Store Locations</div>
+            <div class="value">{{ store_location_count }}</div>
         </div>
         <div class="stat">
             <div class="label">Item Stock Buckets</div>
@@ -89,6 +89,49 @@
             <p class="muted">Record return of unused material to store, including off-cut return with QR assignment.</p>
             <a class="btn btn-primary" href="{% url 'ledger:create_temporary_return' %}">Open Item Return To Store</a>
         </div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">Existing Store Locations</h2>
+        <p class="muted">Use Edit to update a store. Use Delete to move a wrongly created testing store out of active use. It will remain available for admin review.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Active</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for location in store_locations %}
+                <tr>
+                    <td>{{ location.name }}</td>
+                    <td>{{ location.latitude|default:"-" }}</td>
+                    <td>{{ location.longitude|default:"-" }}</td>
+                    <td>{{ location.is_active|yesno:"Yes,No" }}</td>
+                    <td>
+                        {% if can_manage_inventory %}
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <a class="btn btn-secondary" href="{% url 'ledger:edit_location' location.id %}">Edit</a>
+                            {% if location.is_active %}
+                            <form method="post" action="{% url 'ledger:delete_location' location.id %}" onsubmit="return confirm('Delete this store location from active use?');" style="margin:0;">
+                                {% csrf_token %}
+                                <button class="btn btn-primary" type="submit" style="background:#b42318;">Delete</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No store locations created yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
     <div class="grid-2">
