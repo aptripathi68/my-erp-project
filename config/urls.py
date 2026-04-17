@@ -37,7 +37,8 @@ urlpatterns = [
     ),
 
     path("", include("masters.urls")),
-    path("api/", include("ledger.urls")),
+    path("ledger/", include("ledger.urls")),
+    path("api/", include(("ledger.urls", "ledger_api"), namespace="ledger_api")),
     path("procurement/", include("procurement.urls")),
     path("drawings/", include("drawings.urls")),
     path("estimation/", include("estimation.urls")),

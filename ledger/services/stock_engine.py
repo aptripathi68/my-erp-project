@@ -41,10 +41,17 @@ def validate_stock_availability(line):
     if not line.from_location:
         return
 
+    stock_object_id = line.stock_object_id
+    # Temporary returns create a fresh tracked record for the returned stock,
+    # so availability must be checked against the item/location balance rather
+    # than the newly-created stock object id.
+    if getattr(line.txn, "txn_type", "") == "TEMP_RETURN":
+        stock_object_id = None
+
     qty_available, weight_available = get_available_stock(
         item_id=line.item_id,
         location_id=line.from_location_id,
-        stock_object_id=line.stock_object_id
+        stock_object_id=stock_object_id
     )
 
     if line.qty > qty_available:

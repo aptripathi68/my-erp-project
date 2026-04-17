@@ -14,6 +14,10 @@ class StockLocation(models.Model):
 
     name = models.CharField(max_length=200)
     location_type = models.CharField(max_length=30, choices=LOCATION_TYPES)
+    rack_number = models.CharField(max_length=50, blank=True)
+    shelf_number = models.CharField(max_length=50, blank=True)
+    bin_number = models.CharField(max_length=50, blank=True)
+    remarks = models.CharField(max_length=255, blank=True)
 
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -31,10 +35,21 @@ class StockObject(models.Model):
     OBJECT_TYPES = [
         ("RAW", "Raw Material"),
         ("OFFCUT", "Offcut"),
+        ("SCRAP", "Scrap"),
         ("FINISHED_MARK", "Finished Mark"),
     ]
 
+    SOURCE_TYPES = [
+        ("OPENING", "Opening Stock"),
+        ("NEW_PURCHASE", "New Purchase Inward"),
+        ("RETURN_FAB", "Return from Fabrication"),
+        ("RETURN_PAINT", "Return from Painting"),
+        ("CORRECTION", "Correction Entry"),
+        ("TEMP_RETURN", "Temporary Return"),
+    ]
+
     object_type = models.CharField(max_length=20, choices=OBJECT_TYPES)
+    source_type = models.CharField(max_length=30, choices=SOURCE_TYPES, default="OPENING")
 
     item = models.ForeignKey(Item, on_delete=models.PROTECT)
 
@@ -62,6 +77,7 @@ class StockObject(models.Model):
     # GPS capture for OFFCUT yard tracking
     capture_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     capture_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    remarks = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -90,18 +106,60 @@ class StockObject(models.Model):
 
 class StockTxn(models.Model):
     TXN_TYPES = [
+        ("OPENING_RAW", "Opening Raw Material Inward"),
+        ("OPENING_OFFCUT", "Opening Offcut Inward"),
+        ("OPENING_SCRAP", "Opening Scrap Inward"),
         ("GRN_RAW", "Raw Material Inward"),
         ("IN_OFFCUT", "Offcut Inward"),
+        ("IN_SCRAP", "Scrap Inward"),
         ("ISSUE_FAB", "Issue to Fabrication"),
         ("RETURN_FAB", "Return from Fabrication"),
         ("ISSUE_PAINT", "Issue to Painting"),
         ("RETURN_PAINT", "Return from Painting"),
+        ("TEMP_ISSUE", "Temporary Issue Pending ERP Integration"),
+        ("TEMP_RETURN", "Temporary Return Pending ERP Integration"),
+        ("STOCK_CORRECTION", "Stock Correction"),
         ("DISPATCH", "Dispatch"),
+    ]
+
+    ENTRY_SOURCE_TYPES = [
+        ("OPENING", "Opening Stock"),
+        ("NEW_PURCHASE", "New Purchase Inward"),
+        ("RETURN", "Return"),
+        ("CORRECTION", "Correction"),
+        ("TEMPORARY", "Temporary Bridge"),
+    ]
+
+    BRIDGE_STATUS_CHOICES = [
+        ("NOT_APPLICABLE", "Not Applicable"),
+        ("OPEN", "Open"),
+        ("PARTIALLY_RETURNED", "Partially Returned"),
+        ("RETURNED", "Returned"),
+        ("CONSUMED", "Consumed"),
+        ("PENDING_ERP_INTEGRATION", "Pending ERP Integration"),
+        ("INTEGRATED", "Integrated"),
     ]
 
     txn_type = models.CharField(max_length=30, choices=TXN_TYPES)
 
     reference_no = models.CharField(max_length=100, blank=True)
+    entry_source_type = models.CharField(max_length=30, choices=ENTRY_SOURCE_TYPES, default="OPENING")
+    project_reference = models.CharField(max_length=100, blank=True)
+    project_name = models.CharField(max_length=255, blank=True)
+    remarks = models.TextField(blank=True)
+    bridge_status = models.CharField(
+        max_length=30,
+        choices=BRIDGE_STATUS_CHOICES,
+        default="NOT_APPLICABLE",
+    )
+    parent_txn = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="child_transactions",
+    )
+    integrated_at = models.DateTimeField(null=True, blank=True)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -116,6 +174,14 @@ class StockTxn(models.Model):
 
     def __str__(self):
         return f"{self.txn_type} - {self.id}"
+
+    @property
+    def is_temporary_issue(self):
+        return self.txn_type == "TEMP_ISSUE"
+
+    @property
+    def is_temporary_return(self):
+        return self.txn_type == "TEMP_RETURN"
 
 
 class StockTxnLine(models.Model):
