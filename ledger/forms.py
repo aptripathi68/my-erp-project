@@ -105,7 +105,13 @@ class InventoryInwardForm(forms.Form):
     raw_material_photo = forms.ImageField(
         required=False,
         label="Photo of Raw Material",
-        widget=forms.ClearableFileInput(attrs={"accept": "image/*", "capture": "environment"}),
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/*",
+                "capture": "environment",
+                "class": "camera-photo-input",
+            }
+        ),
     )
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
@@ -200,7 +206,13 @@ class TemporaryReturnForm(forms.Form):
     raw_material_photo = forms.ImageField(
         required=False,
         label="Photo of Raw Material",
-        widget=forms.ClearableFileInput(attrs={"accept": "image/*", "capture": "environment"}),
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/*",
+                "capture": "environment",
+                "class": "camera-photo-input",
+            }
+        ),
     )
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
