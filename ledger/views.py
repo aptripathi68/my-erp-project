@@ -380,7 +380,7 @@ def create_inventory_inward(request):
 
         txn = StockTxn.objects.create(
             txn_type=txn_type_map[(entry_type, object_type)],
-            reference_no=form.cleaned_data.get("reference_no") or "",
+            reference_no="",
             entry_source_type=entry_type,
             project_reference=form.cleaned_data.get("project_reference") or "",
             project_name=form.cleaned_data.get("project_name") or "",

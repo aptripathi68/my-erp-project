@@ -107,7 +107,6 @@ class InventoryInwardForm(forms.Form):
         label="Photo of Raw Material",
         widget=forms.ClearableFileInput(attrs={"accept": "image/*", "capture": "environment"}),
     )
-    reference_no = forms.CharField(required=False, max_length=100)
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def clean(self):

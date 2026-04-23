@@ -62,7 +62,6 @@ class InventoryManagementTests(TestCase):
                 "project_name": "Opening Capture",
                 "qty": "2.000",
                 "weight": "125.500",
-                "reference_no": "OPEN-001",
                 "remarks": "Initial raw material capture",
             },
             follow=True,
