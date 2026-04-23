@@ -91,8 +91,22 @@ class InventoryInwardForm(forms.Form):
     bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
-    qr_code = forms.CharField(required=False, max_length=16)
-    photo_url = forms.URLField(required=False)
+    qr_code = forms.CharField(
+        required=False,
+        max_length=16,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan pre-printed QR from mobile camera",
+            }
+        ),
+    )
+    raw_material_photo = forms.ImageField(
+        required=False,
+        label="Photo of Raw Material",
+        widget=forms.ClearableFileInput(attrs={"accept": "image/*", "capture": "environment"}),
+    )
     reference_no = forms.CharField(required=False, max_length=100)
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
@@ -173,8 +187,22 @@ class TemporaryReturnForm(forms.Form):
     bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
-    qr_code = forms.CharField(required=False, max_length=16)
-    photo_url = forms.URLField(required=False)
+    qr_code = forms.CharField(
+        required=False,
+        max_length=16,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan pre-printed QR from mobile camera",
+            }
+        ),
+    )
+    raw_material_photo = forms.ImageField(
+        required=False,
+        label="Photo of Raw Material",
+        widget=forms.ClearableFileInput(attrs={"accept": "image/*", "capture": "environment"}),
+    )
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def clean(self):

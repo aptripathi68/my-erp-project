@@ -17,6 +17,7 @@ from .forms import InventoryInwardForm, StockLocationForm, TemporaryIssueForm, T
 from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn, StockTxnLine
 from .services.stock_engine import post_stock_txn
 from .services.stock_queries import stock_by_item, stock_by_location
+from .storage import build_inventory_photo_object_key, upload_inventory_photo
 
 
 def _has_inventory_access(user):
@@ -87,6 +88,22 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks=
         qr_code=qr_code or None,
         photo_url=photo_url or "",
         remarks=remarks,
+    )
+
+
+def _upload_inventory_photo_if_present(form, *, stock_for: str, object_type: str) -> str:
+    upload = form.cleaned_data.get("raw_material_photo")
+    if not upload:
+        return ""
+    object_key = build_inventory_photo_object_key(
+        stock_for=stock_for,
+        object_type=object_type,
+        filename=getattr(upload, "name", "") or "raw-material-photo.jpg",
+    )
+    return upload_inventory_photo(
+        upload,
+        object_key,
+        content_type=getattr(upload, "content_type", "") or "application/octet-stream",
     )
 
 
@@ -311,16 +328,18 @@ def create_inventory_inward(request):
         messages.error(request, "Only Store, Management, or Admin can record inward inventory.")
         return redirect("ledger:inventory_dashboard")
 
-    form = InventoryInwardForm(request.POST)
+    form = InventoryInwardForm(request.POST, request.FILES)
     if form.is_valid():
         entry_type = form.cleaned_data["entry_type"]
         object_type = form.cleaned_data["object_type"]
+        stock_for = form.cleaned_data["stock_for"]
         item = form.cleaned_data["item"]
         location = form.cleaned_data["location"]
         qty = form.cleaned_data["qty"]
         weight = form.cleaned_data["weight"]
         qr_code = form.cleaned_data.get("qr_code") or ""
         remarks = form.cleaned_data.get("remarks") or ""
+        photo_url = _upload_inventory_photo_if_present(form, stock_for=stock_for, object_type=object_type)
 
         txn_type_map = {
             ("OPENING", "RAW"): "OPENING_RAW",
@@ -352,7 +371,7 @@ def create_inventory_inward(request):
             source_type=source_type_map[entry_type],
             remarks=remarks,
             qr_code=qr_code,
-            photo_url=form.cleaned_data.get("photo_url") or "",
+            photo_url=photo_url,
         )
         stock_object.rack_number = form.cleaned_data.get("rack_number") or ""
         stock_object.shelf_number = form.cleaned_data.get("shelf_number") or ""
@@ -476,7 +495,7 @@ def create_temporary_return(request):
         messages.error(request, "Only Store, Management, or Admin can create temporary returns.")
         return redirect("ledger:inventory_dashboard")
 
-    form = TemporaryReturnForm(request.POST)
+    form = TemporaryReturnForm(request.POST, request.FILES)
     if form.is_valid():
         issue_txn = form.cleaned_data["issue_txn"]
         issue_line = issue_txn.lines.first()
@@ -484,6 +503,11 @@ def create_temporary_return(request):
         qty = form.cleaned_data["qty"]
         weight = form.cleaned_data["weight"]
         remarks = form.cleaned_data.get("remarks") or ""
+        photo_url = _upload_inventory_photo_if_present(
+            form,
+            stock_for=issue_txn.project_reference or "TEMP_RETURN",
+            object_type=return_type,
+        )
 
         stock_object = _build_stock_object(
             object_type=return_type,
@@ -493,7 +517,7 @@ def create_temporary_return(request):
             source_type="TEMP_RETURN",
             remarks=remarks,
             qr_code=form.cleaned_data.get("qr_code") or "",
-            photo_url=form.cleaned_data.get("photo_url") or "",
+            photo_url=photo_url,
         )
         stock_object.rack_number = form.cleaned_data.get("rack_number") or ""
         stock_object.shelf_number = form.cleaned_data.get("shelf_number") or ""
