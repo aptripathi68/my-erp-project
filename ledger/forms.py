@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 
-from masters.models import Item
+from masters.models import Group2, Item
 
 from .models import StockLocation, StockObject, StockTxn
 
@@ -64,7 +64,25 @@ class InventoryInwardForm(forms.Form):
             ("SCRAP", "Scrap"),
         ]
     )
-    item = forms.ModelChoiceField(queryset=Item.objects.filter(is_active=True).order_by("item_description"))
+    group2 = forms.ModelChoiceField(
+        queryset=Group2.objects.order_by("name"),
+        label="Group-2",
+        required=False,
+    )
+    section_name = forms.CharField(
+        label="Section Name",
+        required=False,
+        widget=forms.Select(choices=[("", "Select section")]),
+    )
+    grade_selector = forms.CharField(
+        label="Grade",
+        required=False,
+        widget=forms.Select(choices=[("", "Select grade")]),
+    )
+    item = forms.ModelChoiceField(
+        queryset=Item.objects.filter(is_active=True).order_by("item_description"),
+        label="Item Description",
+    )
     location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
     project_reference = forms.CharField(required=False, max_length=100)
     project_name = forms.CharField(required=False, max_length=255)
@@ -80,10 +98,28 @@ class InventoryInwardForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        group2 = cleaned.get("group2")
+        section_name = (cleaned.get("section_name") or "").strip()
+        grade_selector = (cleaned.get("grade_selector") or "").strip()
+        item = cleaned.get("item")
         object_type = cleaned.get("object_type")
         qr_code = (cleaned.get("qr_code") or "").strip()
         stock_for = cleaned.get("stock_for")
         project_reference = (cleaned.get("project_reference") or "").strip()
+
+        if not group2:
+            self.add_error("group2", "Group-2 is required.")
+        if not section_name:
+            self.add_error("section_name", "Section Name is required.")
+        if not grade_selector:
+            self.add_error("grade_selector", "Grade is required.")
+        if item:
+            if group2 and item.group2_id != group2.id:
+                self.add_error("item", "Selected item does not belong to the selected Group-2.")
+            if section_name and item.section_name != section_name:
+                self.add_error("item", "Selected item does not belong to the selected Section Name.")
+            if grade_selector and str(item.grade_id) != grade_selector:
+                self.add_error("item", "Selected item does not belong to the selected Grade.")
         if object_type == "OFFCUT":
             if not qr_code:
                 self.add_error("qr_code", "QR code is compulsory for off-cuts.")

@@ -23,10 +23,13 @@ def api_group2(request):
 @require_GET
 def api_grades(request):
     group2_id = request.GET.get("group2")
+    section_name = (request.GET.get("section") or "").strip()
 
     qs = Grade.objects.all()
     if group2_id:
         qs = qs.filter(group2_id=group2_id)
+    if section_name:
+        qs = qs.filter(items__section_name=section_name).distinct()
 
     data = list(
         qs.order_by("name").values("id", "code", "name", "group2_id")
@@ -35,17 +38,38 @@ def api_grades(request):
 
 
 @require_GET
-def api_items(request):
+def api_sections(request):
     group2_id = request.GET.get("group2")
-    grade_id = request.GET.get("grade")
 
     if not group2_id:
         return JsonResponse([], safe=False)
 
-    qs = Item.objects.filter(group2_id=group2_id)
+    section_names = (
+        Item.objects.filter(group2_id=group2_id, is_active=True)
+        .exclude(section_name="")
+        .order_by("section_name")
+        .values_list("section_name", flat=True)
+        .distinct()
+    )
+    data = [{"id": section_name, "section_name": section_name} for section_name in section_names]
+    return JsonResponse(data, safe=False)
+
+
+@require_GET
+def api_items(request):
+    group2_id = request.GET.get("group2")
+    grade_id = request.GET.get("grade")
+    section_name = (request.GET.get("section") or "").strip()
+
+    if not group2_id:
+        return JsonResponse([], safe=False)
+
+    qs = Item.objects.filter(group2_id=group2_id, is_active=True)
 
     if grade_id:
         qs = qs.filter(grade_id=grade_id)
+    if section_name:
+        qs = qs.filter(section_name=section_name)
 
     data = list(
         qs.order_by("item_description").values(

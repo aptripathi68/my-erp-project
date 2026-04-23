@@ -4,6 +4,7 @@ from .views import export_item_master
 
 urlpatterns = [
     path("api/group2/", views.api_group2),
+    path("api/sections/", views.api_sections),
     path("api/grades/", views.api_grades),
     path("api/items/", views.api_items),
 

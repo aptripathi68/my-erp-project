@@ -44,7 +44,7 @@
     {% endif %}
 
     <div class="card">
-        <form method="post" action="{% if post_kwargs %}{% url post_url post_kwargs.location_id %}{% else %}{% url post_url %}{% endif %}">
+        <form method="post" action="{% if post_kwargs %}{% url post_url post_kwargs.location_id %}{% else %}{% url post_url %}{% endif %}" id="inventory-entry-form">
             {% csrf_token %}
             {{ form.non_field_errors }}
             {% for field in form %}
@@ -60,5 +60,75 @@
             {% endif %}
         </form>
     </div>
+    <script>
+        (function () {
+            const form = document.getElementById("inventory-entry-form");
+            if (!form) return;
+
+            const groupSelect = document.getElementById("id_group2");
+            const sectionSelect = document.getElementById("id_section_name");
+            const gradeSelect = document.getElementById("id_grade_selector");
+            const itemSelect = document.getElementById("id_item");
+            if (!groupSelect || !sectionSelect || !gradeSelect || !itemSelect) return;
+
+            function renderOptions(select, rows, placeholder, valueBuilder, labelBuilder) {
+                select.innerHTML = "";
+                const blank = document.createElement("option");
+                blank.value = "";
+                blank.textContent = placeholder;
+                select.appendChild(blank);
+                rows.forEach((row) => {
+                    const option = document.createElement("option");
+                    option.value = valueBuilder(row);
+                    option.textContent = labelBuilder(row);
+                    select.appendChild(option);
+                });
+            }
+
+            async function fetchJson(url) {
+                const response = await fetch(url);
+                if (!response.ok) return [];
+                return response.json();
+            }
+
+            async function loadSections(groupId) {
+                renderOptions(sectionSelect, [], "Select section", (row) => row.id, (row) => row.section_name);
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId) return;
+                const data = await fetchJson(`/api/sections/?group2=${encodeURIComponent(groupId)}`);
+                renderOptions(sectionSelect, data, "Select section", (row) => row.section_name, (row) => row.section_name);
+            }
+
+            async function loadGrades(groupId, sectionName) {
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !sectionName) return;
+                const url = `/api/grades/?group2=${encodeURIComponent(groupId)}&section=${encodeURIComponent(sectionName)}`;
+                const data = await fetchJson(url);
+                renderOptions(gradeSelect, data, "Select grade", (row) => row.id, (row) => row.name);
+            }
+
+            async function loadItems(groupId, sectionName, gradeId) {
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !sectionName || !gradeId) return;
+                const url = `/api/items/?group2=${encodeURIComponent(groupId)}&section=${encodeURIComponent(sectionName)}&grade=${encodeURIComponent(gradeId)}`;
+                const data = await fetchJson(url);
+                renderOptions(itemSelect, data, "Select item description", (row) => row.id, (row) => row.item_description);
+            }
+
+            groupSelect.addEventListener("change", async () => {
+                await loadSections(groupSelect.value);
+            });
+
+            sectionSelect.addEventListener("change", async () => {
+                await loadGrades(groupSelect.value, sectionSelect.value);
+            });
+
+            gradeSelect.addEventListener("change", async () => {
+                await loadItems(groupSelect.value, sectionSelect.value, gradeSelect.value);
+            });
+        })();
+    </script>
 </body>
 </html>

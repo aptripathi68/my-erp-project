@@ -53,6 +53,9 @@ class InventoryManagementTests(TestCase):
                 "entry_type": "OPENING",
                 "stock_for": "PROJECT",
                 "object_type": "RAW",
+                "group2": self.group2.id,
+                "section_name": self.item.section_name,
+                "grade_selector": self.grade.id,
                 "item": self.item.id,
                 "location": self.store.id,
                 "project_reference": "PRJ-OPEN-01",
@@ -78,6 +81,9 @@ class InventoryManagementTests(TestCase):
                 "entry_type": "OPENING",
                 "stock_for": "PROJECT",
                 "object_type": "OFFCUT",
+                "group2": self.group2.id,
+                "section_name": self.item.section_name,
+                "grade_selector": self.grade.id,
                 "item": self.item.id,
                 "location": self.store.id,
                 "project_reference": "PRJ-02",
@@ -95,6 +101,9 @@ class InventoryManagementTests(TestCase):
                 "entry_type": "OPENING",
                 "stock_for": "PROJECT",
                 "object_type": "RAW",
+                "group2": self.group2.id,
+                "section_name": self.item.section_name,
+                "grade_selector": self.grade.id,
                 "item": self.item.id,
                 "location": self.store.id,
                 "qty": "1.000",
@@ -185,6 +194,14 @@ class InventoryManagementTests(TestCase):
         response = self.client.get(reverse("ledger:inventory_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Safe to delete")
+
+    def test_item_entry_form_uses_dependent_item_master_fields(self):
+        response = self.client.get(reverse("ledger:create_inventory_inward"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Group-2")
+        self.assertContains(response, "Section Name")
+        self.assertContains(response, "Grade")
+        self.assertContains(response, "Item Description")
 
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):
         admin_user = User.objects.create_user(
