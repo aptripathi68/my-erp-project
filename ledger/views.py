@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 from io import BytesIO
+from datetime import datetime
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -164,6 +165,21 @@ def _inventory_context(request):
             selected_store = active_store_locations.get(id=selected_store_id)
         except StockLocation.DoesNotExist:
             selected_store = None
+    correction_store_id = request.GET.get("correction_store")
+    correction_store = None
+    if correction_store_id:
+        try:
+            correction_store = active_store_locations.get(id=correction_store_id)
+        except StockLocation.DoesNotExist:
+            correction_store = None
+    correction_entry_date_raw = (request.GET.get("correction_entry_date") or "").strip()
+    correction_entry_date = None
+    if correction_entry_date_raw:
+        try:
+            correction_entry_date = datetime.strptime(correction_entry_date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            correction_entry_date = None
+    correction_search = (request.GET.get("correction_search") or "").strip()
     store_locations = StockLocation.objects.filter(location_type="STORE").order_by("is_active", "name")
     active_store_locations = store_locations.filter(is_active=True)
     inactive_store_locations = store_locations.filter(is_active=False)
@@ -215,8 +231,15 @@ def _inventory_context(request):
         "stock_by_location": stock_by_location_rows,
         "store_stock_rows": store_stock_rows,
         "store_item_rows": stock_by_store_item(location_id=selected_store.id if selected_store else None),
-        "editable_store_item_rows": editable_store_stock_objects(location_id=selected_store.id if selected_store else None),
+        "editable_store_item_rows": editable_store_stock_objects(
+            location_id=correction_store.id if correction_store else None,
+            entry_date=correction_entry_date,
+            search_text=correction_search,
+        ),
         "selected_store": selected_store,
+        "correction_store": correction_store,
+        "correction_entry_date": correction_entry_date_raw,
+        "correction_search": correction_search,
         "process_stock_rows": process_stock_rows,
         "temporary_issue_rows": issue_rows,
         "pending_issue_count": sum(1 for row in issue_rows if row["txn"].bridge_status != "RETURNED"),
@@ -422,8 +445,8 @@ def edit_stock_object_details(request, stock_object_id: int):
 
 @login_required
 def correct_stock_object(request, stock_object_id: int):
-    if not _can_manage_inventory(request.user):
-        messages.error(request, "Only Store, Management, or Admin can correct stored item QR, quantity, and weight.")
+    if not _can_admin_inventory(request.user):
+        messages.error(request, "Only Admin or Superuser can correct stored item QR, quantity, and weight.")
         return redirect("ledger:inventory_dashboard")
 
     stock_object = get_object_or_404(StockObject, pk=stock_object_id)

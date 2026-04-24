@@ -251,6 +251,7 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Store-wise Items in Store")
         self.assertContains(response, "Download Excel")
+        self.assertNotContains(response, "Correct Wrong QR / Quantity / Weight")
 
     def test_store_item_excel_export_downloads_filtered_rows(self):
         stock_object = StockObject.objects.create(
@@ -367,6 +368,14 @@ class InventoryManagementTests(TestCase):
             weight=Decimal("15.000"),
         )
 
+        admin_user = User.objects.create_user(
+            username="admin-correct-qr",
+            password="testpass123",
+            role="Admin",
+            is_staff=True,
+        )
+        self.client.login(username="admin-correct-qr", password="testpass123")
+
         response = self.client.post(
             reverse("ledger:correct_stock_object", args=[stock_object.id]),
             {
@@ -408,6 +417,14 @@ class InventoryManagementTests(TestCase):
             weight=Decimal("15.000"),
         )
 
+        admin_user = User.objects.create_user(
+            username="admin-correct-weight",
+            password="testpass123",
+            role="Admin",
+            is_staff=True,
+        )
+        self.client.login(username="admin-correct-weight", password="testpass123")
+
         response = self.client.post(
             reverse("ledger:correct_stock_object", args=[stock_object.id]),
             {
@@ -428,6 +445,33 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(ledger_row.stock_object, stock_object)
         self.assertEqual(ledger_row.qty, Decimal("0.500"))
         self.assertEqual(ledger_row.weight, Decimal("3.000"))
+
+    def test_store_user_cannot_access_controlled_correction_route(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("5.000"),
+            qr_code="2222333344445555",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=self.store,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("5.000"),
+        )
+        response = self.client.get(reverse("ledger:correct_stock_object", args=[stock_object.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only Admin or Superuser can correct stored item QR, quantity, and weight.")
 
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):
         admin_user = User.objects.create_user(

@@ -1,7 +1,7 @@
 # ledger/services/stock_queries.py
 from decimal import Decimal
 
-from django.db.models import Sum, F, Value, DecimalField
+from django.db.models import Sum, F, Value, DecimalField, Q
 from django.db.models.functions import Coalesce
 
 from ledger.models import StockLedgerEntry
@@ -161,7 +161,7 @@ def stock_by_store_item(location_id=None):
     return out
 
 
-def editable_store_stock_objects(location_id=None):
+def editable_store_stock_objects(location_id=None, entry_date=None, search_text=None):
     """
     Current positive stock objects available in active stores.
     Used for editing non-stock operational fields like rack/shelf/bin/remarks.
@@ -173,6 +173,14 @@ def editable_store_stock_objects(location_id=None):
     )
     if location_id:
         qs = qs.filter(location_id=location_id)
+    if entry_date:
+        qs = qs.filter(stock_object__created_at__date=entry_date)
+    if search_text:
+        qs = qs.filter(
+            Q(stock_object__qr_code__icontains=search_text)
+            | Q(item__item_description__icontains=search_text)
+            | Q(location__name__icontains=search_text)
+        )
 
     rows = (
         qs.values(
@@ -186,12 +194,13 @@ def editable_store_stock_objects(location_id=None):
             "location_id",
             "location__name",
             "item__item_description",
+            "stock_object__created_at",
         )
         .annotate(
             qty_sum=Coalesce(Sum("qty"), DEC0),
             weight_sum=Coalesce(Sum("weight"), DEC0),
         )
-        .order_by("location__name", "item__item_description", "stock_object__qr_code", "stock_object_id")
+        .order_by("-stock_object__created_at", "location__name", "item__item_description", "stock_object__qr_code", "stock_object_id")
     )
 
     out = []
@@ -212,6 +221,7 @@ def editable_store_stock_objects(location_id=None):
                 "location_id": r["location_id"],
                 "location_name": r["location__name"],
                 "item_description": r["item__item_description"],
+                "entry_date": r["stock_object__created_at"],
                 "qty": str(qty_sum),
                 "weight": str(weight_sum),
             }

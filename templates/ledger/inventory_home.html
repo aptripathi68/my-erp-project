@@ -328,14 +328,39 @@
         </div>
     </details>
 
+    {% if can_admin_inventory %}
     <details class="section-toggle">
         <summary><span class="section-toggle-button">Correct Wrong QR / Quantity / Weight</span></summary>
         <div class="card section-toggle-content">
             <p class="muted" style="margin-top:0;">Use this controlled correction window only when a real inward/store record was saved with wrong QR code, quantity, or weight. The system will create a stock correction audit record and adjust the live balance accordingly.</p>
+            <form method="get" action="" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;">
+                <div>
+                    <label class="small" style="display:block;margin-bottom:6px;">Store</label>
+                    <select name="correction_store" style="min-width:220px;">
+                        <option value="">All Active Stores</option>
+                        {% for location in active_store_locations %}
+                        <option value="{{ location.id }}" {% if correction_store and correction_store.id == location.id %}selected{% endif %}>{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="small" style="display:block;margin-bottom:6px;">Entry Date</label>
+                    <input type="date" name="correction_entry_date" value="{{ correction_entry_date }}" style="min-width:180px;">
+                </div>
+                <div>
+                    <label class="small" style="display:block;margin-bottom:6px;">QR / Item / Store Search</label>
+                    <input type="text" name="correction_search" value="{{ correction_search }}" placeholder="Search QR, item, or store" style="min-width:240px;">
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" type="submit">Find Entry</button>
+                    <a class="btn btn-secondary" href="{% url 'ledger:inventory_dashboard' %}">Clear</a>
+                </div>
+            </form>
             <table>
                 <thead>
                     <tr>
                         <th>Store</th>
+                        <th>Entry Date</th>
                         <th>QR Code</th>
                         <th>Item Description</th>
                         <th>Qty</th>
@@ -347,6 +372,7 @@
                     {% for row in editable_store_item_rows %}
                     <tr>
                         <td>{{ row.location_name }}</td>
+                        <td>{{ row.entry_date|date:"d-m-Y H:i" }}</td>
                         <td>{{ row.qr_code }}</td>
                         <td>{{ row.item_description }}</td>
                         <td>{{ row.qty }}</td>
@@ -360,12 +386,13 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6">No stored items are currently available for controlled correction.</td></tr>
+                    <tr><td colspan="7">No stored items are currently available for controlled correction with the selected filters.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </details>
+    {% endif %}
 
     <details class="section-toggle">
         <summary><span class="section-toggle-button">Stock at Process / Movement Points</span></summary>
