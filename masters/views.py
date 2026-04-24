@@ -12,6 +12,31 @@ from django.views.decorators.http import require_GET
 from .models import Grade, Group2, Item
 
 
+def _resolve_section_name(group2_id, section_name):
+    section_name = (section_name or "").strip()
+    if not group2_id or not section_name:
+        return section_name
+
+    qs = (
+        Item.objects.filter(group2_id=group2_id, is_active=True)
+        .exclude(section_name="")
+    )
+
+    exact = qs.filter(section_name=section_name).values_list("section_name", flat=True).first()
+    if exact:
+        return exact
+
+    case_match = qs.filter(section_name__iexact=section_name).values_list("section_name", flat=True).first()
+    if case_match:
+        return case_match
+
+    partial_match = qs.filter(section_name__icontains=section_name).values_list("section_name", flat=True).first()
+    if partial_match:
+        return partial_match
+
+    return section_name
+
+
 @require_GET
 def api_group2(request):
     data = list(
@@ -24,12 +49,13 @@ def api_group2(request):
 def api_grades(request):
     group2_id = request.GET.get("group2")
     section_name = (request.GET.get("section") or "").strip()
+    resolved_section_name = _resolve_section_name(group2_id, section_name)
 
     qs = Grade.objects.all()
     if group2_id:
         qs = qs.filter(group2_id=group2_id)
-    if section_name:
-        qs = qs.filter(items__section_name=section_name).distinct()
+    if resolved_section_name:
+        qs = qs.filter(items__section_name=resolved_section_name).distinct()
 
     data = list(
         qs.order_by("name").values("id", "code", "name", "group2_id")
@@ -67,6 +93,7 @@ def api_items(request):
     group2_id = request.GET.get("group2")
     grade_id = request.GET.get("grade")
     section_name = (request.GET.get("section") or "").strip()
+    resolved_section_name = _resolve_section_name(group2_id, section_name)
 
     if not group2_id:
         return JsonResponse([], safe=False)
@@ -75,8 +102,8 @@ def api_items(request):
 
     if grade_id:
         qs = qs.filter(grade_id=grade_id)
-    if section_name:
-        qs = qs.filter(section_name=section_name)
+    if resolved_section_name:
+        qs = qs.filter(section_name=resolved_section_name)
 
     data = list(
         qs.order_by("item_description").values(

@@ -62,6 +62,9 @@
                 {{ field }}
                 {% if field.name == "section_name" %}
                 <datalist id="section-name-options"></datalist>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-secondary" type="button" id="select-section-name">Select Section</button>
+                </div>
                 <div class="small">Type a few characters of the section name, then select from the reduced list.</div>
                 {% endif %}
                 {% if field.name == "qr_code" %}
@@ -98,9 +101,10 @@
             const groupSelect = document.getElementById("id_group2");
             const sectionInput = document.getElementById("id_section_name");
             const sectionOptions = document.getElementById("section-name-options");
+            const selectSectionButton = document.getElementById("select-section-name");
             const gradeSelect = document.getElementById("id_grade_selector");
             const itemSelect = document.getElementById("id_item");
-            if (!groupSelect || !sectionInput || !sectionOptions || !gradeSelect || !itemSelect) return;
+            if (!groupSelect || !sectionInput || !sectionOptions || !selectSectionButton || !gradeSelect || !itemSelect) return;
 
             function renderOptions(select, rows, placeholder, valueBuilder, labelBuilder) {
                 select.innerHTML = "";
@@ -179,8 +183,17 @@
                 }, 200);
             });
 
-            sectionInput.addEventListener("change", async () => {
+            async function selectSection() {
                 await loadGrades(groupSelect.value, sectionInput.value.trim());
+            }
+
+            sectionInput.addEventListener("change", selectSection);
+            selectSectionButton.addEventListener("click", selectSection);
+            sectionInput.addEventListener("keydown", async (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    await selectSection();
+                }
             });
 
             gradeSelect.addEventListener("change", async () => {
