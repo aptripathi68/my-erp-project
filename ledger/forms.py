@@ -6,7 +6,7 @@ from django.db.models import Sum
 
 from masters.models import Group2, Item
 
-from .models import StockLocation, StockObject, StockTxn
+from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn
 
 
 class StockLocationForm(forms.ModelForm):
@@ -139,13 +139,12 @@ class InventoryInwardForm(forms.Form):
                 self.add_error("item", "Selected item does not belong to the selected Section Name.")
             if grade_selector and str(item.grade_id) != grade_selector:
                 self.add_error("item", "Selected item does not belong to the selected Grade.")
-        if object_type == "OFFCUT":
-            if not qr_code:
-                self.add_error("qr_code", "QR code is compulsory for off-cuts.")
-            elif (not qr_code.isdigit()) or len(qr_code) != 16:
-                self.add_error("qr_code", "QR code must be exactly 16 digits.")
-            elif StockObject.objects.filter(qr_code=qr_code).exists():
-                self.add_error("qr_code", "This QR code already exists.")
+        if not qr_code:
+            self.add_error("qr_code", "QR code scanning is compulsory for every store inward entry.")
+        elif (not qr_code.isdigit()) or len(qr_code) != 16:
+            self.add_error("qr_code", "QR code must be exactly 16 digits.")
+        elif StockObject.objects.filter(qr_code=qr_code).exists():
+            self.add_error("qr_code", "This QR code already exists.")
         if stock_for == "PROJECT" and not project_reference:
             self.add_error("project_reference", "Project reference is required for item entry against project.")
         return cleaned
@@ -158,8 +157,20 @@ class TemporaryIssueForm(forms.Form):
     source_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
     destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).exclude(location_type="STORE").order_by("name"))
     stock_object = forms.ModelChoiceField(
-        queryset=StockObject.objects.filter(object_type="OFFCUT").order_by("qr_code"),
+        queryset=StockObject.objects.filter(qr_code__isnull=False).order_by("qr_code"),
         required=False,
+        widget=forms.HiddenInput,
+    )
+    qr_code = forms.CharField(
+        required=False,
+        max_length=16,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan stored material QR from mobile camera",
+            }
+        ),
     )
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
@@ -169,9 +180,34 @@ class TemporaryIssueForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         item = cleaned.get("item")
+        source_location = cleaned.get("source_location")
         stock_object = cleaned.get("stock_object")
+        qr_code = (cleaned.get("qr_code") or "").strip()
+
+        if not qr_code:
+            self.add_error("qr_code", "QR code scanning is compulsory before item exit from store.")
+            return cleaned
+        if (not qr_code.isdigit()) or len(qr_code) != 16:
+            self.add_error("qr_code", "QR code must be exactly 16 digits.")
+            return cleaned
+        try:
+            stock_object = StockObject.objects.get(qr_code=qr_code)
+            cleaned["stock_object"] = stock_object
+        except StockObject.DoesNotExist:
+            self.add_error("qr_code", "No stored material found for this QR code.")
+            return cleaned
+
         if stock_object and item and stock_object.item_id != item.id:
             self.add_error("stock_object", "Selected off-cut does not belong to the selected item.")
+        if stock_object and source_location:
+            balance = (
+                StockLedgerEntry.objects.filter(stock_object=stock_object, location=source_location)
+                .aggregate(qty=Sum("qty"), weight=Sum("weight"))
+            )
+            available_qty = balance["qty"] or Decimal("0")
+            available_weight = balance["weight"] or Decimal("0")
+            if available_qty <= 0 or available_weight <= 0:
+                self.add_error("qr_code", "This QR code is not available at the selected source store.")
         return cleaned
 
 

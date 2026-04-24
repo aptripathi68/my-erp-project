@@ -62,6 +62,7 @@ class InventoryManagementTests(TestCase):
                 "project_name": "Opening Capture",
                 "qty": "2.000",
                 "weight": "125.500",
+                "qr_code": "1234567890123456",
                 "remarks": "Initial raw material capture",
             },
             follow=True,
@@ -73,13 +74,13 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(ledger_row.location, self.store)
         self.assertEqual(ledger_row.weight, Decimal("125.500"))
 
-    def test_offcut_inward_requires_qr(self):
+    def test_every_inward_entry_requires_qr(self):
         response = self.client.post(
             reverse("ledger:create_inventory_inward"),
             {
                 "entry_type": "OPENING",
                 "stock_for": "PROJECT",
-                "object_type": "OFFCUT",
+                "object_type": "RAW",
                 "group2": self.group2.id,
                 "section_name": self.item.section_name,
                 "grade_selector": self.grade.id,
@@ -91,7 +92,7 @@ class InventoryManagementTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "QR code is compulsory for off-cuts.")
+        self.assertContains(response, "QR code scanning is compulsory for every store inward entry.")
 
     def test_project_entry_requires_project_reference(self):
         response = self.client.post(
@@ -119,6 +120,7 @@ class InventoryManagementTests(TestCase):
             item=self.item,
             qty=Decimal("1.000"),
             weight=Decimal("100.000"),
+            qr_code="1234567890123456",
         )
         inward_txn = StockTxn.objects.create(
             txn_type="OPENING_RAW",
@@ -143,6 +145,7 @@ class InventoryManagementTests(TestCase):
                 "item": self.item.id,
                 "source_location": self.store.id,
                 "destination_location": self.fabrication.id,
+                "qr_code": "1234567890123456",
                 "qty": "1.000",
                 "weight": "60.000",
                 "remarks": "Urgent fabrication usage",
@@ -152,6 +155,45 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         issue_txn = StockTxn.objects.get(txn_type="TEMP_ISSUE")
         self.assertEqual(issue_txn.bridge_status, "PENDING_ERP_INTEGRATION")
+
+    def test_temporary_issue_requires_qr_scan(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("25.000"),
+            qr_code="1111222233334444",
+        )
+        inward_txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+        )
+        inward_txn.lines.create(
+            item=self.item,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("25.000"),
+            to_location=self.store,
+        )
+        from ledger.services.stock_engine import post_stock_txn
+        post_stock_txn(inward_txn.id)
+
+        response = self.client.post(
+            reverse("ledger:create_temporary_issue"),
+            {
+                "project_reference": "PRJ-QR-01",
+                "project_name": "QR Required Project",
+                "item": self.item.id,
+                "source_location": self.store.id,
+                "destination_location": self.fabrication.id,
+                "qty": "1.000",
+                "weight": "10.000",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "QR code scanning is compulsory before item exit from store.")
 
         response = self.client.post(
             reverse("ledger:create_temporary_return"),

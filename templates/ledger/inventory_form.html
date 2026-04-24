@@ -54,6 +54,9 @@
             {% csrf_token %}
             {{ form.non_field_errors }}
             {% for field in form %}
+            {% if field.is_hidden %}
+                {{ field }}
+            {% else %}
             <div class="field">
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
@@ -76,6 +79,7 @@
                 {% if field.help_text %}<div class="small">{{ field.help_text }}</div>{% endif %}
                 {{ field.errors }}
             </div>
+            {% endif %}
             {% endfor %}
             {% if can_manage_inventory %}
             <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
