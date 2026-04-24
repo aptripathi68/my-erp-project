@@ -40,17 +40,24 @@ def api_grades(request):
 @require_GET
 def api_sections(request):
     group2_id = request.GET.get("group2")
+    q = (request.GET.get("q") or "").strip()
 
     if not group2_id:
         return JsonResponse([], safe=False)
 
-    section_names = (
+    qs = (
         Item.objects.filter(group2_id=group2_id, is_active=True)
         .exclude(section_name="")
+    )
+    if q:
+        qs = qs.filter(section_name__icontains=q)
+
+    section_names = (
+        qs
         .order_by("section_name")
         .values_list("section_name", flat=True)
         .distinct()
-    )
+    )[:100]
     data = [{"id": section_name, "section_name": section_name} for section_name in section_names]
     return JsonResponse(data, safe=False)
 

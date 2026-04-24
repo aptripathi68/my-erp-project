@@ -60,6 +60,10 @@
             <div class="field">
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
+                {% if field.name == "section_name" %}
+                <datalist id="section-name-options"></datalist>
+                <div class="small">Type a few characters of the section name, then select from the reduced list.</div>
+                {% endif %}
                 {% if field.name == "qr_code" %}
                 <div class="qr-tools">
                     <button class="btn btn-secondary" type="button" id="start-qr-scan">Scan QR From Camera</button>
@@ -92,10 +96,11 @@
             if (!form) return;
 
             const groupSelect = document.getElementById("id_group2");
-            const sectionSelect = document.getElementById("id_section_name");
+            const sectionInput = document.getElementById("id_section_name");
+            const sectionOptions = document.getElementById("section-name-options");
             const gradeSelect = document.getElementById("id_grade_selector");
             const itemSelect = document.getElementById("id_item");
-            if (!groupSelect || !sectionSelect || !gradeSelect || !itemSelect) return;
+            if (!groupSelect || !sectionInput || !sectionOptions || !gradeSelect || !itemSelect) return;
 
             function renderOptions(select, rows, placeholder, valueBuilder, labelBuilder) {
                 select.innerHTML = "";
@@ -117,13 +122,32 @@
                 return response.json();
             }
 
+            function renderSectionOptions(rows) {
+                sectionOptions.innerHTML = "";
+                rows.forEach((row) => {
+                    const option = document.createElement("option");
+                    option.value = row.section_name;
+                    sectionOptions.appendChild(option);
+                });
+            }
+
             async function loadSections(groupId) {
-                renderOptions(sectionSelect, [], "Select section", (row) => row.id, (row) => row.section_name);
+                sectionInput.value = "";
+                renderSectionOptions([]);
                 renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
                 renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
                 if (!groupId) return;
                 const data = await fetchJson(`/api/sections/?group2=${encodeURIComponent(groupId)}`);
-                renderOptions(sectionSelect, data, "Select section", (row) => row.section_name, (row) => row.section_name);
+                renderSectionOptions(data);
+            }
+
+            async function searchSections(groupId, query) {
+                renderSectionOptions([]);
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !query) return;
+                const data = await fetchJson(`/api/sections/?group2=${encodeURIComponent(groupId)}&q=${encodeURIComponent(query)}`);
+                renderSectionOptions(data);
             }
 
             async function loadGrades(groupId, sectionName) {
@@ -147,12 +171,20 @@
                 await loadSections(groupSelect.value);
             });
 
-            sectionSelect.addEventListener("change", async () => {
-                await loadGrades(groupSelect.value, sectionSelect.value);
+            let sectionSearchTimer = null;
+            sectionInput.addEventListener("input", () => {
+                window.clearTimeout(sectionSearchTimer);
+                sectionSearchTimer = window.setTimeout(async () => {
+                    await searchSections(groupSelect.value, sectionInput.value.trim());
+                }, 200);
+            });
+
+            sectionInput.addEventListener("change", async () => {
+                await loadGrades(groupSelect.value, sectionInput.value.trim());
             });
 
             gradeSelect.addEventListener("change", async () => {
-                await loadItems(groupSelect.value, sectionSelect.value, gradeSelect.value);
+                await loadItems(groupSelect.value, sectionInput.value.trim(), gradeSelect.value);
             });
         })();
 

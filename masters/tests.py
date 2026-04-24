@@ -22,6 +22,11 @@ class ItemMasterApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [{"id": "ISMC75", "section_name": "ISMC75"}])
 
+    def test_sections_api_supports_partial_search(self):
+        response = self.client.get(f"/api/sections/?group2={self.group2.id}&q=MC7")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [{"id": "ISMC75", "section_name": "ISMC75"}])
+
     def test_grades_api_can_filter_by_group2_and_section(self):
         response = self.client.get(f"/api/grades/?group2={self.group2.id}&section=ISMC75")
         self.assertEqual(response.status_code, 200)

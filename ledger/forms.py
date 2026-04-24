@@ -146,7 +146,13 @@ class InventoryInwardForm(forms.Form):
     section_name = forms.CharField(
         label="Section Name",
         required=False,
-        widget=forms.Select(choices=[("", "Select section")]),
+        widget=forms.TextInput(
+            attrs={
+                "autocomplete": "off",
+                "list": "section-name-options",
+                "placeholder": "Type section name keywords",
+            }
+        ),
     )
     grade_selector = forms.CharField(
         label="Grade",
