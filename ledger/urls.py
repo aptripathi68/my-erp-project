@@ -12,6 +12,7 @@ urlpatterns = [
     path("locations/<int:location_id>/purge-dummy-data/", views.purge_reserved_location_data, name="purge_reserved_location_data"),
     path("locations/<int:location_id>/transfer-records/", views.transfer_store_records, name="transfer_store_records"),
     path("stock-objects/<int:stock_object_id>/edit/", views.edit_stock_object_details, name="edit_stock_object_details"),
+    path("stock-objects/<int:stock_object_id>/correct/", views.correct_stock_object, name="correct_stock_object"),
     path("inventory/inward/create/", views.create_inventory_inward, name="create_inventory_inward"),
     path("temporary-issues/create/", views.create_temporary_issue, name="create_temporary_issue"),
     path("temporary-returns/create/", views.create_temporary_return, name="create_temporary_return"),

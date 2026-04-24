@@ -62,6 +62,60 @@ class StockObjectDetailEditForm(forms.ModelForm):
         }
 
 
+class StockObjectCorrectionForm(forms.Form):
+    corrected_qr_code = forms.CharField(
+        required=False,
+        max_length=16,
+        label="Corrected QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan corrected QR from mobile camera if QR was wrongly entered",
+            }
+        ),
+    )
+    corrected_qty = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        label="Corrected Quantity",
+    )
+    corrected_weight = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        label="Corrected Weight (Kgs)",
+    )
+    correction_reason = forms.CharField(
+        label="Correction Reason",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="State what was wrong in the original entry and why this correction is being made.",
+    )
+
+    def __init__(self, *args, stock_object=None, **kwargs):
+        self.stock_object = stock_object
+        super().__init__(*args, **kwargs)
+
+    def clean_corrected_qr_code(self):
+        qr_code = (self.cleaned_data.get("corrected_qr_code") or "").strip()
+        if not qr_code:
+            return qr_code
+        if (not qr_code.isdigit()) or len(qr_code) != 16:
+            raise ValidationError("QR code must be exactly 16 digits.")
+        qs = StockObject.objects.filter(qr_code=qr_code)
+        if self.stock_object:
+            qs = qs.exclude(pk=self.stock_object.pk)
+        if qs.exists():
+            raise ValidationError("This QR code already exists.")
+        return qr_code
+
+    def clean_correction_reason(self):
+        reason = (self.cleaned_data.get("correction_reason") or "").strip()
+        if not reason:
+            raise ValidationError("Correction reason is required.")
+        return reason
+
+
 class InventoryInwardForm(forms.Form):
     STOCK_FOR_CHOICES = [
         ("PROJECT", "Item entry against project"),

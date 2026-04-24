@@ -10,6 +10,7 @@ from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 import openpyxl
 
@@ -18,6 +19,7 @@ from masters.models import Item
 from .forms import (
     InventoryInwardForm,
     StockLocationForm,
+    StockObjectCorrectionForm,
     StockObjectDetailEditForm,
     TemporaryIssueForm,
     TemporaryReturnForm,
@@ -341,6 +343,29 @@ def _render_stock_object_edit_form(request, *, form, stock_object, current_store
     return render(request, "ledger/store_item_edit.html", context)
 
 
+def _render_stock_object_correction_form(request, *, form, stock_object, current_store_name, current_qty, current_weight):
+    context = _inventory_context(request)
+    context.update(
+        {
+            "page_title": "Correct Stored Item QR / Quantity / Weight",
+            "page_intro": (
+                f"Use this only when a real store entry was saved with wrong QR, quantity, or weight. "
+                f"The correction will create an audit transaction and adjust the current store balance at {current_store_name}."
+            ),
+            "form": form,
+            "submit_label": "Apply Controlled Correction",
+            "post_url": "ledger:correct_stock_object",
+            "post_kwargs": {"stock_object_id": stock_object.id},
+            "back_url": "ledger:inventory_dashboard",
+            "stock_object": stock_object,
+            "current_store_name": current_store_name,
+            "current_qty": current_qty,
+            "current_weight": current_weight,
+        }
+    )
+    return render(request, "ledger/store_item_correction.html", context)
+
+
 @login_required
 def inventory_dashboard(request):
     if not _has_inventory_access(request.user):
@@ -392,6 +417,116 @@ def edit_stock_object_details(request, stock_object_id: int):
         form=form,
         stock_object=stock_object,
         current_store_name=current_store_name,
+    )
+
+
+@login_required
+def correct_stock_object(request, stock_object_id: int):
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can correct stored item QR, quantity, and weight.")
+        return redirect("ledger:inventory_dashboard")
+
+    stock_object = get_object_or_404(StockObject, pk=stock_object_id)
+    balance_row = (
+        StockLedgerEntry.objects.filter(
+            stock_object=stock_object,
+            location__location_type="STORE",
+            location__is_active=True,
+        )
+        .values("location_id", "location__name")
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
+        .order_by("location__name")
+        .first()
+    )
+    if not balance_row:
+        messages.error(request, "This stored item is not currently available in an active store for correction.")
+        return redirect("ledger:inventory_dashboard")
+
+    current_qty = balance_row["qty"] or Decimal("0")
+    current_weight = balance_row["weight"] or Decimal("0")
+    if current_qty <= 0 and current_weight <= 0:
+        messages.error(request, "This stored item has no active store balance left for correction.")
+        return redirect("ledger:inventory_dashboard")
+
+    current_store_name = balance_row["location__name"]
+    current_store = get_object_or_404(StockLocation, pk=balance_row["location_id"])
+
+    initial = {
+        "corrected_qr_code": stock_object.qr_code or "",
+        "corrected_qty": current_qty,
+        "corrected_weight": current_weight,
+    }
+    if request.method == "GET":
+        form = StockObjectCorrectionForm(initial=initial, stock_object=stock_object)
+        return _render_stock_object_correction_form(
+            request,
+            form=form,
+            stock_object=stock_object,
+            current_store_name=current_store_name,
+            current_qty=current_qty,
+            current_weight=current_weight,
+        )
+
+    form = StockObjectCorrectionForm(request.POST, stock_object=stock_object)
+    if form.is_valid():
+        corrected_qr_code = form.cleaned_data["corrected_qr_code"] or None
+        corrected_qty = form.cleaned_data["corrected_qty"]
+        corrected_weight = form.cleaned_data["corrected_weight"]
+        correction_reason = form.cleaned_data["correction_reason"]
+
+        qty_delta = corrected_qty - current_qty
+        weight_delta = corrected_weight - current_weight
+        qr_changed = (stock_object.qr_code or "") != (corrected_qr_code or "")
+
+        if qty_delta == 0 and weight_delta == 0 and not qr_changed:
+            form.add_error(None, "No change detected. Update QR or corrected quantity/weight before saving.")
+        else:
+            remarks = (
+                f"Controlled stock correction for item {stock_object.item.item_description}. "
+                f"Store: {current_store_name}. "
+                f"QR: '{stock_object.qr_code or '-'}' -> '{corrected_qr_code or '-'}'. "
+                f"Qty: {current_qty} -> {corrected_qty}. "
+                f"Weight: {current_weight} -> {corrected_weight}. "
+                f"Reason: {correction_reason}"
+            )
+            with transaction.atomic():
+                correction_txn = StockTxn.objects.create(
+                    txn_type="STOCK_CORRECTION",
+                    entry_source_type="CORRECTION",
+                    remarks=remarks,
+                    created_by=request.user,
+                    posted=True,
+                )
+                if qty_delta != 0 or weight_delta != 0:
+                    StockLedgerEntry.objects.create(
+                        txn=correction_txn,
+                        item=stock_object.item,
+                        location=current_store,
+                        stock_object=stock_object,
+                        qty=qty_delta,
+                        weight=weight_delta,
+                    )
+
+                stock_object.qr_code = corrected_qr_code
+                stock_object.qty = corrected_qty
+                stock_object.weight = corrected_weight
+                stock_object.remarks = (
+                    f"{stock_object.remarks}\n[{timezone.now():%Y-%m-%d %H:%M}] Correction: {correction_reason}".strip()
+                    if stock_object.remarks
+                    else f"[{timezone.now():%Y-%m-%d %H:%M}] Correction: {correction_reason}"
+                )
+                stock_object.save(update_fields=["qr_code", "qty", "weight", "remarks"])
+
+            messages.success(request, "Controlled correction applied successfully.")
+            return redirect("ledger:inventory_dashboard")
+
+    return _render_stock_object_correction_form(
+        request,
+        form=form,
+        stock_object=stock_object,
+        current_store_name=current_store_name,
+        current_qty=current_qty,
+        current_weight=current_weight,
     )
 
 

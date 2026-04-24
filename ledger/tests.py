@@ -343,6 +343,92 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(stock_object.bin_number, "NEW-BIN")
         self.assertEqual(stock_object.remarks, "Corrected position")
 
+    def test_store_user_can_correct_stored_item_qr_code(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+            qr_code="4444333322221111",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=self.store,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+        )
+
+        response = self.client.post(
+            reverse("ledger:correct_stock_object", args=[stock_object.id]),
+            {
+                "corrected_qr_code": "7777888899990000",
+                "corrected_qty": "1.000",
+                "corrected_weight": "15.000",
+                "correction_reason": "QR was wrongly scanned during inward entry.",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        stock_object.refresh_from_db()
+        self.assertEqual(stock_object.qr_code, "7777888899990000")
+        correction_txn = StockTxn.objects.filter(txn_type="STOCK_CORRECTION").latest("id")
+        self.assertTrue(correction_txn.posted)
+        self.assertEqual(StockLedgerEntry.objects.filter(txn=correction_txn).count(), 0)
+
+    def test_store_user_can_correct_stored_item_quantity_and_weight(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+            qr_code="1234123412341234",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=self.store,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+        )
+
+        response = self.client.post(
+            reverse("ledger:correct_stock_object", args=[stock_object.id]),
+            {
+                "corrected_qr_code": "1234123412341234",
+                "corrected_qty": "1.500",
+                "corrected_weight": "18.000",
+                "correction_reason": "Original inward quantity and weight were entered short.",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        stock_object.refresh_from_db()
+        self.assertEqual(stock_object.qty, Decimal("1.500"))
+        self.assertEqual(stock_object.weight, Decimal("18.000"))
+        correction_txn = StockTxn.objects.filter(txn_type="STOCK_CORRECTION").latest("id")
+        ledger_row = StockLedgerEntry.objects.get(txn=correction_txn)
+        self.assertEqual(ledger_row.location, self.store)
+        self.assertEqual(ledger_row.stock_object, stock_object)
+        self.assertEqual(ledger_row.qty, Decimal("0.500"))
+        self.assertEqual(ledger_row.weight, Decimal("3.000"))
+
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):
         admin_user = User.objects.create_user(
             username="admin2",

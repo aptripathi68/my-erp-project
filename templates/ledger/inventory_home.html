@@ -352,6 +352,45 @@
     </details>
 
     <details class="section-toggle">
+        <summary><span class="section-toggle-button">Correct Wrong QR / Quantity / Weight</span></summary>
+        <div class="card section-toggle-content">
+            <p class="muted" style="margin-top:0;">Use this controlled correction window only when a real inward/store record was saved with wrong QR code, quantity, or weight. The system will create a stock correction audit record and adjust the live balance accordingly.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Store</th>
+                        <th>QR Code</th>
+                        <th>Item Description</th>
+                        <th>Qty</th>
+                        <th>Weight (Kgs)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in editable_store_item_rows %}
+                    <tr>
+                        <td>{{ row.location_name }}</td>
+                        <td>{{ row.qr_code }}</td>
+                        <td>{{ row.item_description }}</td>
+                        <td>{{ row.qty }}</td>
+                        <td>{{ row.weight }}</td>
+                        <td>
+                            {% if can_manage_inventory %}
+                            <a class="btn btn-secondary" href="{% url 'ledger:correct_stock_object' row.stock_object_id %}">Correct</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6">No stored items are currently available for controlled correction.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details class="section-toggle">
         <summary><span class="section-toggle-button">Stock at Process / Movement Points</span></summary>
         <div class="card section-toggle-content">
             <p class="muted">This table is only for operational visibility. It is separate from store master management. Truck details will be handled later in dispatch records, not as store locations.</p>
