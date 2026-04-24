@@ -1,8 +1,10 @@
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+import openpyxl
 
 from masters.models import Grade, Group2, Item
 
@@ -243,6 +245,52 @@ class InventoryManagementTests(TestCase):
         self.assertContains(response, "Section Name")
         self.assertContains(response, "Grade")
         self.assertContains(response, "Item Description")
+
+    def test_inventory_dashboard_shows_store_item_register_section(self):
+        response = self.client.get(reverse("ledger:inventory_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Store-wise Items in Store")
+        self.assertContains(response, "Download Excel")
+
+    def test_store_item_excel_export_downloads_filtered_rows(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("2.000"),
+            weight=Decimal("20.000"),
+            qr_code="9999888877776666",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+        )
+        txn.lines.create(
+            item=self.item,
+            stock_object=stock_object,
+            qty=Decimal("2.000"),
+            weight=Decimal("20.000"),
+            to_location=self.store,
+        )
+        from ledger.services.stock_engine import post_stock_txn
+        post_stock_txn(txn.id)
+
+        response = self.client.get(
+            reverse("ledger:export_store_stock_excel"),
+            {"store": self.store.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        wb = openpyxl.load_workbook(BytesIO(response.content))
+        ws = wb.active
+        values = list(ws.iter_rows(values_only=True))
+        flat = " ".join("" if value is None else str(value) for row in values for value in row)
+        self.assertIn("Main Store", flat)
+        self.assertIn(self.item.item_description, flat)
 
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):
         admin_user = User.objects.create_user(

@@ -13,6 +13,7 @@ urlpatterns = [
     path("inventory/inward/create/", views.create_inventory_inward, name="create_inventory_inward"),
     path("temporary-issues/create/", views.create_temporary_issue, name="create_temporary_issue"),
     path("temporary-returns/create/", views.create_temporary_return, name="create_temporary_return"),
+    path("stock/export/store-items.xlsx", views.export_store_stock_excel, name="export_store_stock_excel"),
 
     path("stock/by-item/", views.api_stock_by_item, name="api_stock_by_item"),
     path("stock/by-location/", views.api_stock_by_location, name="api_stock_by_location"),

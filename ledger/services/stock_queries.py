@@ -101,6 +101,52 @@ def stock_by_location(item_id=None, object_type=None):
     return out
 
 
+def stock_by_store_item(location_id=None):
+    """
+    Stock summarized store-wise and item-wise for working register / export.
+    Only active store locations are included.
+    """
+    qs = _base_qs().filter(location__location_type="STORE", location__is_active=True)
+    if location_id:
+        qs = qs.filter(location_id=location_id)
+
+    rows = (
+        qs.values(
+            "location_id",
+            "location__name",
+            "item_id",
+            "item__item_master_id",
+            "item__item_description",
+            "stock_object__object_type",
+        )
+        .annotate(
+            qty_sum=Coalesce(Sum("qty"), DEC0),
+            weight_sum=Coalesce(Sum("weight"), DEC0),
+        )
+        .order_by("location__name", "item__item_description", "stock_object__object_type")
+    )
+
+    out = []
+    for r in rows:
+        qty_sum = r["qty_sum"] or Decimal("0")
+        weight_sum = r["weight_sum"] or Decimal("0")
+        if qty_sum == 0 and weight_sum == 0:
+            continue
+        out.append(
+            {
+                "location_id": r["location_id"],
+                "location_name": r["location__name"],
+                "item_id": r["item_id"],
+                "item_master_id": r["item__item_master_id"],
+                "item_description": r["item__item_description"],
+                "object_type": r["stock_object__object_type"] or "-",
+                "qty": str(qty_sum),
+                "weight": str(weight_sum),
+            }
+        )
+    return out
+
+
 def stock_by_mark(mark_no, location_id=None):
     """
     Stock for FINISHED_MARK by mark_no (optionally location)

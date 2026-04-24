@@ -235,6 +235,51 @@
     </div>
 
     <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h2 style="margin-top:0;">Store-wise Items in Store</h2>
+                <p class="muted" style="margin:0;">View actual item lines available in stores and download the working register in Excel for manual planning and allocation.</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <form method="get" action="" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <select name="store" style="min-width:240px;">
+                        <option value="">All Active Stores</option>
+                        {% for location in active_store_locations %}
+                        <option value="{{ location.id }}" {% if selected_store and selected_store.id == location.id %}selected{% endif %}>{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-secondary" type="submit">View Store Items</button>
+                </form>
+                <a class="btn btn-primary" href="{% url 'ledger:export_store_stock_excel' %}{% if selected_store %}?store={{ selected_store.id }}{% endif %}">Download Excel</a>
+            </div>
+        </div>
+        <table style="margin-top:14px;">
+            <thead>
+                <tr>
+                    <th>Store</th>
+                    <th>Item Description</th>
+                    <th>Object Type</th>
+                    <th>Qty</th>
+                    <th>Weight (Kgs)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in store_item_rows %}
+                <tr>
+                    <td>{{ row.location_name }}</td>
+                    <td>{{ row.item_description }}</td>
+                    <td>{{ row.object_type }}</td>
+                    <td>{{ row.qty }}</td>
+                    <td>{{ row.weight }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No store item lines found for the selected store.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
         <h2 style="margin-top:0;">Stock at Process / Movement Points</h2>
         <p class="muted">This table is only for operational visibility. It is separate from store master management. Truck details will be handled later in dispatch records, not as store locations.</p>
         <table>

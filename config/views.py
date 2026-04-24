@@ -3,6 +3,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, render
 
+from drawings.models import Drawing, DrawingSheetRevision
 from masters.models import Item
 from procurement.models import GRN, Site, BOMHeader, BOMMark
 from ledger.models import StockLedgerEntry
@@ -21,12 +22,12 @@ def dashboard_home(request):
 
         total_marks = marks.count()
 
-        fabrication = marks.filter(production_status="FABRICATION").count()
-        painting = marks.filter(production_status="PAINTING").count()
-        dispatch_ready = marks.filter(production_status="READY").count()
-        dispatched = marks.filter(production_status="DISPATCHED").count()
+        fabrication = marks.filter(production_status=BOMMark.ProductionStatus.IN_FABRICATION).count()
+        painting = marks.filter(production_status=BOMMark.ProductionStatus.IN_PAINTING).count()
+        dispatch_ready = marks.filter(production_status=BOMMark.ProductionStatus.DISPATCH_READY).count()
+        dispatched = marks.filter(production_status=BOMMark.ProductionStatus.DISPATCHED).count()
 
-        planning_pending = marks.filter(production_status="PLANNING").count()
+        planning_pending = marks.filter(production_status=BOMMark.ProductionStatus.PLANNING_PENDING).count()
 
         project_status.append({
             "project": project.project_name if hasattr(project, "project_name") else f"BOM-{project.id}",
@@ -44,6 +45,11 @@ def dashboard_home(request):
         "grn_count": GRN.objects.count(),
         "site_count": Site.objects.filter(is_active=True).count(),
         "ledger_count": StockLedgerEntry.objects.count(),
+        "drawings_uploaded": Drawing.objects.count(),
+        "pending_drawing_approvals": DrawingSheetRevision.objects.filter(
+            verification_status=DrawingSheetRevision.STATUS_PENDING
+        ).count(),
+        "total_marks": BOMMark.objects.count(),
         "projects": project_status,
     }
 

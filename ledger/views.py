@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -7,16 +8,17 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Sum
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
+import openpyxl
 
 from masters.models import Item
 
 from .forms import InventoryInwardForm, StockLocationForm, TemporaryIssueForm, TemporaryReturnForm, TransferStoreRecordsForm
 from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn, StockTxnLine
 from .services.stock_engine import post_stock_txn
-from .services.stock_queries import stock_by_item, stock_by_location
+from .services.stock_queries import stock_by_item, stock_by_location, stock_by_store_item
 from .storage import build_inventory_photo_object_key, upload_inventory_photo
 
 
@@ -108,6 +110,14 @@ def _upload_inventory_photo_if_present(form, *, stock_for: str, object_type: str
 
 
 def _inventory_context(request):
+    selected_store_id = request.GET.get("store")
+    active_store_locations = StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name")
+    selected_store = None
+    if selected_store_id:
+        try:
+            selected_store = active_store_locations.get(id=selected_store_id)
+        except StockLocation.DoesNotExist:
+            selected_store = None
     store_locations = StockLocation.objects.filter(location_type="STORE").order_by("is_active", "name")
     active_store_locations = store_locations.filter(is_active=True)
     inactive_store_locations = store_locations.filter(is_active=False)
@@ -158,12 +168,75 @@ def _inventory_context(request):
         "stock_by_item": stock_by_item(),
         "stock_by_location": stock_by_location_rows,
         "store_stock_rows": store_stock_rows,
+        "store_item_rows": stock_by_store_item(location_id=selected_store.id if selected_store else None),
+        "selected_store": selected_store,
         "process_stock_rows": process_stock_rows,
         "temporary_issue_rows": issue_rows,
         "pending_issue_count": sum(1 for row in issue_rows if row["txn"].bridge_status != "RETURNED"),
         "can_manage_inventory": _can_manage_inventory(request.user),
         "can_admin_inventory": _can_admin_inventory(request.user),
     }
+
+
+@login_required
+def export_store_stock_excel(request):
+    if not _has_inventory_access(request.user):
+        messages.error(request, "You do not have permission to access inventory management.")
+        return redirect("dashboard_home")
+
+    selected_store_id = request.GET.get("store")
+    selected_store = None
+    if selected_store_id:
+        selected_store = get_object_or_404(StockLocation, pk=selected_store_id, is_active=True, location_type="STORE")
+
+    rows = stock_by_store_item(location_id=selected_store.id if selected_store else None)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Store Stock"
+
+    heading = "Store-wise Items in Store"
+    if selected_store:
+        heading = f"Store-wise Items in Store - {selected_store.name}"
+    ws.append([heading])
+    ws.append([])
+    ws.append(["Store", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)"])
+
+    for row in rows:
+        ws.append(
+            [
+                row["location_name"],
+                row["item_master_id"],
+                row["item_description"],
+                row["object_type"],
+                row["qty"],
+                row["weight"],
+            ]
+        )
+
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            value = "" if cell.value is None else str(cell.value)
+            max_length = max(max_length, len(value))
+        ws.column_dimensions[column_letter].width = min(max_length + 4, 40)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = "store_stock_register.xlsx"
+    if selected_store:
+        safe_name = selected_store.name.replace(" ", "_")
+        filename = f"store_stock_register_{safe_name}.xlsx"
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def _render_inventory_form(request, *, page_title, page_intro, form, submit_label, post_url):

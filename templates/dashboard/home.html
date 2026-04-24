@@ -8,14 +8,14 @@
     <style>
         :root{
             --brand:#2d686f;
-            --brand-dark:#176193;
-            --brand-accent:#9c6bf0;
+            --brand-dark:#1d4f55;
+            --accent:#176193;
             --bg:#f5f4f8;
             --card:#ffffff;
             --text:#082037;
             --muted:#667786;
             --border:#e7dbea;
-            --shadow:0 4px 18px rgba(0,0,0,0.08);
+            --shadow:0 4px 18px rgba(0,0,0,.08);
         }
 
         *{box-sizing:border-box}
@@ -30,34 +30,34 @@
         .topbar{
             background:var(--brand);
             color:#fff;
-            padding:20px 28px 24px;
+            padding:20px 24px 24px;
         }
 
         .brand-row{
             display:flex;
             align-items:center;
             justify-content:center;
-            gap:24px;
+            gap:22px;
             flex-wrap:wrap;
             text-align:center;
         }
 
         .brand-row img{
             display:block;
-            height:110px;
+            height:104px;
             width:auto;
             max-width:220px;
             background:#fff;
             padding:6px;
-            border-radius:4px;
+            border-radius:6px;
             object-fit:contain;
         }
 
         .brand-text h1{
             margin:0;
             font-size:32px;
-            font-weight:600;
-            color:var(--brand-accent);
+            font-weight:700;
+            color:#ffe16a;
         }
 
         .brand-text p{
@@ -71,7 +71,6 @@
             text-align:center;
             font-size:15px;
             font-weight:700;
-            letter-spacing:.2px;
         }
 
         .top-links a{
@@ -80,67 +79,22 @@
             margin:0 6px;
         }
 
-        .layout{
-            display:grid;
-            grid-template-columns:260px 1fr;
-            gap:24px;
+        .page{
+            max-width:1400px;
+            margin:0 auto;
             padding:24px;
         }
 
-        .sidebar{
+        .hero,
+        .messages .message,
+        .module-card,
+        .stat-card,
+        .nav-card,
+        .table-card{
             background:var(--card);
             border:1px solid var(--border);
             border-radius:12px;
             box-shadow:var(--shadow);
-            padding:18px;
-            height:fit-content;
-        }
-
-        .sidebar h3{
-            margin:0 0 14px;
-            font-size:18px;
-            color:var(--brand-dark);
-        }
-
-        .nav-group{
-            margin-bottom:18px;
-        }
-
-        .nav-group-title{
-            font-size:13px;
-            font-weight:700;
-            color:var(--muted);
-            text-transform:uppercase;
-            letter-spacing:.6px;
-            margin-bottom:8px;
-        }
-
-        .nav-link{
-            display:block;
-            padding:10px 12px;
-            margin-bottom:6px;
-            text-decoration:none;
-            color:var(--text);
-            border-radius:8px;
-            border:1px solid transparent;
-        }
-
-        .nav-link:hover{
-            background:#f2f7fa;
-            border-color:#d7e4ec;
-        }
-
-        .content{
-            min-width:0;
-        }
-
-        .hero{
-            background:var(--card);
-            border:1px solid var(--border);
-            border-radius:12px;
-            box-shadow:var(--shadow);
-            padding:22px 24px;
-            margin-bottom:22px;
         }
 
         .messages{
@@ -148,13 +102,24 @@
         }
 
         .message{
-            background:#fff7e6;
-            border:1px solid #f0d28a;
-            color:#7a5600;
             padding:12px 14px;
-            border-radius:10px;
+            background:#fff7e6;
+            border-color:#f0d28a;
+            color:#7a5600;
             margin-bottom:10px;
-            box-shadow:var(--shadow);
+        }
+
+        .hero{
+            padding:22px 24px;
+            margin-bottom:22px;
+        }
+
+        .hero-header{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:16px;
+            flex-wrap:wrap;
         }
 
         .hero h2{
@@ -170,18 +135,65 @@
             line-height:1.6;
         }
 
+        .nav-toggle{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:12px 16px;
+            border-radius:10px;
+            background:#f2f7fa;
+            border:1px solid #d7e4ec;
+            color:var(--brand-dark);
+            font-weight:700;
+            cursor:pointer;
+        }
+
+        .section-title{
+            font-size:24px;
+            margin:0 0 14px;
+            color:#2e3b47;
+        }
+
+        .module-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+            gap:18px;
+            margin-bottom:24px;
+        }
+
+        .module-card{
+            padding:22px;
+            border-left:6px solid var(--brand);
+        }
+
+        .module-card h3{
+            margin:0 0 10px;
+            font-size:22px;
+            color:var(--accent);
+        }
+
+        .module-card p{
+            margin:0 0 16px;
+            line-height:1.6;
+            color:#556573;
+            min-height:78px;
+        }
+
+        .module-card a{
+            display:inline-block;
+            text-decoration:none;
+            font-weight:700;
+            color:var(--accent);
+        }
+
         .stats{
             display:grid;
             grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
             gap:16px;
-            margin-bottom:22px;
+            margin-top:18px;
         }
 
         .stat-card{
-            background:var(--card);
-            border:1px solid var(--border);
-            border-radius:12px;
-            box-shadow:var(--shadow);
             padding:18px;
         }
 
@@ -197,60 +209,109 @@
             color:var(--brand-dark);
         }
 
-        .section-title{
-            font-size:24px;
-            margin:0 0 14px;
-            color:#2e3b47;
+        .table-card{
+            padding:18px;
+            margin-bottom:24px;
         }
 
-        .module-grid{
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-            gap:18px;
+        table{
+            width:100%;
+            border-collapse:collapse;
+            background:#fff;
         }
 
-        .module-card{
-            background:var(--card);
-            border:1px solid var(--border);
-            border-left:6px solid var(--brand);
-            border-radius:12px;
-            box-shadow:var(--shadow);
-            padding:22px;
+        th, td{
+            border:1px solid #d8e3ea;
+            padding:10px;
+            text-align:center;
         }
 
-        .module-card h3{
-            margin:0 0 10px;
+        th{
+            background:#2d686f;
+            color:#fff;
+        }
+
+        td:first-child, th:first-child{
+            text-align:left;
+        }
+
+        .nav-card{
+            padding:18px;
+        }
+
+        .nav-card summary{
+            list-style:none;
+            cursor:pointer;
             font-size:22px;
-            color:var(--brand-dark);
-        }
-
-        .module-card p{
-            margin:0 0 16px;
-            line-height:1.6;
-            color:#556573;
-            min-height:78px;
-        }
-
-        .module-card a{
-            display:inline-block;
-            text-decoration:none;
             font-weight:700;
-            color:var(--brand-dark);
+            color:var(--accent);
         }
 
-        .module-card a:hover{
-            text-decoration:underline;
+        .nav-card summary::-webkit-details-marker{
+            display:none;
         }
 
-        @media (max-width: 980px){
-            .layout{
-                grid-template-columns:1fr;
+        .nav-help{
+            margin:10px 0 18px;
+            color:var(--muted);
+        }
+
+        .nav-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+            gap:16px;
+        }
+
+        .nav-group{
+            border:1px solid #dbe6ec;
+            border-radius:10px;
+            padding:14px;
+            background:#fbfdfe;
+        }
+
+        .nav-group-title{
+            font-size:13px;
+            font-weight:700;
+            color:var(--muted);
+            text-transform:uppercase;
+            letter-spacing:.6px;
+            margin-bottom:8px;
+        }
+
+        .nav-link{
+            display:block;
+            padding:9px 10px;
+            margin-bottom:6px;
+            text-decoration:none;
+            color:var(--text);
+            border-radius:8px;
+        }
+
+        .nav-link:hover{
+            background:#eef6fa;
+        }
+
+        @media (max-width: 768px){
+            .page{
+                padding:14px;
+            }
+
+            .hero h2{
+                font-size:30px;
+            }
+
+            .module-card p{
+                min-height:auto;
+            }
+
+            th, td{
+                padding:8px;
+                font-size:14px;
             }
         }
     </style>
 </head>
 <body>
-
     <div class="topbar">
         <div class="brand-row">
             <img src="{% static 'logo/kalpadeeplogo.png' %}" alt="Kalpadeep Logo">
@@ -268,188 +329,192 @@
         </div>
     </div>
 
-    <div class="layout">
-        <aside class="sidebar">
-            <h3>ERP Navigation</h3>
+    <div class="page">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
-            <div class="nav-group">
-                <div class="nav-group-title">Masters</div>
-                <a class="nav-link" href="/admin/masters/item/">Item Master</a>
-                <a class="nav-link" href="/admin/masters/group2/">Groups 2</a>
-                <a class="nav-link" href="/admin/masters/grade/">Grades</a>
-                <a class="nav-link" href="/admin/procurement/site/">Sites</a>
+        <section class="hero">
+            <div class="hero-header">
+                <div>
+                    <h2>ERP Dashboard</h2>
+                    <p>Use operational modules first for daily work. Dashboard and project status stay available below for monitoring, and ERP navigation is kept compact for cleaner mobile use.</p>
+                </div>
+                <button class="nav-toggle" type="button" onclick="document.getElementById('erp-navigation').open = !document.getElementById('erp-navigation').open;">
+                    ERP Navigation
+                </button>
+            </div>
+        </section>
+
+        <h3 class="section-title">Operational Modules</h3>
+        <section class="module-grid">
+            <div class="module-card">
+                <h3>Estimation &amp; Quotation</h3>
+                <p>Create project inquiries, finalize raw material rates, generate quotations, and monitor project budgets.</p>
+                <a href="/estimation/">Open Estimation</a>
             </div>
 
-            <div class="nav-group">
-                <div class="nav-group-title">Planning</div>
-                <a class="nav-link" href="/estimation/">Estimation & Quotation</a>
-                <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
-                <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
-                <a class="nav-link" href="/drawings/upload-from-bom/">Drawing Upload</a>
-                <a class="nav-link" href="/drawings/bulk-upload/">Bulk Drawing Upload</a>
-                <a class="nav-link" href="/admin/drawings/drawing/">Drawing Records</a>
-                <a class="nav-link" href="/admin/drawings/drawingsheetrevision/">Drawing Revisions</a>
+            <div class="module-card">
+                <h3>Item Master</h3>
+                <p>Maintain steel sections, plates, pipes, consumables, paint, electrodes and other inventory items.</p>
+                <a href="/admin/masters/item/">Open Item Master</a>
             </div>
 
-            <div class="nav-group">
-                <div class="nav-group-title">Inventory</div>
-                <a class="nav-link" href="/ledger/">Inventory Management</a>
-                <a class="nav-link" href="/admin/procurement/grn/">GRN Management</a>
-                <a class="nav-link" href="/admin/ledger/stockledgerentry/">Stock Ledger</a>
+            <div class="module-card">
+                <h3>BOM Upload</h3>
+                <p>Upload and validate multi-sheet BOM files against Item Master using section name matching.</p>
+                <a href="/procurement/bom/upload/">Open BOM Upload</a>
             </div>
 
-            <div class="nav-group">
-                <div class="nav-group-title">Administration</div>
-                <a class="nav-link" href="/users/">User Management</a>
-                <a class="nav-link" href="/admin/">Admin Panel</a>
-                <a class="nav-link" href="/admin/users/user/">Users</a>
+            <div class="module-card">
+                <h3>Drawing Upload</h3>
+                <p>Upload fabrication drawings linked with BOM drawing numbers and manage sheet-wise revisions.</p>
+                <a href="/drawings/upload-from-bom/">Open Drawing Upload</a>
             </div>
-        </aside>
 
-        <main class="content">
-            {% if messages %}
-            <div class="messages">
-                {% for message in messages %}
-                <div class="message">{{ message }}</div>
-                {% endfor %}
+            <div class="module-card">
+                <h3>Bulk Drawing Upload</h3>
+                <p>Upload ZIP or PDF drawing bundles against a BOM for bulk analysis and import.</p>
+                <a href="/drawings/bulk-upload/">Open Bulk Drawing Upload</a>
             </div>
-            {% endif %}
 
-            <section class="hero">
-                <h2>ERP Dashboard</h2>
-                <p>
-                    Control masters, planning, drawings, GRN, stock movement, and fabrication workflow from one place.
-                </p>
-            </section>
+            <div class="module-card">
+                <h3>BOM Records</h3>
+                <p>Review BOM headers, marks and components after validation and import.</p>
+                <a href="/admin/procurement/bomheader/">Open BOM Records</a>
+            </div>
 
-            <section class="stats">
+            <div class="module-card">
+                <h3>Drawing Records</h3>
+                <p>View uploaded drawing numbers, open revision history, and manage drawing sheets and revisions.</p>
+                <a href="/admin/drawings/drawing/">Open Drawing Records</a>
+            </div>
 
+            <div class="module-card">
+                <h3>Inventory Management</h3>
+                <p>Main working screen for store operations. Use this for store creation, item entry in store, item exit from store, and item return to store.</p>
+                <a href="/ledger/">Open Inventory Management</a>
+            </div>
+
+            <div class="module-card">
+                <h3>GRN Management</h3>
+                <p>Use this for formal receipt of purchased material from suppliers through Goods Receipt Note entry and inward receipt tracking.</p>
+                <a href="/admin/procurement/grn/">Open GRN</a>
+            </div>
+
+            <div class="module-card">
+                <h3>Stock Ledger</h3>
+                <p>Background stock movement register showing inward, issue, return, and other inventory history. This is mainly for review and traceability.</p>
+                <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
+            </div>
+
+            <div class="module-card">
+                <h3>User Management</h3>
+                <p>Create ERP users, assign department roles, and verify access before module-level testing.</p>
+                <a href="/users/">Open User Management</a>
+            </div>
+
+            <div class="module-card">
+                <h3>Administration</h3>
+                <p>Access admin maintenance for users, permissions and advanced ERP configuration.</p>
+                <a href="/admin/">Open Admin Panel</a>
+            </div>
+        </section>
+
+        <section class="hero">
+            <h3 class="section-title" style="margin-bottom:0;">ERP Dashboard</h3>
+            <div class="stats">
                 <div class="stat-card">
                     <div class="label">Pending Drawing Approvals</div>
                     <div class="value">{{ pending_drawing_approvals }}</div>
                 </div>
-
                 <div class="stat-card">
                     <div class="label">Total Drawings Uploaded</div>
                     <div class="value">{{ drawings_uploaded }}</div>
                 </div>
-
                 <div class="stat-card">
                     <div class="label">Uploaded BOMs</div>
                     <div class="value">{{ bom_count }}</div>
                 </div>
-
                 <div class="stat-card">
                     <div class="label">Total Marks</div>
                     <div class="value">{{ total_marks }}</div>
                 </div>
+            </div>
+        </section>
 
-            </section>
-
+        <section class="table-card">
             <h3 class="section-title">Project Production Status</h3>
-
-            <table style="width:100%;border-collapse:collapse;background:white;margin-bottom:30px;">
-            <tr style="background:#2d686f;color:white;">
-            <th style="padding:10px;">Project</th>
-            <th>Total Marks</th>
-            <th>Planning Pending</th>
-            <th>Fabrication</th>
-            <th>Painting</th>
-            <th>Dispatch Ready</th>
-            <th>Dispatched</th>
-            </tr>
-
-            {% for p in projects %}
-            <tr style="border-bottom:1px solid #ddd;">
-            <td style="padding:10px;"><b>{{ p.project }}</b></td>
-            <td align="center">{{ p.total }}</td>
-            <td align="center">{{ p.planning }}</td>
-            <td align="center">{{ p.fabrication }}</td>
-            <td align="center">{{ p.painting }}</td>
-            <td align="center">{{ p.ready }}</td>
-            <td align="center">{{ p.dispatched }}</td>
-            </tr>
-            {% endfor %}
-
+            <table>
+                <tr>
+                    <th>Project</th>
+                    <th>Total Marks</th>
+                    <th>Planning Pending</th>
+                    <th>Fabrication</th>
+                    <th>Painting</th>
+                    <th>Dispatch Ready</th>
+                    <th>Dispatched</th>
+                </tr>
+                {% for p in projects %}
+                <tr>
+                    <td><b>{{ p.project }}</b></td>
+                    <td>{{ p.total }}</td>
+                    <td>{{ p.planning }}</td>
+                    <td>{{ p.fabrication }}</td>
+                    <td>{{ p.painting }}</td>
+                    <td>{{ p.ready }}</td>
+                    <td>{{ p.dispatched }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No production projects available yet.</td>
+                </tr>
+                {% endfor %}
             </table>
+        </section>
 
-            <h3 class="section-title">Operational Modules</h3>
-
-            <section class="module-grid">
-                <div class="module-card">
-                    <h3>Estimation & Quotation</h3>
-                    <p>Create project inquiries, finalize raw material rates, generate quotations, and monitor project budgets.</p>
-                    <a href="/estimation/">Open Estimation</a>
+        <details class="nav-card" id="erp-navigation">
+            <summary>ERP Navigation</summary>
+            <div class="nav-help">Open this only when you need a direct navigation shortcut. It is kept collapsed by default for cleaner mobile and browser use.</div>
+            <div class="nav-grid">
+                <div class="nav-group">
+                    <div class="nav-group-title">Masters</div>
+                    <a class="nav-link" href="/admin/masters/item/">Item Master</a>
+                    <a class="nav-link" href="/admin/masters/group2/">Groups 2</a>
+                    <a class="nav-link" href="/admin/masters/grade/">Grades</a>
+                    <a class="nav-link" href="/admin/procurement/site/">Sites</a>
                 </div>
 
-                <div class="module-card">
-                    <h3>Item Master</h3>
-                    <p>Maintain steel sections, plates, pipes, consumables, paint, electrodes and other inventory items.</p>
-                    <a href="/admin/masters/item/">Open Item Master</a>
+                <div class="nav-group">
+                    <div class="nav-group-title">Planning</div>
+                    <a class="nav-link" href="/estimation/">Estimation &amp; Quotation</a>
+                    <a class="nav-link" href="/procurement/bom/upload/">BOM Upload</a>
+                    <a class="nav-link" href="/admin/procurement/bomheader/">BOM Records</a>
+                    <a class="nav-link" href="/drawings/upload-from-bom/">Drawing Upload</a>
+                    <a class="nav-link" href="/drawings/bulk-upload/">Bulk Drawing Upload</a>
+                    <a class="nav-link" href="/admin/drawings/drawing/">Drawing Records</a>
+                    <a class="nav-link" href="/admin/drawings/drawingsheetrevision/">Drawing Revisions</a>
                 </div>
 
-                <div class="module-card">
-                    <h3>BOM Upload</h3>
-                    <p>Upload and validate multi-sheet BOM files against Item Master using section name matching.</p>
-                    <a href="/procurement/bom/upload/">Open BOM Upload</a>
+                <div class="nav-group">
+                    <div class="nav-group-title">Inventory</div>
+                    <a class="nav-link" href="/ledger/">Inventory Management</a>
+                    <a class="nav-link" href="/admin/procurement/grn/">GRN Management</a>
+                    <a class="nav-link" href="/admin/ledger/stockledgerentry/">Stock Ledger</a>
                 </div>
 
-                <div class="module-card">
-                    <h3>Drawing Upload</h3>
-                    <p>Upload fabrication drawings linked with BOM drawing numbers and manage sheet-wise revisions.</p>
-                    <a href="/drawings/upload-from-bom/">Open Drawing Upload</a>
+                <div class="nav-group">
+                    <div class="nav-group-title">Administration</div>
+                    <a class="nav-link" href="/users/">User Management</a>
+                    <a class="nav-link" href="/admin/">Admin Panel</a>
+                    <a class="nav-link" href="/admin/users/user/">Users</a>
                 </div>
-
-                <div class="module-card">
-                    <h3>Bulk Drawing Upload</h3>
-                    <p>Upload ZIP or PDF drawing bundles against a BOM for bulk analysis and import.</p>
-                    <a href="/drawings/bulk-upload/">Open Bulk Drawing Upload</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>BOM Records</h3>
-                    <p>Review BOM headers, marks and components after validation and import.</p>
-                    <a href="/admin/procurement/bomheader/">Open BOM Records</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>Drawing Records</h3>
-                    <p>View uploaded drawing numbers, open revision history, and manage drawing sheets and revisions.</p>
-                    <a href="/admin/drawings/drawing/">Open Drawing Records</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>Inventory Management</h3>
-                    <p>Main working screen for store operations. Use this for store creation, item entry in store, item exit from store, and item return to store.</p>
-                    <a href="/ledger/">Open Inventory Management</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>GRN Management</h3>
-                    <p>Use this for formal receipt of purchased material from suppliers through Goods Receipt Note entry and inward receipt tracking.</p>
-                    <a href="/admin/procurement/grn/">Open GRN</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>Stock Ledger</h3>
-                    <p>Background stock movement register showing inward, issue, return, and other inventory history. This is mainly for review and traceability.</p>
-                    <a href="/admin/ledger/stockledgerentry/">Open Stock Ledger</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>User Management</h3>
-                    <p>Create ERP users, assign department roles, and verify access before module-level testing.</p>
-                    <a href="/users/">Open User Management</a>
-                </div>
-
-                <div class="module-card">
-                    <h3>Administration</h3>
-                    <p>Access admin maintenance for users, permissions and advanced ERP configuration.</p>
-                    <a href="/admin/">Open Admin Panel</a>
-                </div>
-            </section>
-        </main>
+            </div>
+        </details>
     </div>
-
 </body>
 </html>
