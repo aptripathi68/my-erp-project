@@ -257,6 +257,9 @@
             <thead>
                 <tr>
                     <th>Store</th>
+                    <th>Rack No</th>
+                    <th>Shelf No</th>
+                    <th>Bin No</th>
                     <th>Item Description</th>
                     <th>Object Type</th>
                     <th>Qty</th>
@@ -267,13 +270,16 @@
                 {% for row in store_item_rows %}
                 <tr>
                     <td>{{ row.location_name }}</td>
+                    <td>{{ row.rack_number }}</td>
+                    <td>{{ row.shelf_number }}</td>
+                    <td>{{ row.bin_number }}</td>
                     <td>{{ row.item_description }}</td>
                     <td>{{ row.object_type }}</td>
                     <td>{{ row.qty }}</td>
                     <td>{{ row.weight }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5">No store item lines found for the selected store.</td></tr>
+                <tr><td colspan="8">No store item lines found for the selected store.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

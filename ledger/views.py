@@ -200,12 +200,15 @@ def export_store_stock_excel(request):
         heading = f"Store-wise Items in Store - {selected_store.name}"
     ws.append([heading])
     ws.append([])
-    ws.append(["Store", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)"])
+    ws.append(["Store", "Rack No", "Shelf No", "Bin No", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)"])
 
     for row in rows:
         ws.append(
             [
                 row["location_name"],
+                row["rack_number"],
+                row["shelf_number"],
+                row["bin_number"],
                 row["item_master_id"],
                 row["item_description"],
                 row["object_type"],

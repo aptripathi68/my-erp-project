@@ -260,6 +260,9 @@ class InventoryManagementTests(TestCase):
             qty=Decimal("2.000"),
             weight=Decimal("20.000"),
             qr_code="9999888877776666",
+            rack_number="R-01",
+            shelf_number="S-02",
+            bin_number="B-03",
         )
         txn = StockTxn.objects.create(
             txn_type="OPENING_RAW",
@@ -290,6 +293,9 @@ class InventoryManagementTests(TestCase):
         values = list(ws.iter_rows(values_only=True))
         flat = " ".join("" if value is None else str(value) for row in values for value in row)
         self.assertIn("Main Store", flat)
+        self.assertIn("R-01", flat)
+        self.assertIn("S-02", flat)
+        self.assertIn("B-03", flat)
         self.assertIn(self.item.item_description, flat)
 
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):

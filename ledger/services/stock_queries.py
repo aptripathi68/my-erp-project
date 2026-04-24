@@ -103,7 +103,8 @@ def stock_by_location(item_id=None, object_type=None):
 
 def stock_by_store_item(location_id=None):
     """
-    Stock summarized store-wise and item-wise for working register / export.
+    Stock summarized store-wise, rack-wise, shelf-wise, bin-wise, and item-wise
+    for working register / export.
     Only active store locations are included.
     """
     qs = _base_qs().filter(location__location_type="STORE", location__is_active=True)
@@ -114,6 +115,9 @@ def stock_by_store_item(location_id=None):
         qs.values(
             "location_id",
             "location__name",
+            "stock_object__rack_number",
+            "stock_object__shelf_number",
+            "stock_object__bin_number",
             "item_id",
             "item__item_master_id",
             "item__item_description",
@@ -123,7 +127,14 @@ def stock_by_store_item(location_id=None):
             qty_sum=Coalesce(Sum("qty"), DEC0),
             weight_sum=Coalesce(Sum("weight"), DEC0),
         )
-        .order_by("location__name", "item__item_description", "stock_object__object_type")
+        .order_by(
+            "location__name",
+            "stock_object__rack_number",
+            "stock_object__shelf_number",
+            "stock_object__bin_number",
+            "item__item_description",
+            "stock_object__object_type",
+        )
     )
 
     out = []
@@ -136,6 +147,9 @@ def stock_by_store_item(location_id=None):
             {
                 "location_id": r["location_id"],
                 "location_name": r["location__name"],
+                "rack_number": r["stock_object__rack_number"] or "-",
+                "shelf_number": r["stock_object__shelf_number"] or "-",
+                "bin_number": r["stock_object__bin_number"] or "-",
                 "item_id": r["item_id"],
                 "item_master_id": r["item__item_master_id"],
                 "item_description": r["item__item_description"],
