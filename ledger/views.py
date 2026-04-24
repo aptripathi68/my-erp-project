@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Sum
+from django.db.models import Count, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -51,6 +51,38 @@ def _store_delete_status(location):
     return {
         "can_delete": True,
         "reason": "Safe to delete",
+    }
+
+
+def _purge_reserved_store_records(location):
+    ledger_qs = StockLedgerEntry.objects.filter(location=location)
+    stock_object_ids = set(ledger_qs.exclude(stock_object_id__isnull=True).values_list("stock_object_id", flat=True))
+    ledger_deleted = ledger_qs.count()
+    ledger_qs.delete()
+
+    txn_line_qs = StockTxnLine.objects.filter(from_location=location) | StockTxnLine.objects.filter(to_location=location)
+    txn_line_qs = txn_line_qs.distinct()
+    stock_object_ids.update(txn_line_qs.exclude(stock_object_id__isnull=True).values_list("stock_object_id", flat=True))
+    txn_ids = list(txn_line_qs.values_list("txn_id", flat=True).distinct())
+    txn_line_deleted = txn_line_qs.count()
+    txn_line_qs.delete()
+
+    orphan_txn_qs = StockTxn.objects.filter(id__in=txn_ids).annotate(line_count=Count("lines")).filter(line_count=0)
+    orphan_txn_deleted = orphan_txn_qs.count()
+    orphan_txn_qs.delete()
+
+    removable_stock_objects = StockObject.objects.filter(id__in=stock_object_ids)
+    removable_stock_objects = removable_stock_objects.exclude(stockledgerentry__isnull=False).exclude(stocktxnline__isnull=False).distinct()
+    stock_object_deleted = removable_stock_objects.count()
+    removable_stock_objects.delete()
+
+    location.delete()
+
+    return {
+        "ledger_deleted": ledger_deleted,
+        "txn_line_deleted": txn_line_deleted,
+        "orphan_txn_deleted": orphan_txn_deleted,
+        "stock_object_deleted": stock_object_deleted,
     }
 
 
@@ -348,6 +380,36 @@ def permanent_delete_location(request, location_id: int):
         )
     else:
         messages.success(request, "Reserved store location permanently deleted.")
+    return redirect("ledger:create_location")
+
+
+@login_required
+def purge_reserved_location_data(request, location_id: int):
+    if request.method != "POST":
+        return redirect("ledger:create_location")
+    if not _can_admin_inventory(request.user):
+        messages.error(request, "Only Admin can purge dummy reserved store data.")
+        return redirect("ledger:create_location")
+
+    location = get_object_or_404(StockLocation, pk=location_id, location_type="STORE", is_active=False)
+    delete_status = _store_delete_status(location)
+    if delete_status["can_delete"]:
+        messages.info(request, "This reserved store is already safe to delete directly. Use permanent delete.")
+        return redirect("ledger:create_location")
+
+    with transaction.atomic():
+        deleted = _purge_reserved_store_records(location)
+
+    messages.success(
+        request,
+        (
+            "Dummy reserved store data purged successfully. "
+            f"Ledger rows deleted: {deleted['ledger_deleted']}, "
+            f"transaction lines deleted: {deleted['txn_line_deleted']}, "
+            f"empty transactions deleted: {deleted['orphan_txn_deleted']}, "
+            f"stock objects deleted: {deleted['stock_object_deleted']}."
+        ),
+    )
     return redirect("ledger:create_location")
 
 

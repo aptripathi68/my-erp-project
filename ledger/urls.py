@@ -9,6 +9,7 @@ urlpatterns = [
     path("locations/<int:location_id>/edit/", views.edit_location, name="edit_location"),
     path("locations/<int:location_id>/delete/", views.delete_location, name="delete_location"),
     path("locations/<int:location_id>/permanent-delete/", views.permanent_delete_location, name="permanent_delete_location"),
+    path("locations/<int:location_id>/purge-dummy-data/", views.purge_reserved_location_data, name="purge_reserved_location_data"),
     path("locations/<int:location_id>/transfer-records/", views.transfer_store_records, name="transfer_store_records"),
     path("inventory/inward/create/", views.create_inventory_inward, name="create_inventory_inward"),
     path("temporary-issues/create/", views.create_temporary_issue, name="create_temporary_issue"),

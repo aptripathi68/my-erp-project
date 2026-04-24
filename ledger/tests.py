@@ -329,3 +329,52 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(StockLedgerEntry.objects.filter(location=reserved_store).exists())
         self.assertTrue(StockLedgerEntry.objects.filter(location=target_store).exists())
+
+    def test_admin_can_purge_dummy_reserved_store_data(self):
+        admin_user = User.objects.create_user(
+            username="admin3",
+            password="testpass123",
+            role="Admin",
+            is_staff=True,
+        )
+        reserved_store = StockLocation.objects.create(name="Dummy Store", location_type="STORE", is_active=False)
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("10.000"),
+            qr_code="5555666677778888",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        line = txn.lines.create(
+            item=self.item,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("10.000"),
+            to_location=reserved_store,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=reserved_store,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("10.000"),
+        )
+
+        self.client.login(username="admin3", password="testpass123")
+        response = self.client.post(
+            reverse("ledger:purge_reserved_location_data", args=[reserved_store.id]),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(StockLocation.objects.filter(id=reserved_store.id).exists())
+        self.assertFalse(StockLedgerEntry.objects.filter(location_id=reserved_store.id).exists())
+        self.assertFalse(StockTxn.objects.filter(id=txn.id).exists())
+        self.assertFalse(StockObject.objects.filter(id=stock_object.id).exists())

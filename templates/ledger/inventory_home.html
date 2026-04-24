@@ -167,12 +167,18 @@
                             <button class="btn btn-primary" type="submit" style="background:#b42318;">Permanent Delete</button>
                         </form>
                         {% elif can_admin_inventory %}
-                        <form method="post" action="{% url 'ledger:transfer_store_records' row.location.id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0;">
-                            {% csrf_token %}
-                            {{ row.transfer_form.target_location }}
-                            <button class="btn btn-secondary" type="submit">Transfer Records</button>
-                        </form>
-                        <div class="small" style="margin-top:6px;">Move linked records to the correct active store, then permanent delete will become available.</div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <form method="post" action="{% url 'ledger:transfer_store_records' row.location.id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0;">
+                                {% csrf_token %}
+                                {{ row.transfer_form.target_location }}
+                                <button class="btn btn-secondary" type="submit">Transfer Records</button>
+                            </form>
+                            <form method="post" action="{% url 'ledger:purge_reserved_location_data' row.location.id %}" onsubmit="return confirm('Purge all dummy stock history linked with this reserved store and permanently delete it? This cannot be undone. Use only for dummy/test data.');" style="margin:0;">
+                                {% csrf_token %}
+                                <button class="btn btn-primary" type="submit" style="background:#b42318;">Purge Dummy Data</button>
+                            </form>
+                        </div>
+                        <div class="small" style="margin-top:6px;">Use Transfer Records if the stock data is real but the store name was wrong. Use Purge Dummy Data only when the linked stock history is dummy/test data and must be erased completely.</div>
                         {% else %}
                         Admin Only
                         {% endif %}
