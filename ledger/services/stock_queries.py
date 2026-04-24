@@ -161,6 +161,64 @@ def stock_by_store_item(location_id=None):
     return out
 
 
+def editable_store_stock_objects(location_id=None):
+    """
+    Current positive stock objects available in active stores.
+    Used for editing non-stock operational fields like rack/shelf/bin/remarks.
+    """
+    qs = _base_qs().filter(
+        location__location_type="STORE",
+        location__is_active=True,
+        stock_object_id__isnull=False,
+    )
+    if location_id:
+        qs = qs.filter(location_id=location_id)
+
+    rows = (
+        qs.values(
+            "stock_object_id",
+            "stock_object__qr_code",
+            "stock_object__object_type",
+            "stock_object__rack_number",
+            "stock_object__shelf_number",
+            "stock_object__bin_number",
+            "stock_object__remarks",
+            "location_id",
+            "location__name",
+            "item__item_description",
+        )
+        .annotate(
+            qty_sum=Coalesce(Sum("qty"), DEC0),
+            weight_sum=Coalesce(Sum("weight"), DEC0),
+        )
+        .order_by("location__name", "item__item_description", "stock_object__qr_code", "stock_object_id")
+    )
+
+    out = []
+    for r in rows:
+        qty_sum = r["qty_sum"] or Decimal("0")
+        weight_sum = r["weight_sum"] or Decimal("0")
+        if qty_sum <= 0 and weight_sum <= 0:
+            continue
+        out.append(
+            {
+                "stock_object_id": r["stock_object_id"],
+                "qr_code": r["stock_object__qr_code"] or "-",
+                "object_type": r["stock_object__object_type"] or "-",
+                "rack_number": r["stock_object__rack_number"] or "-",
+                "shelf_number": r["stock_object__shelf_number"] or "-",
+                "bin_number": r["stock_object__bin_number"] or "-",
+                "remarks": r["stock_object__remarks"] or "-",
+                "location_id": r["location_id"],
+                "location_name": r["location__name"],
+                "item_description": r["item__item_description"],
+                "qty": str(qty_sum),
+                "weight": str(weight_sum),
+            }
+        )
+    return out
+
+
 def stock_by_mark(mark_no, location_id=None):
     """
     Stock for FINISHED_MARK by mark_no (optionally location)

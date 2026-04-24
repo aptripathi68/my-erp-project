@@ -307,6 +307,51 @@
     </details>
 
     <details class="section-toggle">
+        <summary><span class="section-toggle-button">Edit Stored Item Details</span></summary>
+        <div class="card section-toggle-content">
+            <p class="muted" style="margin-top:0;">Use this only to correct non-stock fields of currently available stored items, such as rack number, shelf number, bin number, and remarks. Quantity and weight are not changed here.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Store</th>
+                        <th>QR Code</th>
+                        <th>Item Description</th>
+                        <th>Object Type</th>
+                        <th>Rack No</th>
+                        <th>Shelf No</th>
+                        <th>Bin No</th>
+                        <th>Weight (Kgs)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in editable_store_item_rows %}
+                    <tr>
+                        <td>{{ row.location_name }}</td>
+                        <td>{{ row.qr_code }}</td>
+                        <td>{{ row.item_description }}</td>
+                        <td>{{ row.object_type }}</td>
+                        <td>{{ row.rack_number }}</td>
+                        <td>{{ row.shelf_number }}</td>
+                        <td>{{ row.bin_number }}</td>
+                        <td>{{ row.weight }}</td>
+                        <td>
+                            {% if can_manage_inventory %}
+                            <a class="btn btn-secondary" href="{% url 'ledger:edit_stock_object_details' row.stock_object_id %}">Edit</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9">No editable stored items are currently available in active stores.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details class="section-toggle">
         <summary><span class="section-toggle-button">Stock at Process / Movement Points</span></summary>
         <div class="card section-toggle-content">
             <p class="muted">This table is only for operational visibility. It is separate from store master management. Truck details will be handled later in dispatch records, not as store locations.</p>

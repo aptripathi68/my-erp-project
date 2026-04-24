@@ -15,10 +15,22 @@ import openpyxl
 
 from masters.models import Item
 
-from .forms import InventoryInwardForm, StockLocationForm, TemporaryIssueForm, TemporaryReturnForm, TransferStoreRecordsForm
+from .forms import (
+    InventoryInwardForm,
+    StockLocationForm,
+    StockObjectDetailEditForm,
+    TemporaryIssueForm,
+    TemporaryReturnForm,
+    TransferStoreRecordsForm,
+)
 from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn, StockTxnLine
 from .services.stock_engine import post_stock_txn
-from .services.stock_queries import stock_by_item, stock_by_location, stock_by_store_item
+from .services.stock_queries import (
+    editable_store_stock_objects,
+    stock_by_item,
+    stock_by_location,
+    stock_by_store_item,
+)
 from .storage import build_inventory_photo_object_key, upload_inventory_photo
 
 
@@ -201,6 +213,7 @@ def _inventory_context(request):
         "stock_by_location": stock_by_location_rows,
         "store_stock_rows": store_stock_rows,
         "store_item_rows": stock_by_store_item(location_id=selected_store.id if selected_store else None),
+        "editable_store_item_rows": editable_store_stock_objects(location_id=selected_store.id if selected_store else None),
         "selected_store": selected_store,
         "process_stock_rows": process_stock_rows,
         "temporary_issue_rows": issue_rows,
@@ -307,12 +320,79 @@ def _render_store_form(request, *, form, page_title="Store Creation", editing_lo
     return render(request, "ledger/store_location_form.html", context)
 
 
+def _render_stock_object_edit_form(request, *, form, stock_object, current_store_name):
+    context = _inventory_context(request)
+    context.update(
+        {
+            "page_title": "Edit Stored Item Details",
+            "page_intro": (
+                f"Update only rack, shelf, bin, and remarks for the current stored item. "
+                f"Quantity and weight history remain unchanged. Current store: {current_store_name}."
+            ),
+            "form": form,
+            "submit_label": "Update Stored Item Details",
+            "post_url": "ledger:edit_stock_object_details",
+            "post_kwargs": {"stock_object_id": stock_object.id},
+            "back_url": "ledger:inventory_dashboard",
+            "stock_object": stock_object,
+            "current_store_name": current_store_name,
+        }
+    )
+    return render(request, "ledger/store_item_edit.html", context)
+
+
 @login_required
 def inventory_dashboard(request):
     if not _has_inventory_access(request.user):
         messages.error(request, "You do not have permission to access inventory management.")
         return redirect("dashboard_home")
     return render(request, "ledger/inventory_home.html", _inventory_context(request))
+
+
+@login_required
+def edit_stock_object_details(request, stock_object_id: int):
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can edit stored item details.")
+        return redirect("ledger:inventory_dashboard")
+
+    stock_object = get_object_or_404(StockObject, pk=stock_object_id)
+    balance_row = (
+        StockLedgerEntry.objects.filter(
+            stock_object=stock_object,
+            location__location_type="STORE",
+            location__is_active=True,
+        )
+        .values("location_id", "location__name")
+        .annotate(qty=Sum("qty"), weight=Sum("weight"))
+        .order_by("location__name")
+        .first()
+    )
+    if not balance_row or ((balance_row["qty"] or Decimal("0")) <= 0 and (balance_row["weight"] or Decimal("0")) <= 0):
+        messages.error(request, "This stored item is not currently available in an active store for editing.")
+        return redirect("ledger:inventory_dashboard")
+
+    current_store_name = balance_row["location__name"]
+    if request.method == "GET":
+        form = StockObjectDetailEditForm(instance=stock_object)
+        return _render_stock_object_edit_form(
+            request,
+            form=form,
+            stock_object=stock_object,
+            current_store_name=current_store_name,
+        )
+
+    form = StockObjectDetailEditForm(request.POST, instance=stock_object)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Stored item details updated.")
+        return redirect("ledger:inventory_dashboard")
+
+    return _render_stock_object_edit_form(
+        request,
+        form=form,
+        stock_object=stock_object,
+        current_store_name=current_store_name,
+    )
 
 
 @login_required

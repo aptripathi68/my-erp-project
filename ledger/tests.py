@@ -298,6 +298,51 @@ class InventoryManagementTests(TestCase):
         self.assertIn("B-03", flat)
         self.assertIn(self.item.item_description, flat)
 
+    def test_store_user_can_edit_stored_item_non_stock_fields(self):
+        stock_object = StockObject.objects.create(
+            object_type="RAW",
+            source_type="OPENING",
+            item=self.item,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+            qr_code="4444333322221111",
+            rack_number="OLD-RACK",
+            shelf_number="OLD-SHELF",
+            bin_number="OLD-BIN",
+            remarks="Old remarks",
+        )
+        txn = StockTxn.objects.create(
+            txn_type="OPENING_RAW",
+            entry_source_type="OPENING",
+            created_by=self.user,
+            posted=True,
+        )
+        StockLedgerEntry.objects.create(
+            txn=txn,
+            item=self.item,
+            location=self.store,
+            stock_object=stock_object,
+            qty=Decimal("1.000"),
+            weight=Decimal("15.000"),
+        )
+
+        response = self.client.post(
+            reverse("ledger:edit_stock_object_details", args=[stock_object.id]),
+            {
+                "rack_number": "NEW-RACK",
+                "shelf_number": "NEW-SHELF",
+                "bin_number": "NEW-BIN",
+                "remarks": "Corrected position",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        stock_object.refresh_from_db()
+        self.assertEqual(stock_object.rack_number, "NEW-RACK")
+        self.assertEqual(stock_object.shelf_number, "NEW-SHELF")
+        self.assertEqual(stock_object.bin_number, "NEW-BIN")
+        self.assertEqual(stock_object.remarks, "Corrected position")
+
     def test_admin_can_transfer_reserved_store_records_to_active_store(self):
         admin_user = User.objects.create_user(
             username="admin2",

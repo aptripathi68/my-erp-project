@@ -42,6 +42,26 @@ class TransferStoreRecordsForm(forms.Form):
     )
 
 
+class StockObjectDetailEditForm(forms.ModelForm):
+    class Meta:
+        model = StockObject
+        fields = [
+            "rack_number",
+            "shelf_number",
+            "bin_number",
+            "remarks",
+        ]
+        labels = {
+            "rack_number": "Rack Number",
+            "shelf_number": "Shelf Number",
+            "bin_number": "Bin Number",
+            "remarks": "Remarks",
+        }
+        widgets = {
+            "remarks": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
 class InventoryInwardForm(forms.Form):
     STOCK_FOR_CHOICES = [
         ("PROJECT", "Item entry against project"),
