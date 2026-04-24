@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -18,6 +19,7 @@ from openpyxl.utils import get_column_letter
 from drawings.models import Drawing
 from estimation.models import EstimateProject
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
+from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
 from .services.bom_importer import (
     build_header_signature,
     validate_and_extract_workbook,
@@ -37,6 +39,14 @@ MAPPING_FIELDS = (
     "width",
     "unit_wt",
 )
+
+
+def _has_planning_access(user):
+    return user.is_authenticated and (
+        user.is_superuser
+        or user.is_staff
+        or user.role in {"Admin", "Planning", "Management", "Store", "Procurement"}
+    )
 
 
 def _session_safe_errors(errors):
@@ -156,6 +166,64 @@ def _persist_sheet_mappings(headers_info, sheet_mappings, user):
             obj.mapping = mapping
             obj.updated_by = user
             obj.save(update_fields=["mapping", "updated_by", "updated_at"])
+
+
+@login_required
+def planning_dashboard(request):
+    if not _has_planning_access(request.user):
+        messages.error(request, "You do not have permission to access planning and material evaluation.")
+        return redirect("dashboard_home")
+
+    return render(
+        request,
+        "procurement/planning_dashboard.html",
+        {
+            "summaries": bom_planning_summary(),
+        },
+    )
+
+
+@login_required
+def planning_bom_detail(request, bom_id: int):
+    if not _has_planning_access(request.user):
+        messages.error(request, "You do not have permission to access planning and material evaluation.")
+        return redirect("dashboard_home")
+
+    bom = get_object_or_404(BOMHeader, pk=bom_id)
+    evaluation = bom_material_evaluation(bom)
+    jobs = (
+        bom.marks.prefetch_related("fabrication_jobs")
+        .order_by("sheet_name", "erc_mark")
+    )
+    return render(
+        request,
+        "procurement/planning_bom_detail.html",
+        {
+            "bom": bom,
+            "evaluation": evaluation,
+            "marks": jobs,
+        },
+    )
+
+
+@login_required
+def generate_bom_int_erc(request, bom_id: int):
+    if request.method != "POST":
+        return redirect("procurement:planning_bom_detail", bom_id=bom_id)
+    if not _has_planning_access(request.user):
+        messages.error(request, "You do not have permission to generate INT-ERC units.")
+        return redirect("dashboard_home")
+
+    bom = get_object_or_404(BOMHeader, pk=bom_id)
+    result = generate_int_erc_jobs(bom)
+    messages.success(
+        request,
+        (
+            "INT-ERC generation completed. "
+            f"New units: {result['created_jobs']}, component rows: {result['created_components']}."
+        ),
+    )
+    return redirect("procurement:planning_bom_detail", bom_id=bom.id)
 
 
 @staff_member_required

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning & Material Evaluation</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;color:#1f2a34;margin:20px;}
+        .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
+        .btn{display:inline-block;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:700;border:1px solid #cfd8df;background:#fff;color:#1f2a34;}
+        .btn-primary{background:#2d686f;color:#fff;border-color:#2d686f;}
+        .muted{color:#5f6f7d;}
+        .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;}
+        .ok{background:#e8f6ee;color:#17633a;}
+        .warn{background:#fff3d6;color:#805400;}
+        table{width:100%;border-collapse:collapse;background:#fff;}
+        th,td{border:1px solid #e2e8ee;padding:10px;text-align:left;vertical-align:top;}
+        th{background:#eef4f7;}
+        @media (max-width:768px){body{margin:12px;} th,td{font-size:14px;padding:8px;}}
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1 style="margin:0 0 6px;">Planning & Material Evaluation</h1>
+            <p class="muted" style="margin:0;">Generate INT-ERC units and check BOM material coverage against current store stock.</p>
+        </div>
+        <a class="btn" href="{% url 'dashboard_home' %}">Dashboard</a>
+    </div>
+
+    {% if messages %}
+    <div class="card">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>BOM / WO</th>
+                    <th>Project</th>
+                    <th>Marks</th>
+                    <th>INT-ERC Units</th>
+                    <th>Material Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summaries %}
+                <tr>
+                    <td>{{ row.bom.bom_name }}</td>
+                    <td>{{ row.bom.project_name|default:"-" }}</td>
+                    <td>{{ row.mark_count }}</td>
+                    <td>{{ row.job_count }} / {{ row.expected_jobs }}</td>
+                    <td>
+                        {% if row.fully_covered %}
+                        <span class="badge ok">Covered</span>
+                        {% else %}
+                        <span class="badge warn">{{ row.shortage_items }} shortage item(s)</span>
+                        {% endif %}
+                    </td>
+                    <td><a class="btn btn-primary" href="{% url 'procurement:planning_bom_detail' row.bom.id %}">Open Planning</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6">No BOM records are available yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ bom.bom_name }} Planning</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;color:#1f2a34;margin:20px;}
+        .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+        .stat{background:#f4f8fb;border:1px solid #dfe8ee;border-radius:8px;padding:12px;}
+        .stat .label{font-size:12px;color:#5f6f7d;margin-bottom:6px;}
+        .stat .value{font-size:22px;font-weight:700;color:#2d686f;}
+        .btn{display:inline-block;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:700;border:1px solid #cfd8df;background:#fff;color:#1f2a34;cursor:pointer;}
+        .btn-primary{background:#2d686f;color:#fff;border-color:#2d686f;}
+        .muted{color:#5f6f7d;}
+        .ok{color:#17633a;font-weight:700;}
+        .warn{color:#9a5b00;font-weight:700;}
+        table{width:100%;border-collapse:collapse;background:#fff;}
+        th,td{border:1px solid #e2e8ee;padding:9px 10px;text-align:left;vertical-align:top;}
+        th{background:#eef4f7;}
+        @media (max-width:768px){body{margin:12px;} th,td{font-size:14px;padding:8px;}}
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1 style="margin:0 0 6px;">{{ bom.bom_name }}</h1>
+            <p class="muted" style="margin:0;">{{ bom.project_name|default:"Project name not entered" }}</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a class="btn" href="{% url 'procurement:planning_dashboard' %}">Back</a>
+            <form method="post" action="{% url 'procurement:generate_bom_int_erc' bom.id %}" style="margin:0;">
+                {% csrf_token %}
+                <button class="btn btn-primary" type="submit">Generate INT-ERC Units</button>
+            </form>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="card">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="grid">
+        <div class="stat"><div class="label">Required Items</div><div class="value">{{ evaluation.total_items }}</div></div>
+        <div class="stat"><div class="label">Covered Items</div><div class="value">{{ evaluation.covered_items }}</div></div>
+        <div class="stat"><div class="label">Shortage Items</div><div class="value">{{ evaluation.shortage_items }}</div></div>
+        <div class="stat"><div class="label">Required Weight (Kgs)</div><div class="value">{{ evaluation.total_required_weight }}</div></div>
+        <div class="stat"><div class="label">Shortage Weight (Kgs)</div><div class="value">{{ evaluation.total_shortage_weight }}</div></div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">Material Evaluation</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Item Description</th>
+                    <th>Required Qty</th>
+                    <th>Available Qty</th>
+                    <th>Shortage Qty</th>
+                    <th>Required Weight</th>
+                    <th>Available Weight</th>
+                    <th>Shortage Weight</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in evaluation.rows %}
+                <tr>
+                    <td>{{ row.item_description }}</td>
+                    <td>{{ row.required_qty }}</td>
+                    <td>{{ row.available_qty }}</td>
+                    <td>{{ row.shortage_qty }}</td>
+                    <td>{{ row.required_weight }}</td>
+                    <td>{{ row.available_weight }}</td>
+                    <td>{{ row.shortage_weight }}</td>
+                    <td>{% if row.covered %}<span class="ok">Covered</span>{% else %}<span class="warn">Shortage</span>{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8">No item-mapped BOM components are available for evaluation.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">INT-ERC Summary</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ERC Mark</th>
+                    <th>ERC Qty</th>
+                    <th>Generated INT-ERC Units</th>
+                    <th>Drawing No</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mark in marks %}
+                <tr>
+                    <td>{{ mark.erc_mark }}</td>
+                    <td>{{ mark.erc_quantity }}</td>
+                    <td>{{ mark.fabrication_jobs.count }}</td>
+                    <td>{{ mark.drawing_no|default:"-" }}</td>
+                    <td>{{ mark.get_production_status_display }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No marks imported in this BOM.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
