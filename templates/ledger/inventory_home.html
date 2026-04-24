@@ -55,29 +55,6 @@
     </div>
     {% endif %}
 
-    <div class="stat-grid">
-        <div class="stat">
-            <div class="label">Store Locations</div>
-            <div class="value">{{ store_location_count }}</div>
-        </div>
-        <div class="stat">
-            <div class="label">Reserved Stores</div>
-            <div class="value">{{ inactive_store_location_count }}</div>
-        </div>
-        <div class="stat">
-            <div class="label">Item Stock Buckets</div>
-            <div class="value">{{ stock_by_item|length }}</div>
-        </div>
-        <div class="stat">
-            <div class="label">Store Stock Buckets</div>
-            <div class="value">{{ store_stock_rows|length }}</div>
-        </div>
-        <div class="stat">
-            <div class="label">Pending Temporary Issues</div>
-            <div class="value">{{ pending_issue_count }}</div>
-        </div>
-    </div>
-
     <div class="grid">
         <div class="card">
             <h2 style="margin-top:0;">1. Store Creation</h2>
