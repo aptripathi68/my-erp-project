@@ -65,7 +65,7 @@ class StockObjectDetailEditForm(forms.ModelForm):
 class StockObjectCorrectionForm(forms.Form):
     corrected_qr_code = forms.CharField(
         required=False,
-        max_length=16,
+        max_length=50,
         label="Corrected QR Code",
         widget=forms.TextInput(
             attrs={
@@ -100,8 +100,8 @@ class StockObjectCorrectionForm(forms.Form):
         qr_code = (self.cleaned_data.get("corrected_qr_code") or "").strip()
         if not qr_code:
             return qr_code
-        if (not qr_code.isdigit()) or len(qr_code) != 16:
-            raise ValidationError("QR code must be exactly 16 digits.")
+        if not qr_code.isdigit():
+            raise ValidationError("QR code must contain digits only.")
         qs = StockObject.objects.filter(qr_code=qr_code)
         if self.stock_object:
             qs = qs.exclude(pk=self.stock_object.pk)
@@ -167,7 +167,7 @@ class InventoryInwardForm(forms.Form):
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(
         required=False,
-        max_length=16,
+        max_length=50,
         label="QR Code",
         widget=forms.TextInput(
             attrs={
@@ -215,8 +215,8 @@ class InventoryInwardForm(forms.Form):
                 self.add_error("item", "Selected item does not belong to the selected Grade.")
         if not qr_code:
             self.add_error("qr_code", "QR code scanning is compulsory for every store inward entry.")
-        elif (not qr_code.isdigit()) or len(qr_code) != 16:
-            self.add_error("qr_code", "QR code must be exactly 16 digits.")
+        elif not qr_code.isdigit():
+            self.add_error("qr_code", "QR code must contain digits only.")
         elif StockObject.objects.filter(qr_code=qr_code).exists():
             self.add_error("qr_code", "This QR code already exists.")
         if stock_for == "PROJECT" and not project_reference:
@@ -237,7 +237,7 @@ class TemporaryIssueForm(forms.Form):
     )
     qr_code = forms.CharField(
         required=False,
-        max_length=16,
+        max_length=50,
         label="QR Code",
         widget=forms.TextInput(
             attrs={
@@ -261,8 +261,8 @@ class TemporaryIssueForm(forms.Form):
         if not qr_code:
             self.add_error("qr_code", "QR code scanning is compulsory before item exit from store.")
             return cleaned
-        if (not qr_code.isdigit()) or len(qr_code) != 16:
-            self.add_error("qr_code", "QR code must be exactly 16 digits.")
+        if not qr_code.isdigit():
+            self.add_error("qr_code", "QR code must contain digits only.")
             return cleaned
         try:
             stock_object = StockObject.objects.get(qr_code=qr_code)
@@ -304,7 +304,7 @@ class TemporaryReturnForm(forms.Form):
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     qr_code = forms.CharField(
         required=False,
-        max_length=16,
+        max_length=50,
         label="QR Code",
         widget=forms.TextInput(
             attrs={
@@ -358,8 +358,8 @@ class TemporaryReturnForm(forms.Form):
         if return_type == "OFFCUT":
             if not qr_code:
                 self.add_error("qr_code", "QR code is compulsory for returned off-cuts.")
-            elif (not qr_code.isdigit()) or len(qr_code) != 16:
-                self.add_error("qr_code", "QR code must be exactly 16 digits.")
+            elif not qr_code.isdigit():
+                self.add_error("qr_code", "QR code must contain digits only.")
             elif StockObject.objects.filter(qr_code=qr_code).exists():
                 self.add_error("qr_code", "This QR code already exists.")
 

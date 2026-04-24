@@ -56,16 +56,16 @@ class StockObject(models.Model):
     qty = models.DecimalField(max_digits=12, decimal_places=3)
     weight = models.DecimalField(max_digits=12, decimal_places=3)
 
-    # STRICT 16 digit QR
+    # Pre-printed QR codes can vary in length across suppliers; keep only digit validation.
     qr_code = models.CharField(
-        max_length=16,
+        max_length=50,
         unique=True,
         null=True,
         blank=True,
         validators=[
             RegexValidator(
-                regex=r'^\d{16}$',
-                message="QR code must be exactly 16 digits."
+                regex=r'^\d+$',
+                message="QR code must contain digits only."
             )
         ]
     )

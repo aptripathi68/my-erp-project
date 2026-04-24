@@ -1042,8 +1042,8 @@ def api_offcut_capture(request):
 
         if not qr_code:
             return JsonResponse({"error": "QR code required"}, status=400)
-        if not qr_code.isdigit() or len(qr_code) != 16:
-            return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
+        if not qr_code.isdigit():
+            return JsonResponse({"error": "QR must contain digits only"}, status=400)
         if StockObject.objects.filter(qr_code=qr_code).exists():
             return JsonResponse({"error": "QR already exists"}, status=400)
 
@@ -1084,8 +1084,8 @@ def api_offcut_capture(request):
 def api_offcut_detail(request, qr_code):
     if request.method != "GET":
         return JsonResponse({"error": "GET required"}, status=405)
-    if (not qr_code.isdigit()) or len(qr_code) != 16:
-        return JsonResponse({"error": "QR must be exactly 16 digits"}, status=400)
+    if not qr_code.isdigit():
+        return JsonResponse({"error": "QR must contain digits only"}, status=400)
 
     obj = get_object_or_404(StockObject, object_type="OFFCUT", qr_code=qr_code)
     last = (

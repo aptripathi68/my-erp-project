@@ -76,6 +76,30 @@ class InventoryManagementTests(TestCase):
         self.assertEqual(ledger_row.location, self.store)
         self.assertEqual(ledger_row.weight, Decimal("125.500"))
 
+    def test_inward_accepts_non_16_digit_numeric_qr(self):
+        response = self.client.post(
+            reverse("ledger:create_inventory_inward"),
+            {
+                "entry_type": "OPENING",
+                "stock_for": "PROJECT",
+                "object_type": "RAW",
+                "group2": self.group2.id,
+                "section_name": self.item.section_name,
+                "grade_selector": self.grade.id,
+                "item": self.item.id,
+                "location": self.store.id,
+                "project_reference": "PRJ-OPEN-11",
+                "project_name": "Opening Capture",
+                "qty": "1.000",
+                "weight": "25.000",
+                "qr_code": "12345678901",
+                "remarks": "11 digit QR accepted",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(StockObject.objects.filter(qr_code="12345678901").exists())
+
     def test_every_inward_entry_requires_qr(self):
         response = self.client.post(
             reverse("ledger:create_inventory_inward"),
