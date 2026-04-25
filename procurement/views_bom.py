@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 from drawings.models import Drawing
 from estimation.models import EstimateProject
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
+from .services.backbone import duplicate_work_order_exists, normalize_wo_number, sync_bom_to_backbone
 from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
 from .services.bom_importer import (
     build_header_signature,
@@ -249,6 +250,24 @@ def bom_upload(request):
         delivery_date = (request.POST.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else "")).strip()
         order_rate = (request.POST.get("order_rate") or "").strip()
         order_value = (request.POST.get("order_value") or "").strip()
+        wo_number = normalize_wo_number(bom_name)
+
+        if not wo_number:
+            context["error"] = "WO Number is required."
+            return render(request, "procurement/bom_upload.html", context)
+
+        if duplicate_work_order_exists(wo_number):
+            context["error"] = "This WO already exists."
+            context["bom_name"] = bom_name
+            context["project_name"] = project_name
+            context["client_name"] = client_name
+            context["purchase_order_no"] = purchase_order_no
+            context["purchase_order_date"] = purchase_order_date
+            context["delivery_date"] = delivery_date
+            context["order_rate"] = order_rate
+            context["order_value"] = order_value
+            context["estimate_project"] = estimate_project
+            return render(request, "procurement/bom_upload.html", context)
 
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
             for chunk in f.chunks():
@@ -357,6 +376,14 @@ def bom_upload(request):
         context["mapping_step"] = True
 
         if request.POST.get("action") == "import" and result["ok"]:
+            wo_number = normalize_wo_number(bom_name)
+            if not wo_number:
+                context["error"] = "WO Number is required."
+                return render(request, "procurement/bom_upload.html", context)
+            if duplicate_work_order_exists(wo_number):
+                context["error"] = "This WO already exists."
+                return render(request, "procurement/bom_upload.html", context)
+
             purchase_order_date = None
             if purchase_order_date_raw:
                 try:
@@ -445,8 +472,10 @@ def bom_upload(request):
                     )
 
                 BOMComponent.objects.bulk_create(comps, batch_size=2000)
+                backbone_result = sync_bom_to_backbone(header, created_by=request.user)
 
             context["imported_bom_id"] = header.id
+            context["backbone_result"] = backbone_result
 
         return render(request, "procurement/bom_upload.html", context)
 

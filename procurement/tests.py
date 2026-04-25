@@ -6,7 +6,17 @@ from django.urls import reverse
 
 from ledger.models import StockLedgerEntry, StockLocation, StockObject, StockTxn
 from masters.models import Grade, Group2, Item
-from procurement.models import BOMComponent, BOMHeader, BOMMark, FabricationJob
+from procurement.models import (
+    BOMComponent,
+    BOMHeader,
+    BOMMark,
+    ERC,
+    FabricationJob,
+    INTERCUnit,
+    RequirementLine,
+    WorkOrder,
+)
+from procurement.services.backbone import duplicate_work_order_exists, sync_bom_to_backbone
 from procurement.services.planning import bom_material_evaluation, generate_int_erc_jobs
 
 
@@ -95,3 +105,22 @@ class PlanningMaterialEvaluationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Planning &amp; Material Evaluation")
         self.assertContains(response, "WO-001")
+
+    def test_sync_bom_to_backbone_creates_work_order_erc_units_and_requirements(self):
+        result = sync_bom_to_backbone(self.bom, created_by=self.user)
+        self.bom.refresh_from_db()
+        self.mark.refresh_from_db()
+
+        self.assertTrue(self.bom.work_order_id)
+        self.assertEqual(WorkOrder.objects.filter(wo_number="WO-001").count(), 1)
+        self.assertEqual(ERC.objects.filter(work_order=self.bom.work_order).count(), 1)
+        self.assertEqual(INTERCUnit.objects.filter(work_order=self.bom.work_order).count(), 2)
+        self.assertEqual(RequirementLine.objects.filter(work_order=self.bom.work_order).count(), 2)
+        self.assertTrue(FabricationJob.objects.filter(int_erc_unit__isnull=False).exists())
+        self.assertEqual(result["created_units"], 2)
+
+    def test_duplicate_work_order_exists_after_backbone_sync(self):
+        self.assertTrue(duplicate_work_order_exists("WO-001"))
+        self.assertFalse(duplicate_work_order_exists("WO-NEW"))
+        sync_bom_to_backbone(self.bom, created_by=self.user)
+        self.assertTrue(duplicate_work_order_exists("wo-001"))

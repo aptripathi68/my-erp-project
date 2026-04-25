@@ -120,12 +120,63 @@ class GRNItem(models.Model):
 # BOM STRUCTURE
 # ============================================
 
+class WorkOrder(models.Model):
+    """Commercial and execution root. One WO per job."""
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        MATERIAL_EVALUATED = "MATERIAL_EVALUATED", "Material Evaluated"
+        RELEASED_TO_PRODUCTION = "RELEASED_TO_PRODUCTION", "Released to Production"
+        CLOSED = "CLOSED", "Closed"
+
+    estimate_project = models.ForeignKey(
+        "estimation.EstimateProject",
+        on_delete=models.SET_NULL,
+        related_name="work_orders",
+        null=True,
+        blank=True,
+    )
+    wo_number = models.CharField(max_length=100, unique=True)
+    project_name = models.CharField(max_length=255, blank=True)
+    client_name = models.CharField(max_length=255, blank=True)
+    purchase_order_no = models.CharField(max_length=100, blank=True)
+    purchase_order_date = models.DateField(null=True, blank=True)
+    delivery_date = models.DateField(null=True, blank=True)
+    order_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    order_value = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=40, choices=Status.choices, default=Status.PLANNED)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_work_orders",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "wo_number"]
+        indexes = [
+            models.Index(fields=["wo_number"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return self.wo_number
+
+
 class BOMHeader(models.Model):
     """Represents one uploaded BOM file"""
 
     estimate_project = models.ForeignKey(
         "estimation.EstimateProject",
         on_delete=models.SET_NULL,
+        related_name="boms",
+        null=True,
+        blank=True,
+    )
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.PROTECT,
         related_name="boms",
         null=True,
         blank=True,
@@ -155,7 +206,45 @@ class BOMHeader(models.Model):
 
     def __str__(self):
         return self.bom_name
-    
+
+
+class ERC(models.Model):
+    """One engineering mark under a Work Order."""
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        MATERIAL_EVALUATED = "MATERIAL_EVALUATED", "Material Evaluated"
+        RELEASED_TO_PRODUCTION = "RELEASED_TO_PRODUCTION", "Released to Production"
+        DISPATCHED = "DISPATCHED", "Dispatched"
+
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="ercs")
+    bom_header = models.ForeignKey(BOMHeader, on_delete=models.CASCADE, related_name="ercs")
+    sheet_name = models.CharField(max_length=200)
+    erc_mark = models.CharField(max_length=100)
+    erc_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    drawing_no = models.CharField(max_length=100, blank=True)
+    drawing = models.ForeignKey(
+        "drawings.Drawing",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ercs",
+    )
+    status = models.CharField(max_length=40, choices=Status.choices, default=Status.PLANNED)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["work_order__wo_number", "sheet_name", "erc_mark"]
+        unique_together = [("work_order", "sheet_name", "erc_mark", "drawing_no")]
+        indexes = [
+            models.Index(fields=["erc_mark"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.work_order.wo_number} - {self.erc_mark}"
+
 
 class BOMMark(models.Model):
     """
@@ -167,6 +256,13 @@ class BOMMark(models.Model):
         BOMHeader,
         on_delete=models.CASCADE,
         related_name="marks",
+    )
+    erc = models.OneToOneField(
+        ERC,
+        on_delete=models.SET_NULL,
+        related_name="bom_mark",
+        null=True,
+        blank=True,
     )
 
     sheet_name = models.CharField(max_length=200)
@@ -229,6 +325,48 @@ class BOMMark(models.Model):
         return self.erc_mark
 
 
+class INTERCUnit(models.Model):
+    """Auto-generated execution unit from ERC quantity."""
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        MATERIAL_EVALUATED = "MATERIAL_EVALUATED", "Material Evaluated"
+        RELEASED_TO_PRODUCTION = "RELEASED_TO_PRODUCTION", "Released to Production"
+        ISSUED = "ISSUED", "Issued"
+        IN_FABRICATION = "IN_FABRICATION", "In Fabrication"
+        FABRICATION_COMPLETE = "FABRICATION_COMPLETE", "Fabrication Complete"
+        OFFERED_TO_QC = "OFFERED_TO_QC", "Offered to QC"
+        QC_ACCEPTED = "QC_ACCEPTED", "QC Accepted"
+        PAINT_QC_ACCEPTED = "PAINT_QC_ACCEPTED", "Paint QC Accepted"
+        READY_FOR_DISPATCH = "READY_FOR_DISPATCH", "Ready for Dispatch"
+        DISPATCHED = "DISPATCHED", "Dispatched"
+
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="int_erc_units")
+    erc = models.ForeignKey(ERC, on_delete=models.CASCADE, related_name="int_units")
+    int_erc_code = models.CharField(max_length=140, unique=True)
+    sequence = models.PositiveIntegerField()
+    dispatch_state = models.CharField(
+        max_length=20,
+        choices=[("NOT_DISPATCHED", "Not Dispatched"), ("DISPATCHED", "Dispatched")],
+        default="NOT_DISPATCHED",
+    )
+    status = models.CharField(max_length=40, choices=Status.choices, default=Status.PLANNED)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["int_erc_code"]
+        unique_together = [("erc", "sequence")]
+        indexes = [
+            models.Index(fields=["int_erc_code"]),
+            models.Index(fields=["dispatch_state"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return self.int_erc_code
+
+
 class BOMComponent(models.Model):
     """
     Child part under one engineering mark.
@@ -288,7 +426,44 @@ class BOMComponent(models.Model):
 
     def __str__(self):
         return f"{self.bom_mark.erc_mark} - {self.part_mark or self.section_name}"
-    
+
+
+class RequirementLine(models.Model):
+    """Material requirement for an INT-ERC unit."""
+
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="requirement_lines")
+    erc = models.ForeignKey(ERC, on_delete=models.CASCADE, related_name="requirement_lines")
+    int_erc_unit = models.ForeignKey(INTERCUnit, on_delete=models.CASCADE, related_name="requirement_lines")
+    bom_component = models.ForeignKey(
+        BOMComponent,
+        on_delete=models.SET_NULL,
+        related_name="requirement_lines",
+        null=True,
+        blank=True,
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="requirement_lines")
+    item_specification = models.CharField(max_length=255)
+    grade_name = models.CharField(max_length=255, blank=True)
+    part_mark = models.CharField(max_length=100, blank=True)
+    required_qty = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    required_weight_kg = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    covered_qty = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    covered_weight_kg = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    is_fully_covered = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["int_erc_unit__int_erc_code", "item_specification", "part_mark"]
+        indexes = [
+            models.Index(fields=["work_order", "item"]),
+            models.Index(fields=["is_fully_covered"]),
+        ]
+
+    def __str__(self):
+        return f"{self.int_erc_unit.int_erc_code} - {self.item_specification}"
+
+
 class FabricationJob(models.Model):
     """
     One generated fabrication job from one engineering mark.
@@ -307,6 +482,13 @@ class FabricationJob(models.Model):
         BOMMark,
         on_delete=models.CASCADE,
         related_name="fabrication_jobs",
+    )
+    int_erc_unit = models.OneToOneField(
+        INTERCUnit,
+        on_delete=models.SET_NULL,
+        related_name="legacy_fabrication_job",
+        null=True,
+        blank=True,
     )
 
     job_mark = models.CharField(max_length=120, unique=True)

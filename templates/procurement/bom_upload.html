@@ -362,6 +362,14 @@
 <div class="card">
     <h3 class="ok">Imported ✅</h3>
     <p><strong>BOM ID:</strong> {{ imported_bom_id }}</p>
+    {% if backbone_result %}
+    <p>
+        <strong>ERP Backbone:</strong>
+        Work Order linked, {{ backbone_result.created_ercs }} ERC record(s),
+        {{ backbone_result.created_units }} INT-ERC unit(s), and
+        {{ backbone_result.created_requirements }} requirement line(s) created.
+    </p>
+    {% endif %}
     <p>
         <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">
             Download Master BOM Excel

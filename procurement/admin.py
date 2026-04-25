@@ -1,6 +1,4 @@
 from django.contrib import admin
-from .models import BOMMark
-
 
 from .models import (
     Site,
@@ -9,6 +7,10 @@ from .models import (
     BOMHeader,
     BOMMark,
     BOMComponent,
+    ERC,
+    INTERCUnit,
+    RequirementLine,
+    WorkOrder,
 )
 
 
@@ -66,6 +68,7 @@ class BOMHeaderAdmin(admin.ModelAdmin):
         "project_name",
         "client_name",
         "purchase_order_no",
+        "work_order",
         "purchase_order_date",
         "uploaded_at",
         "uploaded_by",
@@ -76,6 +79,7 @@ class BOMHeaderAdmin(admin.ModelAdmin):
         "project_name",
         "client_name",
         "purchase_order_no",
+        "work_order__wo_number",
     )
 
     list_filter = (
@@ -85,6 +89,50 @@ class BOMHeaderAdmin(admin.ModelAdmin):
     )
 
     ordering = ("-uploaded_at",)
+
+
+@admin.register(WorkOrder)
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ("wo_number", "project_name", "client_name", "status", "created_at")
+    list_filter = ("status", "client_name")
+    search_fields = ("wo_number", "project_name", "client_name", "purchase_order_no")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(ERC)
+class ERCAdmin(admin.ModelAdmin):
+    list_display = ("erc_mark", "erc_quantity", "work_order", "sheet_name", "drawing_no", "status")
+    list_filter = ("status", "work_order", "sheet_name")
+    search_fields = ("erc_mark", "drawing_no", "work_order__wo_number")
+    list_select_related = ("work_order", "bom_header")
+
+
+@admin.register(INTERCUnit)
+class INTERCUnitAdmin(admin.ModelAdmin):
+    list_display = ("int_erc_code", "work_order", "erc", "sequence", "status", "dispatch_state")
+    list_filter = ("status", "dispatch_state", "work_order")
+    search_fields = ("int_erc_code", "erc__erc_mark", "work_order__wo_number")
+    list_select_related = ("work_order", "erc")
+
+
+@admin.register(RequirementLine)
+class RequirementLineAdmin(admin.ModelAdmin):
+    list_display = (
+        "int_erc_unit",
+        "item_specification",
+        "grade_name",
+        "required_qty",
+        "required_weight_kg",
+        "is_fully_covered",
+    )
+    list_filter = ("is_fully_covered", "work_order")
+    search_fields = (
+        "int_erc_unit__int_erc_code",
+        "item_specification",
+        "grade_name",
+        "work_order__wo_number",
+    )
+    list_select_related = ("work_order", "erc", "int_erc_unit", "item")
 
 
 @admin.register(BOMMark)
