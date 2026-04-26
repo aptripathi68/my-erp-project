@@ -6,6 +6,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.forms import formset_factory
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
@@ -18,6 +19,12 @@ import openpyxl
 from masters.models import Item
 
 from .forms import (
+    BulkInventoryInwardForm,
+    BulkInventoryInwardLineForm,
+    BulkTemporaryIssueForm,
+    BulkTemporaryIssueLineForm,
+    BulkTemporaryReturnForm,
+    BulkTemporaryReturnLineForm,
     InventoryInwardForm,
     StockLocationForm,
     StockObjectCorrectionForm,
@@ -142,6 +149,10 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks=
 
 def _upload_inventory_photo_if_present(form, *, stock_for: str, object_type: str) -> str:
     upload = form.cleaned_data.get("raw_material_photo")
+    return _upload_inventory_photo(upload, stock_for=stock_for, object_type=object_type)
+
+
+def _upload_inventory_photo(upload, *, stock_for: str, object_type: str) -> str:
     if not upload:
         return ""
     object_key = build_inventory_photo_object_key(
@@ -154,6 +165,49 @@ def _upload_inventory_photo_if_present(form, *, stock_for: str, object_type: str
         object_key,
         content_type=getattr(upload, "content_type", "") or "application/octet-stream",
     )
+
+
+def _txn_type_for_inward(entry_type, object_type):
+    txn_type_map = {
+        ("OPENING", "RAW"): "OPENING_RAW",
+        ("OPENING", "OFFCUT"): "OPENING_OFFCUT",
+        ("OPENING", "SCRAP"): "OPENING_SCRAP",
+        ("NEW_PURCHASE", "RAW"): "GRN_RAW",
+        ("NEW_PURCHASE", "OFFCUT"): "IN_OFFCUT",
+        ("NEW_PURCHASE", "SCRAP"): "IN_SCRAP",
+        ("RETURN", "RAW"): "RETURN_FAB",
+        ("RETURN", "OFFCUT"): "IN_OFFCUT",
+        ("RETURN", "SCRAP"): "IN_SCRAP",
+        ("CORRECTION", "RAW"): "STOCK_CORRECTION",
+        ("CORRECTION", "OFFCUT"): "STOCK_CORRECTION",
+        ("CORRECTION", "SCRAP"): "STOCK_CORRECTION",
+    }
+    return txn_type_map[(entry_type, object_type)]
+
+
+def _source_type_for_inward(entry_type):
+    return {
+        "OPENING": "OPENING",
+        "NEW_PURCHASE": "NEW_PURCHASE",
+        "RETURN": "RETURN_FAB",
+        "CORRECTION": "CORRECTION",
+    }[entry_type]
+
+
+def _validate_unique_qr_rows(formset):
+    seen = set()
+    ok = True
+    for form in formset:
+        if not hasattr(form, "cleaned_data") or not form.cleaned_data or form.cleaned_data.get("DELETE"):
+            continue
+        qr_code = (form.cleaned_data.get("qr_code") or "").strip()
+        if not qr_code:
+            continue
+        if qr_code in seen:
+            form.add_error("qr_code", "This QR code is repeated in this bulk sheet.")
+            ok = False
+        seen.add(qr_code)
+    return ok
 
 
 def _inventory_context(request):
@@ -325,6 +379,31 @@ def _render_inventory_form(request, *, page_title, page_intro, form, submit_labe
         }
     )
     return render(request, "ledger/inventory_form.html", context)
+
+
+def _render_bulk_inventory_form(
+    request,
+    *,
+    page_title,
+    page_intro,
+    form,
+    formset,
+    submit_label,
+    post_url,
+):
+    context = _inventory_context(request)
+    context.update(
+        {
+            "page_title": page_title,
+            "page_intro": page_intro,
+            "form": form,
+            "formset": formset,
+            "submit_label": submit_label,
+            "post_url": post_url,
+            "back_url": "ledger:inventory_dashboard",
+        }
+    )
+    return render(request, "ledger/bulk_inventory_form.html", context)
 
 
 def _render_store_form(request, *, form, page_title="Store Creation", editing_location=None):
@@ -792,6 +871,110 @@ def create_inventory_inward(request):
 
 
 @login_required
+def create_bulk_inventory_inward(request):
+    BulkInwardFormSet = formset_factory(BulkInventoryInwardLineForm, extra=50, min_num=1, validate_min=True)
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_bulk_inventory_form(
+            request,
+            page_title="Bulk Item Entry In Store",
+            page_intro="Select Group-2, Section Name, Grade, and Item once. Then scan QR and enter quantity/weight for each physical item.",
+            form=BulkInventoryInwardForm(),
+            formset=BulkInwardFormSet(),
+            submit_label="Record Bulk Item Entry",
+            post_url="ledger:create_bulk_inventory_inward",
+        )
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can record bulk inward inventory.")
+        return redirect("ledger:inventory_dashboard")
+
+    form = BulkInventoryInwardForm(request.POST)
+    formset = BulkInwardFormSet(request.POST, request.FILES)
+    rows_have_unique_qr = True
+    if formset.is_valid():
+        rows_have_unique_qr = _validate_unique_qr_rows(formset)
+
+    if form.is_valid() and formset.is_valid() and rows_have_unique_qr:
+        entry_type = form.cleaned_data["entry_type"]
+        object_type = form.cleaned_data["object_type"]
+        stock_for = form.cleaned_data["stock_for"]
+        item = form.cleaned_data["item"]
+        location = form.cleaned_data["location"]
+        remarks = form.cleaned_data.get("remarks") or ""
+        rack_number = form.cleaned_data.get("rack_number") or ""
+        shelf_number = form.cleaned_data.get("shelf_number") or ""
+        bin_number = form.cleaned_data.get("bin_number") or ""
+
+        created_stock_objects = []
+        txn = None
+        try:
+            with transaction.atomic():
+                txn = StockTxn.objects.create(
+                    txn_type=_txn_type_for_inward(entry_type, object_type),
+                    reference_no="",
+                    entry_source_type=entry_type,
+                    project_reference=form.cleaned_data.get("project_reference") or "",
+                    project_name=form.cleaned_data.get("project_name") or "",
+                    remarks=remarks,
+                    created_by=request.user,
+                    bridge_status="NOT_APPLICABLE",
+                )
+                for line_form in formset:
+                    if not line_form.cleaned_data or line_form.cleaned_data.get("DELETE"):
+                        continue
+                    photo_url = _upload_inventory_photo(
+                        line_form.cleaned_data.get("raw_material_photo"),
+                        stock_for=stock_for,
+                        object_type=object_type,
+                    )
+                    stock_object = _build_stock_object(
+                        object_type=object_type,
+                        item=item,
+                        qty=line_form.cleaned_data["qty"],
+                        weight=line_form.cleaned_data["weight"],
+                        source_type=_source_type_for_inward(entry_type),
+                        remarks=remarks,
+                        qr_code=line_form.cleaned_data["qr_code"],
+                        photo_url=photo_url,
+                    )
+                    stock_object.rack_number = rack_number
+                    stock_object.shelf_number = shelf_number
+                    stock_object.bin_number = bin_number
+                    stock_object.save(update_fields=["rack_number", "shelf_number", "bin_number"])
+                    created_stock_objects.append(stock_object)
+                    StockTxnLine.objects.create(
+                        txn=txn,
+                        item=item,
+                        stock_object=stock_object,
+                        qty=line_form.cleaned_data["qty"],
+                        weight=line_form.cleaned_data["weight"],
+                        to_location=location,
+                    )
+                post_stock_txn(txn.id)
+        except ValidationError as exc:
+            if txn:
+                txn.delete()
+            for stock_object in created_stock_objects:
+                stock_object.delete()
+            form.add_error(None, exc.message)
+        else:
+            messages.success(request, f"Bulk item entry recorded successfully for {len(created_stock_objects)} item(s).")
+            return redirect("ledger:inventory_dashboard")
+
+    return _render_bulk_inventory_form(
+        request,
+        page_title="Bulk Item Entry In Store",
+        page_intro="Select Group-2, Section Name, Grade, and Item once. Then scan QR and enter quantity/weight for each physical item.",
+        form=form,
+        formset=formset,
+        submit_label="Record Bulk Item Entry",
+        post_url="ledger:create_bulk_inventory_inward",
+    )
+
+
+@login_required
 def create_temporary_issue(request):
     if request.method == "GET":
         if not _has_inventory_access(request.user):
@@ -850,6 +1033,92 @@ def create_temporary_issue(request):
         form=form,
         submit_label="Record Item Exit",
         post_url="ledger:create_temporary_issue",
+    )
+
+
+@login_required
+def create_bulk_temporary_issue(request):
+    BulkIssueFormSet = formset_factory(BulkTemporaryIssueLineForm, extra=50, min_num=1, validate_min=True)
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_bulk_inventory_form(
+            request,
+            page_title="Bulk Item Exit From Store",
+            page_intro="Select the item once, then scan each stored material QR being issued from store.",
+            form=BulkTemporaryIssueForm(),
+            formset=BulkIssueFormSet(),
+            submit_label="Record Bulk Item Exit",
+            post_url="ledger:create_bulk_temporary_issue",
+        )
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can create bulk temporary issues.")
+        return redirect("ledger:inventory_dashboard")
+
+    form = BulkTemporaryIssueForm(request.POST)
+    formset = BulkIssueFormSet(request.POST)
+    rows_have_unique_qr = True
+    if formset.is_valid():
+        rows_have_unique_qr = _validate_unique_qr_rows(formset)
+
+    if form.is_valid() and formset.is_valid() and rows_have_unique_qr:
+        item = form.cleaned_data["item"]
+        source_location = form.cleaned_data["source_location"]
+        destination_location = form.cleaned_data["destination_location"]
+        txn = None
+        try:
+            with transaction.atomic():
+                txn = StockTxn.objects.create(
+                    txn_type="TEMP_ISSUE",
+                    reference_no=form.cleaned_data.get("reference_no") or "",
+                    entry_source_type="TEMPORARY",
+                    project_reference=form.cleaned_data["project_reference"],
+                    project_name=form.cleaned_data.get("project_name") or "",
+                    remarks=form.cleaned_data.get("remarks") or "",
+                    bridge_status="PENDING_ERP_INTEGRATION",
+                    created_by=request.user,
+                )
+                line_count = 0
+                for line_form in formset:
+                    if not line_form.cleaned_data or line_form.cleaned_data.get("DELETE"):
+                        continue
+                    qr_code = line_form.cleaned_data["qr_code"]
+                    try:
+                        stock_object = StockObject.objects.get(qr_code=qr_code)
+                    except StockObject.DoesNotExist:
+                        line_form.add_error("qr_code", "No stored material found for this QR code.")
+                        raise ValidationError("One or more scanned QR codes are not available.")
+                    if stock_object.item_id != item.id:
+                        line_form.add_error("qr_code", "This QR code does not belong to the selected item.")
+                        raise ValidationError("One or more scanned QR codes do not match the selected item.")
+                    StockTxnLine.objects.create(
+                        txn=txn,
+                        item=item,
+                        stock_object=stock_object,
+                        qty=line_form.cleaned_data["qty"],
+                        weight=line_form.cleaned_data["weight"],
+                        from_location=source_location,
+                        to_location=destination_location,
+                    )
+                    line_count += 1
+                post_stock_txn(txn.id)
+        except ValidationError as exc:
+            if txn:
+                txn.delete()
+            form.add_error(None, exc.message)
+        else:
+            messages.success(request, f"Bulk item exit recorded for {line_count} item(s).")
+            return redirect("ledger:inventory_dashboard")
+
+    return _render_bulk_inventory_form(
+        request,
+        page_title="Bulk Item Exit From Store",
+        page_intro="Select the item once, then scan each stored material QR being issued from store.",
+        form=form,
+        formset=formset,
+        submit_label="Record Bulk Item Exit",
+        post_url="ledger:create_bulk_temporary_issue",
     )
 
 
@@ -936,6 +1205,124 @@ def create_temporary_return(request):
         form=form,
         submit_label="Record Item Return",
         post_url="ledger:create_temporary_return",
+    )
+
+
+@login_required
+def create_bulk_temporary_return(request):
+    BulkReturnFormSet = formset_factory(BulkTemporaryReturnLineForm, extra=50, min_num=1, validate_min=True)
+    if request.method == "GET":
+        if not _has_inventory_access(request.user):
+            messages.error(request, "You do not have permission to access inventory management.")
+            return redirect("dashboard_home")
+        return _render_bulk_inventory_form(
+            request,
+            page_title="Bulk Item Return To Store",
+            page_intro="Select the original issue once, then scan return QR and enter quantity/weight for each returned item.",
+            form=BulkTemporaryReturnForm(),
+            formset=BulkReturnFormSet(),
+            submit_label="Record Bulk Item Return",
+            post_url="ledger:create_bulk_temporary_return",
+        )
+    if not _can_manage_inventory(request.user):
+        messages.error(request, "Only Store, Management, or Admin can create bulk temporary returns.")
+        return redirect("ledger:inventory_dashboard")
+
+    form = BulkTemporaryReturnForm(request.POST)
+    formset = BulkReturnFormSet(request.POST, request.FILES)
+    rows_have_unique_qr = True
+    if formset.is_valid():
+        rows_have_unique_qr = _validate_unique_qr_rows(formset)
+
+    if form.is_valid() and formset.is_valid() and rows_have_unique_qr:
+        issue_txn = form.cleaned_data["issue_txn"]
+        issue_line = issue_txn.lines.first()
+        selected_item = form.cleaned_data["item"]
+        return_type = form.cleaned_data["return_type"]
+        destination_location = form.cleaned_data["destination_location"]
+        remarks = form.cleaned_data.get("remarks") or ""
+        if not issue_line:
+            form.add_error("issue_txn", "Selected temporary issue has no issue line.")
+        elif issue_line.item_id != selected_item.id:
+            form.add_error("item", "Selected item does not match the original issued item.")
+        else:
+            total_return_qty = sum((lf.cleaned_data["qty"] for lf in formset if lf.cleaned_data and not lf.cleaned_data.get("DELETE")), Decimal("0"))
+            total_return_weight = sum((lf.cleaned_data["weight"] for lf in formset if lf.cleaned_data and not lf.cleaned_data.get("DELETE")), Decimal("0"))
+            returned_qty, returned_weight = _temporary_return_totals(issue_txn)
+            remaining_qty = (issue_line.qty or Decimal("0")) - returned_qty
+            remaining_weight = (issue_line.weight or Decimal("0")) - returned_weight
+            if total_return_qty > remaining_qty:
+                form.add_error(None, f"Total return quantity exceeds pending issued quantity ({remaining_qty}).")
+            if total_return_weight > remaining_weight:
+                form.add_error(None, f"Total return weight exceeds pending issued weight ({remaining_weight}).")
+
+        if not form.errors:
+            created_stock_objects = []
+            txn = None
+            try:
+                with transaction.atomic():
+                    txn = StockTxn.objects.create(
+                        txn_type="TEMP_RETURN",
+                        entry_source_type="TEMPORARY",
+                        project_reference=issue_txn.project_reference,
+                        project_name=issue_txn.project_name,
+                        remarks=remarks,
+                        bridge_status="PENDING_ERP_INTEGRATION",
+                        parent_txn=issue_txn,
+                        created_by=request.user,
+                    )
+                    for line_form in formset:
+                        if not line_form.cleaned_data or line_form.cleaned_data.get("DELETE"):
+                            continue
+                        photo_url = _upload_inventory_photo(
+                            line_form.cleaned_data.get("raw_material_photo"),
+                            stock_for=issue_txn.project_reference or "TEMP_RETURN",
+                            object_type=return_type,
+                        )
+                        stock_object = _build_stock_object(
+                            object_type=return_type,
+                            item=issue_line.item,
+                            qty=line_form.cleaned_data["qty"],
+                            weight=line_form.cleaned_data["weight"],
+                            source_type="TEMP_RETURN",
+                            remarks=remarks,
+                            qr_code=line_form.cleaned_data["qr_code"],
+                            photo_url=photo_url,
+                        )
+                        stock_object.rack_number = form.cleaned_data.get("rack_number") or ""
+                        stock_object.shelf_number = form.cleaned_data.get("shelf_number") or ""
+                        stock_object.bin_number = form.cleaned_data.get("bin_number") or ""
+                        stock_object.save(update_fields=["rack_number", "shelf_number", "bin_number"])
+                        created_stock_objects.append(stock_object)
+                        StockTxnLine.objects.create(
+                            txn=txn,
+                            item=issue_line.item,
+                            stock_object=stock_object,
+                            qty=line_form.cleaned_data["qty"],
+                            weight=line_form.cleaned_data["weight"],
+                            from_location=issue_line.to_location,
+                            to_location=destination_location,
+                        )
+                    post_stock_txn(txn.id)
+                    _refresh_temporary_issue_status(issue_txn)
+            except ValidationError as exc:
+                if txn:
+                    txn.delete()
+                for stock_object in created_stock_objects:
+                    stock_object.delete()
+                form.add_error(None, exc.message)
+            else:
+                messages.success(request, f"Bulk item return recorded for {len(created_stock_objects)} item(s).")
+                return redirect("ledger:inventory_dashboard")
+
+    return _render_bulk_inventory_form(
+        request,
+        page_title="Bulk Item Return To Store",
+        page_intro="Select the original issue once, then scan return QR and enter quantity/weight for each returned item.",
+        form=form,
+        formset=formset,
+        submit_label="Record Bulk Item Return",
+        post_url="ledger:create_bulk_temporary_return",
     )
 
 

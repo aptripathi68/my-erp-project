@@ -14,8 +14,11 @@ urlpatterns = [
     path("stock-objects/<int:stock_object_id>/edit/", views.edit_stock_object_details, name="edit_stock_object_details"),
     path("stock-objects/<int:stock_object_id>/correct/", views.correct_stock_object, name="correct_stock_object"),
     path("inventory/inward/create/", views.create_inventory_inward, name="create_inventory_inward"),
+    path("inventory/inward/bulk/", views.create_bulk_inventory_inward, name="create_bulk_inventory_inward"),
     path("temporary-issues/create/", views.create_temporary_issue, name="create_temporary_issue"),
+    path("temporary-issues/bulk/", views.create_bulk_temporary_issue, name="create_bulk_temporary_issue"),
     path("temporary-returns/create/", views.create_temporary_return, name="create_temporary_return"),
+    path("temporary-returns/bulk/", views.create_bulk_temporary_return, name="create_bulk_temporary_return"),
     path("stock/export/store-items.xlsx", views.export_store_stock_excel, name="export_store_stock_excel"),
 
     path("stock/by-item/", views.api_stock_by_item, name="api_stock_by_item"),

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;color:#1f2a34;margin:20px;}
+        .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.04);margin-bottom:18px;}
+        .btn{display:inline-block;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;border:none;cursor:pointer;}
+        .btn-primary{background:#2d686f;color:#fff;}
+        .btn-secondary{background:#fff;color:#1f2a34;border:1px solid #cfd8df;}
+        .messages{margin-bottom:14px;}
+        .message{padding:12px 14px;border-radius:8px;background:#eef6fa;margin-bottom:8px;}
+        label{display:block;font-weight:700;margin-bottom:6px;}
+        input,select,textarea{width:100%;padding:10px;border:1px solid #cfd8df;border-radius:8px;box-sizing:border-box;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{border:1px solid #d9e2ec;padding:8px;vertical-align:top;text-align:left;}
+        th{background:#eef4f7;}
+        .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;}
+        .field{margin-bottom:14px;}
+        .small{font-size:12px;color:#64748b;}
+        .muted{color:#5f6f7d;}
+        .errorlist{margin:6px 0 0;padding-left:18px;color:#b42318;}
+        .scanner-box{display:none;margin:12px 0;padding:12px;border:1px solid #d9e2ec;border-radius:12px;background:#f8fbfd;}
+        .scanner-box video{width:100%;max-height:360px;border-radius:10px;background:#111;}
+        .bulk-photo-input{display:none;}
+        .row-hidden{display:none;}
+        @media (max-width: 768px){
+            body{margin:12px;}
+            table,thead,tbody,tr,th,td{display:block;width:100%;}
+            thead{display:none;}
+            td{border-bottom:none;}
+            tr{border:1px solid #d9e2ec;margin-bottom:12px;border-radius:10px;overflow:hidden;}
+        }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1 style="margin:0 0 8px;">{{ page_title }}</h1>
+            <p class="muted" style="margin:0;">{{ page_intro }}</p>
+        </div>
+        <div>
+            <a class="btn btn-secondary" href="{% url back_url %}">Back</a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url post_url %}" enctype="multipart/form-data" id="bulk-inventory-form">
+        {% csrf_token %}
+        <div class="card">
+            <h2 style="margin-top:0;">Common Selection</h2>
+            {{ form.non_field_errors }}
+            <div class="field-grid">
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.name == "section_name" %}
+                    <datalist id="section-name-options"></datalist>
+                    <div style="margin-top:8px;">
+                        <button class="btn btn-secondary" type="button" id="select-section-name">Select Section</button>
+                    </div>
+                    <div class="small">Type a few characters of the section name, then select and press Select Section.</div>
+                    {% endif %}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Bulk Rows</h2>
+            <p class="muted">Each physical item must have its own QR scan. First enter the number of physical items, then fill only those rows.</p>
+            <div class="field" style="max-width:260px;">
+                <label for="bulk-row-count">Number of Items</label>
+                <input type="number" id="bulk-row-count" min="1" max="50" step="1" value="5">
+                <div class="small">Maximum 50 rows in one bulk entry. For more items, submit in the next batch.</div>
+            </div>
+            {{ formset.management_form }}
+            {{ formset.non_form_errors }}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sl No.</th>
+                        <th>QR Code</th>
+                        <th>Qty</th>
+                        <th>Weight (Kgs)</th>
+                        <th>Photo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line_form in formset %}
+                    <tr class="bulk-entry-row">
+                        <td>{{ forloop.counter }}</td>
+                        <td>
+                            {{ line_form.qr_code }}
+                            <div style="margin-top:8px;">
+                                <button class="btn btn-secondary scan-row-qr" type="button" data-target="{{ line_form.qr_code.id_for_label }}">Scan QR</button>
+                            </div>
+                            {{ line_form.qr_code.errors }}
+                        </td>
+                        <td data-label="Qty">{{ line_form.qty }}{{ line_form.qty.errors }}</td>
+                        <td data-label="Weight (Kgs)">{{ line_form.weight }}{{ line_form.weight.errors }}</td>
+                        <td>
+                            {% if line_form.raw_material_photo %}
+                            {{ line_form.raw_material_photo }}
+                            <button class="btn btn-secondary take-row-photo" type="button" data-target="{{ line_form.raw_material_photo.id_for_label }}">Take Photo</button>
+                            <div class="small photo-status">No photo taken</div>
+                            {{ line_form.raw_material_photo.errors }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="scanner-box" id="qr-scanner-box">
+            <video id="qr-video" playsinline></video>
+            <div class="small" id="qr-scan-status" style="margin-top:8px;">Point camera at the pre-printed QR code.</div>
+            <button class="btn btn-secondary" type="button" id="stop-qr-scan" style="margin-top:8px;">Stop Camera</button>
+        </div>
+
+        {% if can_manage_inventory %}
+        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+        {% endif %}
+    </form>
+
+    <script>
+        (function () {
+            const groupSelect = document.getElementById("id_group2");
+            const sectionInput = document.getElementById("id_section_name");
+            const sectionOptions = document.getElementById("section-name-options");
+            const selectSectionButton = document.getElementById("select-section-name");
+            const gradeSelect = document.getElementById("id_grade_selector");
+            const itemSelect = document.getElementById("id_item");
+            if (!groupSelect || !sectionInput || !sectionOptions || !selectSectionButton || !gradeSelect || !itemSelect) return;
+
+            function renderOptions(select, rows, placeholder, valueBuilder, labelBuilder) {
+                select.innerHTML = "";
+                const blank = document.createElement("option");
+                blank.value = "";
+                blank.textContent = placeholder;
+                select.appendChild(blank);
+                rows.forEach((row) => {
+                    const option = document.createElement("option");
+                    option.value = valueBuilder(row);
+                    option.textContent = labelBuilder(row);
+                    select.appendChild(option);
+                });
+            }
+
+            async function fetchJson(url) {
+                const response = await fetch(url);
+                if (!response.ok) return [];
+                return response.json();
+            }
+
+            function renderSectionOptions(rows) {
+                sectionOptions.innerHTML = "";
+                rows.forEach((row) => {
+                    const option = document.createElement("option");
+                    option.value = row.section_name;
+                    sectionOptions.appendChild(option);
+                });
+            }
+
+            async function loadSections(groupId) {
+                sectionInput.value = "";
+                renderSectionOptions([]);
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId) return;
+                const data = await fetchJson(`/api/sections/?group2=${encodeURIComponent(groupId)}`);
+                renderSectionOptions(data);
+            }
+
+            async function searchSections(groupId, query) {
+                renderSectionOptions([]);
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !query) return;
+                const data = await fetchJson(`/api/sections/?group2=${encodeURIComponent(groupId)}&q=${encodeURIComponent(query)}`);
+                renderSectionOptions(data);
+            }
+
+            async function loadGrades(groupId, sectionName) {
+                renderOptions(gradeSelect, [], "Select grade", (row) => row.id, (row) => row.name);
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !sectionName) return;
+                const data = await fetchJson(`/api/grades/?group2=${encodeURIComponent(groupId)}&section=${encodeURIComponent(sectionName)}`);
+                renderOptions(gradeSelect, data, "Select grade", (row) => row.id, (row) => row.name);
+            }
+
+            async function loadItems(groupId, sectionName, gradeId) {
+                renderOptions(itemSelect, [], "Select item description", (row) => row.id, (row) => row.item_description);
+                if (!groupId || !sectionName || !gradeId) return;
+                const data = await fetchJson(`/api/items/?group2=${encodeURIComponent(groupId)}&section=${encodeURIComponent(sectionName)}&grade=${encodeURIComponent(gradeId)}`);
+                renderOptions(itemSelect, data, "Select item description", (row) => row.id, (row) => row.item_description);
+            }
+
+            groupSelect.addEventListener("change", async () => loadSections(groupSelect.value));
+            let sectionSearchTimer = null;
+            sectionInput.addEventListener("input", () => {
+                window.clearTimeout(sectionSearchTimer);
+                sectionSearchTimer = window.setTimeout(async () => {
+                    await searchSections(groupSelect.value, sectionInput.value.trim());
+                }, 200);
+            });
+            async function selectSection() {
+                await loadGrades(groupSelect.value, sectionInput.value.trim());
+            }
+            sectionInput.addEventListener("change", selectSection);
+            selectSectionButton.addEventListener("click", selectSection);
+            gradeSelect.addEventListener("change", async () => {
+                await loadItems(groupSelect.value, sectionInput.value.trim(), gradeSelect.value);
+            });
+        })();
+
+        (function () {
+            const rowCountInput = document.getElementById("bulk-row-count");
+            const rows = Array.from(document.querySelectorAll(".bulk-entry-row"));
+            function completedRowCount() {
+                let count = 5;
+                rows.forEach((row, index) => {
+                    const hasValue = Array.from(row.querySelectorAll("input")).some((input) => input.value);
+                    if (hasValue) count = Math.max(count, index + 1);
+                });
+                return Math.min(50, count);
+            }
+            function setInputState(row, enabled) {
+                row.querySelectorAll("input, select, textarea, button").forEach((field) => {
+                    if (field.id === "bulk-row-count") return;
+                    field.disabled = !enabled;
+                });
+            }
+            function applyVisibleRowCount() {
+                if (!rowCountInput) return;
+                const requested = Math.max(1, Math.min(50, parseInt(rowCountInput.value || "1", 10)));
+                rowCountInput.value = requested;
+                rows.forEach((row, index) => {
+                    const visible = index < requested;
+                    row.classList.toggle("row-hidden", !visible);
+                    setInputState(row, visible);
+                });
+            }
+            if (rowCountInput) {
+                rowCountInput.value = completedRowCount();
+                rowCountInput.addEventListener("input", applyVisibleRowCount);
+                applyVisibleRowCount();
+            }
+
+            const scannerBox = document.getElementById("qr-scanner-box");
+            const video = document.getElementById("qr-video");
+            const status = document.getElementById("qr-scan-status");
+            const stopButton = document.getElementById("stop-qr-scan");
+            let stream = null;
+            let detector = null;
+            let scanning = false;
+            let activeInput = null;
+
+            function setStatus(message) {
+                if (status) status.textContent = message;
+            }
+
+            function stopScanner() {
+                scanning = false;
+                if (stream) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    stream = null;
+                }
+                video.srcObject = null;
+                scannerBox.style.display = "none";
+                activeInput = null;
+            }
+
+            async function scanLoop() {
+                if (!scanning || !detector || !activeInput) return;
+                try {
+                    const codes = await detector.detect(video);
+                    if (codes.length) {
+                        activeInput.value = codes[0].rawValue || "";
+                        setStatus("QR captured successfully.");
+                        stopScanner();
+                        return;
+                    }
+                } catch (error) {
+                    setStatus("Scanning in progress. Keep QR code steady in camera.");
+                }
+                window.requestAnimationFrame(scanLoop);
+            }
+
+            document.querySelectorAll(".scan-row-qr").forEach((button) => {
+                button.addEventListener("click", async () => {
+                    activeInput = document.getElementById(button.dataset.target);
+                    if (!activeInput) return;
+                    if (!("BarcodeDetector" in window)) {
+                        scannerBox.style.display = "block";
+                        setStatus("QR camera scanning is not supported by this browser/WebView. Please update Android System WebView or Chrome.");
+                        return;
+                    }
+                    try {
+                        detector = new BarcodeDetector({ formats: ["qr_code"] });
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: { ideal: "environment" } },
+                            audio: false,
+                        });
+                        video.srcObject = stream;
+                        await video.play();
+                        scanning = true;
+                        scannerBox.style.display = "block";
+                        setStatus("Point camera at the pre-printed QR code.");
+                        scanLoop();
+                    } catch (error) {
+                        scannerBox.style.display = "block";
+                        setStatus("Camera could not be opened. Please allow camera permission and try again.");
+                    }
+                });
+            });
+
+            stopButton.addEventListener("click", stopScanner);
+            window.addEventListener("pagehide", stopScanner);
+
+            document.querySelectorAll(".take-row-photo").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const input = document.getElementById(button.dataset.target);
+                    if (input) input.click();
+                });
+            });
+            document.querySelectorAll(".bulk-photo-input").forEach((input) => {
+                input.addEventListener("change", () => {
+                    const status = input.parentElement.querySelector(".photo-status");
+                    if (!status) return;
+                    status.textContent = input.files && input.files.length ? "Photo selected: " + input.files[0].name : "No photo taken";
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

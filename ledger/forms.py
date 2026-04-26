@@ -230,6 +230,128 @@ class InventoryInwardForm(forms.Form):
         return cleaned
 
 
+class ItemSelectionMixin:
+    def clean_item_selection(self, cleaned):
+        group2 = cleaned.get("group2")
+        section_name = (cleaned.get("section_name") or "").strip()
+        grade_selector = (cleaned.get("grade_selector") or "").strip()
+        item = cleaned.get("item")
+
+        if not group2:
+            self.add_error("group2", "Group-2 is required.")
+        if not section_name:
+            self.add_error("section_name", "Section Name is required.")
+        if not grade_selector:
+            self.add_error("grade_selector", "Grade is required.")
+        if item:
+            if group2 and item.group2_id != group2.id:
+                self.add_error("item", "Selected item does not belong to the selected Group-2.")
+            if section_name and item.section_name != section_name:
+                self.add_error("item", "Selected item does not belong to the selected Section Name.")
+            if grade_selector and str(item.grade_id) != grade_selector:
+                self.add_error("item", "Selected item does not belong to the selected Grade.")
+        return cleaned
+
+
+class BulkItemSelectionForm(ItemSelectionMixin, forms.Form):
+    group2 = forms.ModelChoiceField(queryset=Group2.objects.order_by("name"), label="Group-2")
+    section_name = forms.CharField(
+        label="Section Name",
+        widget=forms.TextInput(
+            attrs={
+                "autocomplete": "off",
+                "list": "section-name-options",
+                "placeholder": "Type section name keywords",
+            }
+        ),
+    )
+    grade_selector = forms.CharField(
+        label="Grade",
+        widget=forms.Select(choices=[("", "Select grade")]),
+    )
+    item = forms.ModelChoiceField(
+        queryset=Item.objects.filter(is_active=True).order_by("item_description"),
+        label="Item Description",
+    )
+
+    def clean(self):
+        return self.clean_item_selection(super().clean())
+
+
+class BulkInventoryInwardForm(BulkItemSelectionForm):
+    STOCK_FOR_CHOICES = [
+        ("PROJECT", "Item entry against project"),
+        ("SPARE", "Item entry of spare store"),
+    ]
+
+    entry_type = forms.ChoiceField(
+        choices=[
+            ("OPENING", "Opening Stock"),
+            ("NEW_PURCHASE", "New Purchase Inward"),
+            ("RETURN", "Return Entry"),
+            ("CORRECTION", "Correction Entry"),
+        ]
+    )
+    stock_for = forms.ChoiceField(choices=STOCK_FOR_CHOICES, initial="PROJECT")
+    object_type = forms.ChoiceField(
+        choices=[
+            ("RAW", "Fresh Raw Material"),
+            ("OFFCUT", "Off-cut"),
+            ("SCRAP", "Scrap"),
+        ]
+    )
+    location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
+    project_reference = forms.CharField(required=False, max_length=100)
+    project_name = forms.CharField(required=False, max_length=255)
+    rack_number = forms.CharField(required=False, max_length=50)
+    shelf_number = forms.CharField(required=False, max_length=50)
+    bin_number = forms.CharField(required=False, max_length=50)
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("stock_for") == "PROJECT" and not (cleaned.get("project_reference") or "").strip():
+            self.add_error("project_reference", "Project reference is required for item entry against project.")
+        return cleaned
+
+
+class BulkInventoryInwardLineForm(forms.Form):
+    qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
+    weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
+    qr_code = forms.CharField(
+        max_length=50,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan QR",
+                "class": "bulk-qr-field",
+            }
+        ),
+    )
+    raw_material_photo = forms.ImageField(
+        required=False,
+        label="Photo",
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/*",
+                "capture": "environment",
+                "class": "bulk-photo-input",
+            }
+        ),
+    )
+
+    def clean_qr_code(self):
+        qr_code = (self.cleaned_data.get("qr_code") or "").strip()
+        if not qr_code:
+            raise ValidationError("QR code scanning is compulsory.")
+        if not qr_code.isdigit():
+            raise ValidationError("QR code must contain digits only.")
+        if StockObject.objects.filter(qr_code=qr_code).exists():
+            raise ValidationError("This QR code already exists.")
+        return qr_code
+
+
 class TemporaryIssueForm(forms.Form):
     project_reference = forms.CharField(max_length=100)
     project_name = forms.CharField(required=False, max_length=255)
@@ -289,6 +411,39 @@ class TemporaryIssueForm(forms.Form):
             if available_qty <= 0 or available_weight <= 0:
                 self.add_error("qr_code", "This QR code is not available at the selected source store.")
         return cleaned
+
+
+class BulkTemporaryIssueForm(BulkItemSelectionForm):
+    project_reference = forms.CharField(max_length=100)
+    project_name = forms.CharField(required=False, max_length=255)
+    source_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
+    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True).exclude(location_type="STORE").order_by("name"))
+    reference_no = forms.CharField(required=False, max_length=100)
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+
+class BulkTemporaryIssueLineForm(forms.Form):
+    qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
+    weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
+    qr_code = forms.CharField(
+        max_length=50,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan stored material QR",
+                "class": "bulk-qr-field",
+            }
+        ),
+    )
+
+    def clean_qr_code(self):
+        qr_code = (self.cleaned_data.get("qr_code") or "").strip()
+        if not qr_code:
+            raise ValidationError("QR code scanning is compulsory.")
+        if not qr_code.isdigit():
+            raise ValidationError("QR code must contain digits only.")
+        return qr_code
 
 
 class TemporaryReturnForm(forms.Form):
@@ -361,12 +516,66 @@ class TemporaryReturnForm(forms.Form):
         if weight > remaining_weight:
             self.add_error("weight", f"Return weight exceeds pending issued weight ({remaining_weight}).")
 
-        if return_type == "OFFCUT":
-            if not qr_code:
-                self.add_error("qr_code", "QR code is compulsory for returned off-cuts.")
-            elif not qr_code.isdigit():
-                self.add_error("qr_code", "QR code must contain digits only.")
-            elif StockObject.objects.filter(qr_code=qr_code).exists():
-                self.add_error("qr_code", "This QR code already exists.")
+        if not qr_code:
+            self.add_error("qr_code", "QR code scanning is compulsory for every store return entry.")
+        elif not qr_code.isdigit():
+            self.add_error("qr_code", "QR code must contain digits only.")
+        elif StockObject.objects.filter(qr_code=qr_code).exists():
+            self.add_error("qr_code", "This QR code already exists.")
 
         return cleaned
+
+
+class BulkTemporaryReturnForm(BulkItemSelectionForm):
+    issue_txn = forms.ModelChoiceField(
+        queryset=StockTxn.objects.filter(txn_type="TEMP_ISSUE", posted=True).order_by("-created_at")
+    )
+    return_type = forms.ChoiceField(
+        choices=[
+            ("RAW", "Reusable Raw Material"),
+            ("OFFCUT", "Off-cut"),
+            ("SCRAP", "Scrap"),
+        ]
+    )
+    destination_location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
+    rack_number = forms.CharField(required=False, max_length=50)
+    shelf_number = forms.CharField(required=False, max_length=50)
+    bin_number = forms.CharField(required=False, max_length=50)
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+
+class BulkTemporaryReturnLineForm(forms.Form):
+    qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
+    weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
+    qr_code = forms.CharField(
+        max_length=50,
+        label="QR Code",
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "placeholder": "Scan return QR",
+                "class": "bulk-qr-field",
+            }
+        ),
+    )
+    raw_material_photo = forms.ImageField(
+        required=False,
+        label="Photo",
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/*",
+                "capture": "environment",
+                "class": "bulk-photo-input",
+            }
+        ),
+    )
+
+    def clean_qr_code(self):
+        qr_code = (self.cleaned_data.get("qr_code") or "").strip()
+        if not qr_code:
+            raise ValidationError("QR code scanning is compulsory for every returned item.")
+        if not qr_code.isdigit():
+            raise ValidationError("QR code must contain digits only.")
+        if StockObject.objects.filter(qr_code=qr_code).exists():
+            raise ValidationError("This QR code already exists.")
+        return qr_code

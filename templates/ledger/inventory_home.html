@@ -65,16 +65,19 @@
             <h2 style="margin-top:0;">2. Item Entry In Store</h2>
             <p class="muted">Record opening stock, new purchase inward, return entry, and correction entry. Entry can be against project or spare store.</p>
             <a class="btn btn-primary" href="{% url 'ledger:create_inventory_inward' %}">Open Item Entry In Store</a>
+            <a class="btn btn-secondary" href="{% url 'ledger:create_bulk_inventory_inward' %}" style="margin-top:8px;">Bulk Item Entry</a>
         </div>
         <div class="card">
             <h2 style="margin-top:0;">3. Item Exit From Store</h2>
             <p class="muted">Record temporary issue of recorded stock for utilization before full ERP integration.</p>
             <a class="btn btn-primary" href="{% url 'ledger:create_temporary_issue' %}">Open Item Exit From Store</a>
+            <a class="btn btn-secondary" href="{% url 'ledger:create_bulk_temporary_issue' %}" style="margin-top:8px;">Bulk Item Exit</a>
         </div>
         <div class="card">
             <h2 style="margin-top:0;">4. Item Return To Store</h2>
             <p class="muted">Record return of unused material to store, including off-cut return with QR assignment.</p>
             <a class="btn btn-primary" href="{% url 'ledger:create_temporary_return' %}">Open Item Return To Store</a>
+            <a class="btn btn-secondary" href="{% url 'ledger:create_bulk_temporary_return' %}" style="margin-top:8px;">Bulk Item Return</a>
         </div>
     </div>
 
