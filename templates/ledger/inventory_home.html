@@ -294,6 +294,8 @@
                             {{ row.test_certificate_no }}
                             {% if row.test_certificate_url %}
                             <br><a href="{{ row.test_certificate_url }}" target="_blank" rel="noopener">Open</a>
+                            {% elif row.test_certificate_file_unavailable %}
+                            <br><span class="muted">File not available</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -347,6 +349,8 @@
                             {{ row.test_certificate_no }}
                             {% if row.test_certificate_url %}
                             <br><a href="{{ row.test_certificate_url }}" target="_blank" rel="noopener">Open</a>
+                            {% elif row.test_certificate_file_unavailable %}
+                            <br><span class="muted">File not available</span>
                             {% endif %}
                         </td>
                         <td>

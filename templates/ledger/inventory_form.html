@@ -15,6 +15,7 @@
         .message{padding:12px 14px;border-radius:8px;background:#eef6fa;margin-bottom:8px;}
         label{display:block;font-weight:700;margin-bottom:6px;}
         input,select,textarea{width:100%;padding:10px;border:1px solid #cfd8df;border-radius:8px;box-sizing:border-box;}
+        input[type="checkbox"]{width:auto;}
         .field{margin-bottom:14px;}
         .qr-tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
         .scanner-box{display:none;margin:12px 0;padding:12px;border:1px solid #d9e2ec;border-radius:12px;background:#f8fbfd;}
@@ -22,6 +23,9 @@
         .camera-photo-input{display:none;}
         .photo-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
         .photo-status{font-size:13px;color:#64748b;}
+        .certificate-status{font-size:13px;margin-top:8px;color:#64748b;}
+        .certificate-status.ok{color:#166534;}
+        .certificate-status.warn{color:#92400e;}
         .muted{color:#5f6f7d;}
         .small{font-size:12px;color:#64748b;}
         .errorlist{margin:6px 0 0;padding-left:18px;color:#b42318;}
@@ -82,6 +86,9 @@
                     <button class="btn btn-secondary" type="button" id="take-raw-photo">Take Photo</button>
                     <span class="photo-status" id="raw-photo-status">No photo taken</span>
                 </div>
+                {% endif %}
+                {% if field.name == "test_certificate_file" %}
+                <div class="certificate-status" id="test-certificate-status">Enter Test Certificate No. to check whether file is already stored.</div>
                 {% endif %}
                 {% if field.help_text %}<div class="small">{{ field.help_text }}</div>{% endif %}
                 {{ field.errors }}
@@ -199,6 +206,63 @@
             gradeSelect.addEventListener("change", async () => {
                 await loadItems(groupSelect.value, sectionInput.value.trim(), gradeSelect.value);
             });
+        })();
+
+        (function () {
+            const certNoInput = document.getElementById("id_test_certificate_no");
+            const certFileInput = document.getElementById("id_test_certificate_file");
+            const unavailableInput = document.getElementById("id_test_certificate_file_unavailable");
+            const status = document.getElementById("test-certificate-status");
+            if (!certNoInput || !certFileInput || !status) return;
+
+            const statusUrl = "{% url 'ledger:api_test_certificate_status' %}";
+            let timer = null;
+
+            function setStatus(message, kind) {
+                status.textContent = message;
+                status.classList.remove("ok", "warn");
+                if (kind) status.classList.add(kind);
+            }
+
+            async function checkCertificate() {
+                const certNo = certNoInput.value.trim();
+                certFileInput.disabled = false;
+                if (!certNo) {
+                    setStatus("Enter Test Certificate No. to check whether file is already stored.", "");
+                    return;
+                }
+                try {
+                    const response = await fetch(statusUrl + "?no=" + encodeURIComponent(certNo));
+                    if (!response.ok) {
+                        setStatus("Certificate file status could not be checked. You can still upload the file.", "warn");
+                        return;
+                    }
+                    const data = await response.json();
+                    if (data.exists) {
+                        certFileInput.value = "";
+                        certFileInput.disabled = true;
+                        setStatus("Certificate file is already stored for this Test Certificate No. Upload is not required.", "ok");
+                    } else {
+                        setStatus("No stored file found. Upload the certificate, or tick 'Test Certificate File Not Available'.", "warn");
+                    }
+                } catch (error) {
+                    setStatus("Certificate file status could not be checked. You can still upload the file.", "warn");
+                }
+            }
+
+            certNoInput.addEventListener("input", () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(checkCertificate, 350);
+            });
+            certNoInput.addEventListener("blur", checkCertificate);
+            if (unavailableInput) {
+                unavailableInput.addEventListener("change", () => {
+                    if (unavailableInput.checked && !certFileInput.disabled) {
+                        certFileInput.value = "";
+                    }
+                });
+            }
+            checkCertificate();
         })();
 
         (function () {

@@ -146,6 +146,7 @@ def _build_stock_object(
     plate_number="",
     test_certificate_no="",
     test_certificate_url="",
+    test_certificate_file_unavailable=False,
     remarks="",
     qr_code="",
     photo_url="",
@@ -161,6 +162,7 @@ def _build_stock_object(
         plate_number=plate_number or "",
         test_certificate_no=test_certificate_no or "",
         test_certificate_url=test_certificate_url or "",
+        test_certificate_file_unavailable=bool(test_certificate_file_unavailable),
         qr_code=qr_code or None,
         photo_url=photo_url or "",
         remarks=remarks,
@@ -200,6 +202,26 @@ def _upload_inventory_certificate(upload, *, stock_for: str, object_type: str) -
         object_key,
         content_type=getattr(upload, "content_type", "") or "application/octet-stream",
     )
+
+
+def _find_existing_certificate_url(test_certificate_no: str) -> str:
+    test_certificate_no = (test_certificate_no or "").strip()
+    if not test_certificate_no:
+        return ""
+    existing = (
+        StockObject.objects.filter(test_certificate_no__iexact=test_certificate_no)
+        .exclude(test_certificate_url="")
+        .order_by("-created_at")
+        .first()
+    )
+    return existing.test_certificate_url if existing else ""
+
+
+def _upload_or_reuse_inventory_certificate(upload, *, test_certificate_no: str, stock_for: str, object_type: str) -> str:
+    existing_url = _find_existing_certificate_url(test_certificate_no)
+    if existing_url:
+        return existing_url
+    return _upload_inventory_certificate(upload, stock_for=stock_for, object_type=object_type)
 
 
 def _txn_type_for_inward(entry_type, object_type):
@@ -337,6 +359,16 @@ def _inventory_context(request):
     }
 
 
+def _certificate_file_status(row):
+    if row.get("test_certificate_url"):
+        return "Available"
+    if row.get("test_certificate_file_unavailable"):
+        return "Marked not available"
+    if row.get("test_certificate_no") and row.get("test_certificate_no") != "-":
+        return "Not uploaded"
+    return ""
+
+
 @login_required
 def export_store_stock_excel(request):
     if not _has_inventory_access(request.user):
@@ -374,6 +406,7 @@ def export_store_stock_excel(request):
         "Heat Number",
         "Plate Number",
         "Test Certificate No.",
+        "Test Certificate File Status",
         "Test Certificate URL",
     ])
 
@@ -394,6 +427,7 @@ def export_store_stock_excel(request):
                 row["heat_number"],
                 row["plate_number"],
                 row["test_certificate_no"],
+                _certificate_file_status(row),
                 row["test_certificate_url"],
             ]
         )
@@ -421,6 +455,15 @@ def export_store_stock_excel(request):
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@login_required
+def api_test_certificate_status(request):
+    if not _has_inventory_access(request.user):
+        return JsonResponse({"exists": False, "url": "", "error": "permission denied"}, status=403)
+    test_certificate_no = (request.GET.get("no") or "").strip()
+    url = _find_existing_certificate_url(test_certificate_no)
+    return JsonResponse({"exists": bool(url), "url": url})
 
 
 def _render_inventory_form(request, *, page_title, page_intro, form, submit_label, post_url):
@@ -853,8 +896,9 @@ def create_inventory_inward(request):
         qr_code = form.cleaned_data.get("qr_code") or ""
         remarks = form.cleaned_data.get("remarks") or ""
         photo_url = _upload_inventory_photo_if_present(form, stock_for=stock_for, object_type=object_type)
-        test_certificate_url = _upload_inventory_certificate(
+        test_certificate_url = _upload_or_reuse_inventory_certificate(
             form.cleaned_data.get("test_certificate_file"),
+            test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
             stock_for=stock_for,
             object_type=object_type,
         )
@@ -892,6 +936,7 @@ def create_inventory_inward(request):
             plate_number=form.cleaned_data.get("plate_number") or "",
             test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
             test_certificate_url=test_certificate_url,
+            test_certificate_file_unavailable=form.cleaned_data.get("test_certificate_file_unavailable"),
             remarks=remarks,
             qr_code=qr_code,
             photo_url=photo_url,
@@ -997,8 +1042,9 @@ def create_bulk_inventory_inward(request):
                         stock_for=stock_for,
                         object_type=object_type,
                     )
-                    test_certificate_url = _upload_inventory_certificate(
+                    test_certificate_url = _upload_or_reuse_inventory_certificate(
                         line_form.cleaned_data.get("test_certificate_file"),
+                        test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
                         stock_for=stock_for,
                         object_type=object_type,
                     )
@@ -1013,6 +1059,7 @@ def create_bulk_inventory_inward(request):
                         plate_number=line_form.cleaned_data.get("plate_number") or "",
                         test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
                         test_certificate_url=test_certificate_url,
+                        test_certificate_file_unavailable=line_form.cleaned_data.get("test_certificate_file_unavailable"),
                         remarks=remarks,
                         qr_code=line_form.cleaned_data["qr_code"],
                         photo_url=photo_url,
@@ -1232,8 +1279,9 @@ def create_temporary_return(request):
             stock_for=issue_txn.project_reference or "TEMP_RETURN",
             object_type=return_type,
         )
-        test_certificate_url = _upload_inventory_certificate(
+        test_certificate_url = _upload_or_reuse_inventory_certificate(
             form.cleaned_data.get("test_certificate_file"),
+            test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
             stock_for=issue_txn.project_reference or "TEMP_RETURN",
             object_type=return_type,
         )
@@ -1249,6 +1297,7 @@ def create_temporary_return(request):
             plate_number=form.cleaned_data.get("plate_number") or "",
             test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
             test_certificate_url=test_certificate_url,
+            test_certificate_file_unavailable=form.cleaned_data.get("test_certificate_file_unavailable"),
             remarks=remarks,
             qr_code=form.cleaned_data.get("qr_code") or "",
             photo_url=photo_url,
@@ -1368,8 +1417,9 @@ def create_bulk_temporary_return(request):
                             stock_for=issue_txn.project_reference or "TEMP_RETURN",
                             object_type=return_type,
                         )
-                        test_certificate_url = _upload_inventory_certificate(
+                        test_certificate_url = _upload_or_reuse_inventory_certificate(
                             line_form.cleaned_data.get("test_certificate_file"),
+                            test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
                             stock_for=issue_txn.project_reference or "TEMP_RETURN",
                             object_type=return_type,
                         )
@@ -1384,6 +1434,7 @@ def create_bulk_temporary_return(request):
                             plate_number=line_form.cleaned_data.get("plate_number") or "",
                             test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
                             test_certificate_url=test_certificate_url,
+                            test_certificate_file_unavailable=line_form.cleaned_data.get("test_certificate_file_unavailable"),
                             remarks=remarks,
                             qr_code=line_form.cleaned_data["qr_code"],
                             photo_url=photo_url,

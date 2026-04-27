@@ -62,12 +62,13 @@ class StockObjectAdmin(admin.ModelAdmin):
         "heat_number",
         "plate_number",
         "test_certificate_no",
+        "test_certificate_file_unavailable",
         "weight",
         "rate_per_kg",
         "stock_value",
         "created_at",
     ]
-    list_filter = ["object_type", "source_type", "qr_required"]
+    list_filter = ["object_type", "source_type", "qr_required", "test_certificate_file_unavailable"]
     search_fields = [
         "item__item_description",
         "qr_code",

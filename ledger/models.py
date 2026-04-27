@@ -78,6 +78,7 @@ class StockObject(models.Model):
     plate_number = models.CharField(max_length=100, blank=True)
     test_certificate_no = models.CharField(max_length=100, blank=True)
     test_certificate_url = models.URLField(max_length=500, blank=True)
+    test_certificate_file_unavailable = models.BooleanField(default=False)
 
     # GPS capture for OFFCUT yard tracking
     capture_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)

@@ -83,6 +83,8 @@
                     {{ stock_object.test_certificate_no|default:"-" }}
                     {% if stock_object.test_certificate_url %}
                     <br><a href="{{ stock_object.test_certificate_url }}" target="_blank" rel="noopener">Open Certificate</a>
+                    {% elif stock_object.test_certificate_file_unavailable %}
+                    <br><span class="muted">File not available</span>
                     {% endif %}
                 </div>
             </div>

@@ -9,6 +9,34 @@ from masters.models import Group2, Item
 from .models import StockLedgerEntry, StockLocation, StockObject, StockTxn
 
 
+def _certificate_file_exists(test_certificate_no):
+    test_certificate_no = (test_certificate_no or "").strip()
+    if not test_certificate_no:
+        return False
+    return (
+        StockObject.objects.filter(test_certificate_no__iexact=test_certificate_no)
+        .exclude(test_certificate_url="")
+        .exists()
+    )
+
+
+def _validate_certificate_upload(form, cleaned):
+    test_certificate_no = (cleaned.get("test_certificate_no") or "").strip()
+    upload = cleaned.get("test_certificate_file")
+    if upload and not test_certificate_no:
+        form.add_error("test_certificate_no", "Enter Test Certificate No. before uploading the certificate file.")
+        return
+    if not test_certificate_no:
+        return
+    file_unavailable = cleaned.get("test_certificate_file_unavailable")
+    if upload or file_unavailable or _certificate_file_exists(test_certificate_no):
+        return
+    form.add_error(
+        "test_certificate_file",
+        "This Test Certificate No. has no stored file yet. Upload the file or tick 'Test Certificate File Not Available'.",
+    )
+
+
 class StockLocationForm(forms.ModelForm):
     class Meta:
         model = StockLocation
@@ -53,6 +81,7 @@ class StockObjectDetailEditForm(forms.ModelForm):
             "heat_number",
             "plate_number",
             "test_certificate_no",
+            "test_certificate_file_unavailable",
             "remarks",
         ]
         labels = {
@@ -63,6 +92,7 @@ class StockObjectDetailEditForm(forms.ModelForm):
             "heat_number": "Heat Number",
             "plate_number": "Plate Number",
             "test_certificate_no": "Test Certificate No.",
+            "test_certificate_file_unavailable": "Test Certificate File Not Available",
             "remarks": "Remarks",
         }
         widgets = {
@@ -188,6 +218,11 @@ class InventoryInwardForm(forms.Form):
         label="Raw Material Test Certificate",
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*"}),
     )
+    test_certificate_file_unavailable = forms.BooleanField(
+        required=False,
+        label="Test Certificate File Not Available",
+        help_text="Use only when the certificate copy is not available at store entry time.",
+    )
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -244,6 +279,7 @@ class InventoryInwardForm(forms.Form):
             self.add_error("qr_code", "This QR code already exists.")
         if stock_for == "PROJECT" and not project_reference:
             self.add_error("project_reference", "Project reference is required for item entry against project.")
+        _validate_certificate_upload(self, cleaned)
         return cleaned
 
 
@@ -344,6 +380,10 @@ class BulkInventoryInwardLineForm(forms.Form):
         label="Test Certificate",
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*", "class": "bulk-certificate-input"}),
     )
+    test_certificate_file_unavailable = forms.BooleanField(
+        required=False,
+        label="File not available",
+    )
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",
@@ -376,6 +416,11 @@ class BulkInventoryInwardLineForm(forms.Form):
         if StockObject.objects.filter(qr_code=qr_code).exists():
             raise ValidationError("This QR code already exists.")
         return qr_code
+
+    def clean(self):
+        cleaned = super().clean()
+        _validate_certificate_upload(self, cleaned)
+        return cleaned
 
 
 class TemporaryIssueForm(forms.Form):
@@ -498,6 +543,11 @@ class TemporaryReturnForm(forms.Form):
         label="Raw Material Test Certificate",
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*"}),
     )
+    test_certificate_file_unavailable = forms.BooleanField(
+        required=False,
+        label="Test Certificate File Not Available",
+        help_text="Use only when the certificate copy is not available at store return time.",
+    )
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -558,6 +608,7 @@ class TemporaryReturnForm(forms.Form):
         elif StockObject.objects.filter(qr_code=qr_code).exists():
             self.add_error("qr_code", "This QR code already exists.")
 
+        _validate_certificate_upload(self, cleaned)
         return cleaned
 
 
@@ -591,6 +642,10 @@ class BulkTemporaryReturnLineForm(forms.Form):
         label="Test Certificate",
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*", "class": "bulk-certificate-input"}),
     )
+    test_certificate_file_unavailable = forms.BooleanField(
+        required=False,
+        label="File not available",
+    )
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",
@@ -623,3 +678,8 @@ class BulkTemporaryReturnLineForm(forms.Form):
         if StockObject.objects.filter(qr_code=qr_code).exists():
             raise ValidationError("This QR code already exists.")
         return qr_code
+
+    def clean(self):
+        cleaned = super().clean()
+        _validate_certificate_upload(self, cleaned)
+        return cleaned

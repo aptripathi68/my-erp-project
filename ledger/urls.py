@@ -20,6 +20,7 @@ urlpatterns = [
     path("temporary-returns/create/", views.create_temporary_return, name="create_temporary_return"),
     path("temporary-returns/bulk/", views.create_bulk_temporary_return, name="create_bulk_temporary_return"),
     path("stock/export/store-items.xlsx", views.export_store_stock_excel, name="export_store_stock_excel"),
+    path("test-certificates/status/", views.api_test_certificate_status, name="api_test_certificate_status"),
 
     path("stock/by-item/", views.api_stock_by_item, name="api_stock_by_item"),
     path("stock/by-location/", views.api_stock_by_location, name="api_stock_by_location"),
