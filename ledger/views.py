@@ -41,7 +41,7 @@ from .services.stock_queries import (
     stock_by_location,
     stock_by_store_item,
 )
-from .storage import build_inventory_photo_object_key, upload_inventory_photo
+from .storage import build_inventory_certificate_object_key, build_inventory_photo_object_key, upload_inventory_photo
 
 
 def _has_inventory_access(user):
@@ -134,7 +134,22 @@ def _refresh_temporary_issue_status(issue_txn):
         issue_txn.save(update_fields=["bridge_status"])
 
 
-def _build_stock_object(*, object_type, item, qty, weight, source_type, rate_per_kg=Decimal("0.00"), remarks="", qr_code="", photo_url=""):
+def _build_stock_object(
+    *,
+    object_type,
+    item,
+    qty,
+    weight,
+    source_type,
+    rate_per_kg=Decimal("0.00"),
+    heat_number="",
+    plate_number="",
+    test_certificate_no="",
+    test_certificate_url="",
+    remarks="",
+    qr_code="",
+    photo_url="",
+):
     return StockObject.objects.create(
         object_type=object_type,
         source_type=source_type,
@@ -142,6 +157,10 @@ def _build_stock_object(*, object_type, item, qty, weight, source_type, rate_per
         qty=qty,
         weight=weight,
         rate_per_kg=rate_per_kg or Decimal("0.00"),
+        heat_number=heat_number or "",
+        plate_number=plate_number or "",
+        test_certificate_no=test_certificate_no or "",
+        test_certificate_url=test_certificate_url or "",
         qr_code=qr_code or None,
         photo_url=photo_url or "",
         remarks=remarks,
@@ -160,6 +179,21 @@ def _upload_inventory_photo(upload, *, stock_for: str, object_type: str) -> str:
         stock_for=stock_for,
         object_type=object_type,
         filename=getattr(upload, "name", "") or "raw-material-photo.jpg",
+    )
+    return upload_inventory_photo(
+        upload,
+        object_key,
+        content_type=getattr(upload, "content_type", "") or "application/octet-stream",
+    )
+
+
+def _upload_inventory_certificate(upload, *, stock_for: str, object_type: str) -> str:
+    if not upload:
+        return ""
+    object_key = build_inventory_certificate_object_key(
+        stock_for=stock_for,
+        object_type=object_type,
+        filename=getattr(upload, "name", "") or "raw-material-test-certificate.pdf",
     )
     return upload_inventory_photo(
         upload,
@@ -325,7 +359,23 @@ def export_store_stock_excel(request):
         heading = f"Store-wise Items in Store - {selected_store.name}"
     ws.append([heading])
     ws.append([])
-    ws.append(["Store", "Rack No", "Shelf No", "Bin No", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)", "Rate/Kg", "Stock Value"])
+    ws.append([
+        "Store",
+        "Rack No",
+        "Shelf No",
+        "Bin No",
+        "Item Master ID",
+        "Item Description",
+        "Object Type",
+        "Qty",
+        "Weight (Kgs)",
+        "Rate/Kg",
+        "Stock Value",
+        "Heat Number",
+        "Plate Number",
+        "Test Certificate No.",
+        "Test Certificate URL",
+    ])
 
     for row in rows:
         ws.append(
@@ -341,6 +391,10 @@ def export_store_stock_excel(request):
                 row["weight"],
                 row["rate_per_kg"],
                 row["stock_value"],
+                row["heat_number"],
+                row["plate_number"],
+                row["test_certificate_no"],
+                row["test_certificate_url"],
             ]
         )
 
@@ -799,6 +853,11 @@ def create_inventory_inward(request):
         qr_code = form.cleaned_data.get("qr_code") or ""
         remarks = form.cleaned_data.get("remarks") or ""
         photo_url = _upload_inventory_photo_if_present(form, stock_for=stock_for, object_type=object_type)
+        test_certificate_url = _upload_inventory_certificate(
+            form.cleaned_data.get("test_certificate_file"),
+            stock_for=stock_for,
+            object_type=object_type,
+        )
 
         txn_type_map = {
             ("OPENING", "RAW"): "OPENING_RAW",
@@ -829,6 +888,10 @@ def create_inventory_inward(request):
             weight=weight,
             source_type=source_type_map[entry_type],
             rate_per_kg=rate_per_kg,
+            heat_number=form.cleaned_data.get("heat_number") or "",
+            plate_number=form.cleaned_data.get("plate_number") or "",
+            test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
+            test_certificate_url=test_certificate_url,
             remarks=remarks,
             qr_code=qr_code,
             photo_url=photo_url,
@@ -934,6 +997,11 @@ def create_bulk_inventory_inward(request):
                         stock_for=stock_for,
                         object_type=object_type,
                     )
+                    test_certificate_url = _upload_inventory_certificate(
+                        line_form.cleaned_data.get("test_certificate_file"),
+                        stock_for=stock_for,
+                        object_type=object_type,
+                    )
                     stock_object = _build_stock_object(
                         object_type=object_type,
                         item=item,
@@ -941,6 +1009,10 @@ def create_bulk_inventory_inward(request):
                         weight=line_form.cleaned_data["weight"],
                         source_type=_source_type_for_inward(entry_type),
                         rate_per_kg=line_form.cleaned_data["rate_per_kg"],
+                        heat_number=line_form.cleaned_data.get("heat_number") or "",
+                        plate_number=line_form.cleaned_data.get("plate_number") or "",
+                        test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
+                        test_certificate_url=test_certificate_url,
                         remarks=remarks,
                         qr_code=line_form.cleaned_data["qr_code"],
                         photo_url=photo_url,
@@ -1160,6 +1232,11 @@ def create_temporary_return(request):
             stock_for=issue_txn.project_reference or "TEMP_RETURN",
             object_type=return_type,
         )
+        test_certificate_url = _upload_inventory_certificate(
+            form.cleaned_data.get("test_certificate_file"),
+            stock_for=issue_txn.project_reference or "TEMP_RETURN",
+            object_type=return_type,
+        )
 
         stock_object = _build_stock_object(
             object_type=return_type,
@@ -1168,6 +1245,10 @@ def create_temporary_return(request):
             weight=weight,
             source_type="TEMP_RETURN",
             rate_per_kg=rate_per_kg,
+            heat_number=form.cleaned_data.get("heat_number") or "",
+            plate_number=form.cleaned_data.get("plate_number") or "",
+            test_certificate_no=form.cleaned_data.get("test_certificate_no") or "",
+            test_certificate_url=test_certificate_url,
             remarks=remarks,
             qr_code=form.cleaned_data.get("qr_code") or "",
             photo_url=photo_url,
@@ -1287,6 +1368,11 @@ def create_bulk_temporary_return(request):
                             stock_for=issue_txn.project_reference or "TEMP_RETURN",
                             object_type=return_type,
                         )
+                        test_certificate_url = _upload_inventory_certificate(
+                            line_form.cleaned_data.get("test_certificate_file"),
+                            stock_for=issue_txn.project_reference or "TEMP_RETURN",
+                            object_type=return_type,
+                        )
                         stock_object = _build_stock_object(
                             object_type=return_type,
                             item=issue_line.item,
@@ -1294,6 +1380,10 @@ def create_bulk_temporary_return(request):
                             weight=line_form.cleaned_data["weight"],
                             source_type="TEMP_RETURN",
                             rate_per_kg=line_form.cleaned_data["rate_per_kg"],
+                            heat_number=line_form.cleaned_data.get("heat_number") or "",
+                            plate_number=line_form.cleaned_data.get("plate_number") or "",
+                            test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
+                            test_certificate_url=test_certificate_url,
                             remarks=remarks,
                             qr_code=line_form.cleaned_data["qr_code"],
                             photo_url=photo_url,

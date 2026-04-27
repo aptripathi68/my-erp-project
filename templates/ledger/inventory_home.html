@@ -270,6 +270,9 @@
                         <th>Weight (Kgs)</th>
                         <th>Rate/Kg</th>
                         <th>Stock Value</th>
+                        <th>Heat No.</th>
+                        <th>Plate No.</th>
+                        <th>Test Certificate</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -285,9 +288,17 @@
                         <td>{{ row.weight }}</td>
                         <td>{{ row.rate_per_kg }}</td>
                         <td>{{ row.stock_value }}</td>
+                        <td>{{ row.heat_number }}</td>
+                        <td>{{ row.plate_number }}</td>
+                        <td>
+                            {{ row.test_certificate_no }}
+                            {% if row.test_certificate_url %}
+                            <br><a href="{{ row.test_certificate_url }}" target="_blank" rel="noopener">Open</a>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="10">No store item lines found for the selected store.</td></tr>
+                    <tr><td colspan="13">No store item lines found for the selected store.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -311,6 +322,9 @@
                         <th>Weight (Kgs)</th>
                         <th>Rate/Kg</th>
                         <th>Stock Value</th>
+                        <th>Heat No.</th>
+                        <th>Plate No.</th>
+                        <th>Test Certificate</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -327,6 +341,14 @@
                         <td>{{ row.weight }}</td>
                         <td>{{ row.rate_per_kg }}</td>
                         <td>{{ row.stock_value }}</td>
+                        <td>{{ row.heat_number }}</td>
+                        <td>{{ row.plate_number }}</td>
+                        <td>
+                            {{ row.test_certificate_no }}
+                            {% if row.test_certificate_url %}
+                            <br><a href="{{ row.test_certificate_url }}" target="_blank" rel="noopener">Open</a>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if can_manage_inventory %}
                             <a class="btn btn-secondary" href="{% url 'ledger:edit_stock_object_details' row.stock_object_id %}">Edit</a>
@@ -336,7 +358,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="11">No editable stored items are currently available in active stores.</td></tr>
+                    <tr><td colspan="14">No editable stored items are currently available in active stores.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

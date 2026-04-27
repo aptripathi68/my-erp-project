@@ -96,6 +96,9 @@
                         <th>Qty</th>
                         <th>Weight (Kgs)</th>
                         <th>Rate/Kg</th>
+                        <th>Heat No.</th>
+                        <th>Plate No.</th>
+                        <th>Test Certificate</th>
                         <th>Photo</th>
                     </tr>
                 </thead>
@@ -115,6 +118,31 @@
                         <td data-label="Rate/Kg">
                             {% if line_form.rate_per_kg %}
                             {{ line_form.rate_per_kg }}{{ line_form.rate_per_kg.errors }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td data-label="Heat No.">
+                            {% if line_form.heat_number %}
+                            {{ line_form.heat_number }}{{ line_form.heat_number.errors }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td data-label="Plate No.">
+                            {% if line_form.plate_number %}
+                            {{ line_form.plate_number }}{{ line_form.plate_number.errors }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td data-label="Test Certificate">
+                            {% if line_form.test_certificate_no %}
+                            {{ line_form.test_certificate_no }}{{ line_form.test_certificate_no.errors }}
+                            {% endif %}
+                            {% if line_form.test_certificate_file %}
+                            <div style="margin-top:8px;">{{ line_form.test_certificate_file }}</div>
+                            {{ line_form.test_certificate_file.errors }}
                             {% else %}
                             -
                             {% endif %}

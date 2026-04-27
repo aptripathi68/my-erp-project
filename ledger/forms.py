@@ -50,6 +50,9 @@ class StockObjectDetailEditForm(forms.ModelForm):
             "shelf_number",
             "bin_number",
             "rate_per_kg",
+            "heat_number",
+            "plate_number",
+            "test_certificate_no",
             "remarks",
         ]
         labels = {
@@ -57,6 +60,9 @@ class StockObjectDetailEditForm(forms.ModelForm):
             "shelf_number": "Shelf Number",
             "bin_number": "Bin Number",
             "rate_per_kg": "Rate/Kg",
+            "heat_number": "Heat Number",
+            "plate_number": "Plate Number",
+            "test_certificate_no": "Test Certificate No.",
             "remarks": "Remarks",
         }
         widgets = {
@@ -174,6 +180,14 @@ class InventoryInwardForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
+    heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
+    plate_number = forms.CharField(required=False, max_length=100, label="Plate Number")
+    test_certificate_no = forms.CharField(required=False, max_length=100, label="Test Certificate No.")
+    test_certificate_file = forms.FileField(
+        required=False,
+        label="Raw Material Test Certificate",
+        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*"}),
+    )
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -322,6 +336,14 @@ class BulkInventoryInwardLineForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
+    heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
+    plate_number = forms.CharField(required=False, max_length=100, label="Plate Number")
+    test_certificate_no = forms.CharField(required=False, max_length=100, label="Test Certificate No.")
+    test_certificate_file = forms.FileField(
+        required=False,
+        label="Test Certificate",
+        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*", "class": "bulk-certificate-input"}),
+    )
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",
@@ -468,6 +490,14 @@ class TemporaryReturnForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
+    heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
+    plate_number = forms.CharField(required=False, max_length=100, label="Plate Number")
+    test_certificate_no = forms.CharField(required=False, max_length=100, label="Test Certificate No.")
+    test_certificate_file = forms.FileField(
+        required=False,
+        label="Raw Material Test Certificate",
+        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*"}),
+    )
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -553,6 +583,14 @@ class BulkTemporaryReturnLineForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
+    heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
+    plate_number = forms.CharField(required=False, max_length=100, label="Plate Number")
+    test_certificate_no = forms.CharField(required=False, max_length=100, label="Test Certificate No.")
+    test_certificate_file = forms.FileField(
+        required=False,
+        label="Test Certificate",
+        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,image/*", "class": "bulk-certificate-input"}),
+    )
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",

@@ -34,6 +34,22 @@ def build_inventory_photo_object_key(*, stock_for: str, object_type: str, filena
     )
 
 
+def build_inventory_certificate_object_key(*, stock_for: str, object_type: str, filename: str) -> str:
+    original_name, original_ext = os.path.splitext(filename or "raw-material-test-certificate.pdf")
+    content_ext = original_ext.lower() or ".pdf"
+    safe_stock_for = sanitize_part(stock_for or "STORE")
+    safe_object_type = sanitize_part(object_type or "RAW")
+    safe_name = sanitize_part(original_name or "test-certificate")
+    date_part = datetime.now().strftime("%Y/%m/%d")
+    return (
+        f"inventory/raw_material_test_certificates/"
+        f"{date_part}/"
+        f"{safe_stock_for}/"
+        f"{safe_object_type}/"
+        f"{safe_name}_{uuid.uuid4().hex}{content_ext}"
+    )
+
+
 def upload_inventory_photo(file_obj, object_key: str, content_type: str = "") -> str:
     provided_content_type = (content_type or getattr(file_obj, "content_type", "") or "").lower()
     if not provided_content_type:
