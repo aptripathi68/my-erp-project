@@ -1,8 +1,11 @@
 from decimal import Decimal
+import os
+import tempfile
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+import openpyxl
 
 from ledger.models import StockLedgerEntry, StockLocation, StockObject, StockTxn
 from masters.models import Grade, Group2, Item
@@ -17,6 +20,7 @@ from procurement.models import (
     WorkOrder,
 )
 from procurement.services.backbone import duplicate_work_order_exists, sync_bom_to_backbone
+from procurement.services.bom_importer import grade_match_variants, validate_and_extract_workbook
 from procurement.services.planning import bom_material_evaluation, generate_int_erc_jobs
 
 
@@ -124,3 +128,32 @@ class PlanningMaterialEvaluationTests(TestCase):
         self.assertFalse(duplicate_work_order_exists("WO-NEW"))
         sync_bom_to_backbone(self.bom, created_by=self.user)
         self.assertTrue(duplicate_work_order_exists("wo-001"))
+
+    def test_bom_importer_treats_is2062_e250_as_e250br(self):
+        br_grade = Grade.objects.create(group2=self.group2, code="IS2062BR", name="IS:2062, E250BR")
+        Item.objects.create(
+            group2=self.group2,
+            grade=br_grade,
+            item_description="PL12 IS:2062, E250BR",
+            section_name="PL12",
+            unit_weight=Decimal("12.000"),
+        )
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "BOM"
+        ws.append(["Item Description", "Grade", "Mark No", "ERC Qty", "Qty", "Unit Wt"])
+        ws.append(["PL12", "IS2062:E250", "M1", 1, 1, 10])
+
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            path = tmp.name
+        try:
+            wb.save(path)
+            result = validate_and_extract_workbook(path)
+        finally:
+            os.unlink(path)
+
+        self.assertTrue(result["ok"], result["errors"])
+        self.assertEqual(result["summary"]["rows_extracted"], 1)
+        self.assertEqual(result["extracted"][0].item_id, Item.objects.get(section_name="PL12").id)
+        self.assertIn("IS2062E250BR", grade_match_variants("IS2062:E250"))

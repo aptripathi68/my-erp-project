@@ -56,6 +56,51 @@ def normalize_grade_name(s: Any) -> str:
     return s
 
 
+def grade_match_variants(raw_grade: Any) -> List[str]:
+    """
+    Build practical grade keys for matching customer BOM text to Item Master.
+
+    Many BOMs write IS:2062 E250BR as shortened forms like IS2062:E250 or E250.
+    In our master data, plain E250 is treated as the common E250BR grade unless
+    a more specific suffix is supplied.
+    """
+    base = normalize_grade_name(str(raw_grade or "").replace(";", " ").replace(",", " "))
+    if not base:
+        return []
+
+    variants: List[str] = []
+
+    def add(value: str):
+        value = (value or "").strip()
+        if value and value not in variants:
+            variants.append(value)
+
+    if base in {"IS2062E250", "E250"}:
+        add(base + "BR")
+        add("E250BR")
+        if base.startswith("IS2062"):
+            add(base)
+            add(base.replace("IS2062", ""))
+    elif base.endswith("E250B"):
+        add(base + "R")
+        add(base)
+    else:
+        add(base)
+
+    collapsed = base.replace("BR", "B")
+    add(collapsed)
+
+    if base.endswith("BR"):
+        add(base[:-2])
+    if base.endswith("B"):
+        add(base[:-1])
+
+    add(base.replace("IS2062", ""))
+    add(collapsed.replace("IS2062", ""))
+
+    return variants
+
+
 ALIASES = {
     "item_description": [
         "item description",
@@ -321,16 +366,9 @@ def validate_and_extract_workbook(
         grade_code = it.grade.code or ""
         grade_name = it.grade.name or ""
 
-        grade_code_norm = normalize_grade_name(grade_code)
-        grade_name_norm = normalize_grade_name(grade_name)
-        grade_combined_norm = normalize_grade_name(f"{grade_code} {grade_name}")
-
-        if grade_code_norm:
-            item_by_section_grade[(section_norm, grade_code_norm)] = it
-        if grade_name_norm:
-            item_by_section_grade[(section_norm, grade_name_norm)] = it
-        if grade_combined_norm:
-            item_by_section_grade[(section_norm, grade_combined_norm)] = it
+        for raw_grade in (grade_code, grade_name, f"{grade_code} {grade_name}"):
+            for grade_norm in grade_match_variants(raw_grade):
+                item_by_section_grade.setdefault((section_norm, grade_norm), it)
 
     extracted: List[ExtractedRow] = []
     errors: List[Dict[str, Any]] = []
@@ -434,10 +472,15 @@ def validate_and_extract_workbook(
 
             section_norm = normalize_item_description(item_desc_raw)
             
-            grade_norm = normalize_grade_name(grade_raw)
-            grade_norm = normalize_grade_name(grade_raw.replace(";", " ").replace(",", " "))
+            grade_variants = grade_match_variants(grade_raw)
+            grade_norm = grade_variants[0] if grade_variants else normalize_grade_name(grade_raw)
 
-            it = item_by_section_grade.get((section_norm, grade_norm))
+            it = None
+            for candidate_grade_norm in grade_variants:
+                it = item_by_section_grade.get((section_norm, candidate_grade_norm))
+                if it:
+                    grade_norm = candidate_grade_norm
+                    break
 
             if not it:
                 section_matches = [
