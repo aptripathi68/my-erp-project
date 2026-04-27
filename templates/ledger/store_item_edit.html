@@ -65,6 +65,10 @@
                 <div class="meta-label">Current Store</div>
                 <div class="meta-value">{{ current_store_name }}</div>
             </div>
+            <div class="meta-box">
+                <div class="meta-label">Current Rate/Kg</div>
+                <div class="meta-value">{{ stock_object.rate_per_kg }}</div>
+            </div>
         </div>
 
         <form method="post" action="{% url post_url post_kwargs.stock_object_id %}">

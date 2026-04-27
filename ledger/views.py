@@ -134,13 +134,14 @@ def _refresh_temporary_issue_status(issue_txn):
         issue_txn.save(update_fields=["bridge_status"])
 
 
-def _build_stock_object(*, object_type, item, qty, weight, source_type, remarks="", qr_code="", photo_url=""):
+def _build_stock_object(*, object_type, item, qty, weight, source_type, rate_per_kg=Decimal("0.00"), remarks="", qr_code="", photo_url=""):
     return StockObject.objects.create(
         object_type=object_type,
         source_type=source_type,
         item=item,
         qty=qty,
         weight=weight,
+        rate_per_kg=rate_per_kg or Decimal("0.00"),
         qr_code=qr_code or None,
         photo_url=photo_url or "",
         remarks=remarks,
@@ -324,7 +325,7 @@ def export_store_stock_excel(request):
         heading = f"Store-wise Items in Store - {selected_store.name}"
     ws.append([heading])
     ws.append([])
-    ws.append(["Store", "Rack No", "Shelf No", "Bin No", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)"])
+    ws.append(["Store", "Rack No", "Shelf No", "Bin No", "Item Master ID", "Item Description", "Object Type", "Qty", "Weight (Kgs)", "Rate/Kg", "Stock Value"])
 
     for row in rows:
         ws.append(
@@ -338,6 +339,8 @@ def export_store_stock_excel(request):
                 row["object_type"],
                 row["qty"],
                 row["weight"],
+                row["rate_per_kg"],
+                row["stock_value"],
             ]
         )
 
@@ -430,7 +433,7 @@ def _render_stock_object_edit_form(request, *, form, stock_object, current_store
         {
             "page_title": "Edit Stored Item Details",
             "page_intro": (
-                f"Update only rack, shelf, bin, and remarks for the current stored item. "
+                f"Update only rack, shelf, bin, rate, and remarks for the current stored item. "
                 f"Quantity and weight history remain unchanged. Current store: {current_store_name}."
             ),
             "form": form,
@@ -792,6 +795,7 @@ def create_inventory_inward(request):
         location = form.cleaned_data["location"]
         qty = form.cleaned_data["qty"]
         weight = form.cleaned_data["weight"]
+        rate_per_kg = form.cleaned_data["rate_per_kg"]
         qr_code = form.cleaned_data.get("qr_code") or ""
         remarks = form.cleaned_data.get("remarks") or ""
         photo_url = _upload_inventory_photo_if_present(form, stock_for=stock_for, object_type=object_type)
@@ -824,6 +828,7 @@ def create_inventory_inward(request):
             qty=qty,
             weight=weight,
             source_type=source_type_map[entry_type],
+            rate_per_kg=rate_per_kg,
             remarks=remarks,
             qr_code=qr_code,
             photo_url=photo_url,
@@ -935,6 +940,7 @@ def create_bulk_inventory_inward(request):
                         qty=line_form.cleaned_data["qty"],
                         weight=line_form.cleaned_data["weight"],
                         source_type=_source_type_for_inward(entry_type),
+                        rate_per_kg=line_form.cleaned_data["rate_per_kg"],
                         remarks=remarks,
                         qr_code=line_form.cleaned_data["qr_code"],
                         photo_url=photo_url,
@@ -1147,6 +1153,7 @@ def create_temporary_return(request):
         return_type = form.cleaned_data["return_type"]
         qty = form.cleaned_data["qty"]
         weight = form.cleaned_data["weight"]
+        rate_per_kg = form.cleaned_data["rate_per_kg"]
         remarks = form.cleaned_data.get("remarks") or ""
         photo_url = _upload_inventory_photo_if_present(
             form,
@@ -1160,6 +1167,7 @@ def create_temporary_return(request):
             qty=qty,
             weight=weight,
             source_type="TEMP_RETURN",
+            rate_per_kg=rate_per_kg,
             remarks=remarks,
             qr_code=form.cleaned_data.get("qr_code") or "",
             photo_url=photo_url,
@@ -1285,6 +1293,7 @@ def create_bulk_temporary_return(request):
                             qty=line_form.cleaned_data["qty"],
                             weight=line_form.cleaned_data["weight"],
                             source_type="TEMP_RETURN",
+                            rate_per_kg=line_form.cleaned_data["rate_per_kg"],
                             remarks=remarks,
                             qr_code=line_form.cleaned_data["qr_code"],
                             photo_url=photo_url,

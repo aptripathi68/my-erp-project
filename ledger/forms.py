@@ -49,12 +49,14 @@ class StockObjectDetailEditForm(forms.ModelForm):
             "rack_number",
             "shelf_number",
             "bin_number",
+            "rate_per_kg",
             "remarks",
         ]
         labels = {
             "rack_number": "Rack Number",
             "shelf_number": "Shelf Number",
             "bin_number": "Bin Number",
+            "rate_per_kg": "Rate/Kg",
             "remarks": "Remarks",
         }
         widgets = {
@@ -171,6 +173,7 @@ class InventoryInwardForm(forms.Form):
     bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
+    rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -318,6 +321,7 @@ class BulkInventoryInwardForm(BulkItemSelectionForm):
 class BulkInventoryInwardLineForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
+    rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",
@@ -463,6 +467,7 @@ class TemporaryReturnForm(forms.Form):
     bin_number = forms.CharField(required=False, max_length=50)
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
+    rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     qr_code = forms.CharField(
         required=False,
         max_length=50,
@@ -547,6 +552,7 @@ class BulkTemporaryReturnForm(BulkItemSelectionForm):
 class BulkTemporaryReturnLineForm(forms.Form):
     qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
+    rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     qr_code = forms.CharField(
         max_length=50,
         label="QR Code",

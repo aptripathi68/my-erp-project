@@ -55,6 +55,7 @@ class StockObject(models.Model):
 
     qty = models.DecimalField(max_digits=12, decimal_places=3)
     weight = models.DecimalField(max_digits=12, decimal_places=3)
+    rate_per_kg = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     # Pre-printed QR codes can vary in length across suppliers; keep only digit validation.
     qr_code = models.CharField(

@@ -1,13 +1,14 @@
 # ledger/services/stock_queries.py
 from decimal import Decimal
 
-from django.db.models import Sum, F, Value, DecimalField, Q
+from django.db.models import Sum, F, Value, DecimalField, Q, ExpressionWrapper
 from django.db.models.functions import Coalesce
 
 from ledger.models import StockLedgerEntry
 
 
 DEC0 = Value(Decimal("0.000"), output_field=DecimalField(max_digits=18, decimal_places=3))
+MONEY0 = Value(Decimal("0.00"), output_field=DecimalField(max_digits=18, decimal_places=2))
 
 
 def _base_qs():
@@ -40,6 +41,15 @@ def stock_by_item(location_id=None, object_type=None):
                 Sum(F("qty") * F("item__unit_weight")),
                 DEC0,
             ),
+            value_sum=Coalesce(
+                Sum(
+                    ExpressionWrapper(
+                        F("weight") * F("stock_object__rate_per_kg"),
+                        output_field=DecimalField(max_digits=18, decimal_places=2),
+                    )
+                ),
+                MONEY0,
+            ),
         )
         .order_by("item__item_description")
     )
@@ -56,6 +66,7 @@ def stock_by_item(location_id=None, object_type=None):
                 "unit_weight": str(r["item__unit_weight"]),
                 "qty": str(r["qty_sum"]),
                 "weight": str(r["weight_sum"]),
+                "stock_value": str((r["value_sum"] or Decimal("0.00")).quantize(Decimal("0.01"))),
                 "derived_weight": str(r["derived_weight_sum"]),
                 "derived_weight_tons": str((weight_kg / Decimal("1000")).quantize(Decimal("0.001"))),
             }
@@ -82,6 +93,15 @@ def stock_by_location(item_id=None, object_type=None):
         .annotate(
             qty_sum=Coalesce(Sum("qty"), DEC0),
             weight_sum=Coalesce(Sum("weight"), DEC0),
+            value_sum=Coalesce(
+                Sum(
+                    ExpressionWrapper(
+                        F("weight") * F("stock_object__rate_per_kg"),
+                        output_field=DecimalField(max_digits=18, decimal_places=2),
+                    )
+                ),
+                MONEY0,
+            ),
         )
         .order_by("location__name")
     )
@@ -95,6 +115,7 @@ def stock_by_location(item_id=None, object_type=None):
                 "location_type": r["location__location_type"],
                 "qty": str(r["qty_sum"]),
                 "weight": str(r["weight_sum"]),
+                "stock_value": str((r["value_sum"] or Decimal("0.00")).quantize(Decimal("0.01"))),
                 "weight_tons": str((Decimal(r["weight_sum"]) / Decimal("1000")).quantize(Decimal("0.001"))),
             }
         )
@@ -126,6 +147,15 @@ def stock_by_store_item(location_id=None):
         .annotate(
             qty_sum=Coalesce(Sum("qty"), DEC0),
             weight_sum=Coalesce(Sum("weight"), DEC0),
+            value_sum=Coalesce(
+                Sum(
+                    ExpressionWrapper(
+                        F("weight") * F("stock_object__rate_per_kg"),
+                        output_field=DecimalField(max_digits=18, decimal_places=2),
+                    )
+                ),
+                MONEY0,
+            ),
         )
         .order_by(
             "location__name",
@@ -156,6 +186,8 @@ def stock_by_store_item(location_id=None):
                 "object_type": r["stock_object__object_type"] or "-",
                 "qty": str(qty_sum),
                 "weight": str(weight_sum),
+                "rate_per_kg": str((r["value_sum"] / weight_sum).quantize(Decimal("0.01")) if weight_sum else Decimal("0.00")),
+                "stock_value": str((r["value_sum"] or Decimal("0.00")).quantize(Decimal("0.01"))),
             }
         )
     return out
@@ -191,6 +223,7 @@ def editable_store_stock_objects(location_id=None, entry_date=None, search_text=
             "stock_object__shelf_number",
             "stock_object__bin_number",
             "stock_object__remarks",
+            "stock_object__rate_per_kg",
             "location_id",
             "location__name",
             "item__item_description",
@@ -218,6 +251,8 @@ def editable_store_stock_objects(location_id=None, entry_date=None, search_text=
                 "shelf_number": r["stock_object__shelf_number"] or "-",
                 "bin_number": r["stock_object__bin_number"] or "-",
                 "remarks": r["stock_object__remarks"] or "-",
+                "rate_per_kg": str((r["stock_object__rate_per_kg"] or Decimal("0.00")).quantize(Decimal("0.01"))),
+                "stock_value": str((weight_sum * (r["stock_object__rate_per_kg"] or Decimal("0.00"))).quantize(Decimal("0.01"))),
                 "location_id": r["location_id"],
                 "location_name": r["location__name"],
                 "item_description": r["item__item_description"],

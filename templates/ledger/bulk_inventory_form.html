@@ -95,6 +95,7 @@
                         <th>QR Code</th>
                         <th>Qty</th>
                         <th>Weight (Kgs)</th>
+                        <th>Rate/Kg</th>
                         <th>Photo</th>
                     </tr>
                 </thead>
@@ -111,6 +112,13 @@
                         </td>
                         <td data-label="Qty">{{ line_form.qty }}{{ line_form.qty.errors }}</td>
                         <td data-label="Weight (Kgs)">{{ line_form.weight }}{{ line_form.weight.errors }}</td>
+                        <td data-label="Rate/Kg">
+                            {% if line_form.rate_per_kg %}
+                            {{ line_form.rate_per_kg }}{{ line_form.rate_per_kg.errors }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         <td>
                             {% if line_form.raw_material_photo %}
                             {{ line_form.raw_material_photo }}

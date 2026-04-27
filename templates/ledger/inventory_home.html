@@ -190,6 +190,7 @@
                         <th>Item</th>
                         <th>Qty</th>
                         <th>Weight (Kgs)</th>
+                        <th>Stock Value</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -198,9 +199,10 @@
                         <td>{{ row.item_description }}</td>
                         <td>{{ row.qty }}</td>
                         <td>{{ row.weight }}</td>
+                        <td>{{ row.stock_value }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="3">No stock recorded yet.</td></tr>
+                    <tr><td colspan="4">No stock recorded yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -216,6 +218,7 @@
                         <th>Location</th>
                         <th>Qty</th>
                         <th>Weight (Kgs)</th>
+                        <th>Stock Value</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -224,9 +227,10 @@
                         <td>{{ row.location_name }}</td>
                         <td>{{ row.qty }}</td>
                         <td>{{ row.weight }}</td>
+                        <td>{{ row.stock_value }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="3">No stock recorded in stores yet.</td></tr>
+                    <tr><td colspan="4">No stock recorded in stores yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -264,6 +268,8 @@
                         <th>Object Type</th>
                         <th>Qty</th>
                         <th>Weight (Kgs)</th>
+                        <th>Rate/Kg</th>
+                        <th>Stock Value</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -277,9 +283,11 @@
                         <td>{{ row.object_type }}</td>
                         <td>{{ row.qty }}</td>
                         <td>{{ row.weight }}</td>
+                        <td>{{ row.rate_per_kg }}</td>
+                        <td>{{ row.stock_value }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8">No store item lines found for the selected store.</td></tr>
+                    <tr><td colspan="10">No store item lines found for the selected store.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -301,6 +309,8 @@
                         <th>Shelf No</th>
                         <th>Bin No</th>
                         <th>Weight (Kgs)</th>
+                        <th>Rate/Kg</th>
+                        <th>Stock Value</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -315,6 +325,8 @@
                         <td>{{ row.shelf_number }}</td>
                         <td>{{ row.bin_number }}</td>
                         <td>{{ row.weight }}</td>
+                        <td>{{ row.rate_per_kg }}</td>
+                        <td>{{ row.stock_value }}</td>
                         <td>
                             {% if can_manage_inventory %}
                             <a class="btn btn-secondary" href="{% url 'ledger:edit_stock_object_details' row.stock_object_id %}">Edit</a>
@@ -324,7 +336,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="9">No editable stored items are currently available in active stores.</td></tr>
+                    <tr><td colspan="11">No editable stored items are currently available in active stores.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
