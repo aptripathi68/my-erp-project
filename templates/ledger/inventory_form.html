@@ -16,6 +16,13 @@
         label{display:block;font-weight:700;margin-bottom:6px;}
         input,select,textarea{width:100%;padding:10px;border:1px solid #cfd8df;border-radius:8px;box-sizing:border-box;}
         input[type="checkbox"]{width:auto;}
+        .number-stepper{display:flex;width:100%;align-items:stretch;}
+        .number-stepper input{border-radius:8px 0 0 8px;}
+        .number-stepper-controls{display:flex;flex-direction:column;}
+        .number-stepper button{width:44px;min-height:22px;padding:0;border:1px solid #cfd8df;background:#f8fbfd;color:#1f2a34;font-size:16px;font-weight:700;line-height:1;cursor:pointer;}
+        .number-stepper button:first-child{border-left:0;border-radius:0 8px 0 0;}
+        .number-stepper button:last-child{border-left:0;border-top:0;border-radius:0 0 8px 0;}
+        .number-stepper button:disabled{cursor:not-allowed;opacity:.55;}
         .field{margin-bottom:14px;}
         .qr-tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
         .scanner-box{display:none;margin:12px 0;padding:12px;border:1px solid #d9e2ec;border-radius:12px;background:#f8fbfd;}
@@ -206,6 +213,59 @@
             gradeSelect.addEventListener("change", async () => {
                 await loadItems(groupSelect.value, sectionInput.value.trim(), gradeSelect.value);
             });
+        })();
+
+        (function () {
+            function decimalPlaces(value) {
+                const text = String(value || "");
+                const dotIndex = text.indexOf(".");
+                return dotIndex === -1 ? 0 : text.length - dotIndex - 1;
+            }
+
+            function normalize(value, places) {
+                return Number.isInteger(value) ? String(value) : value.toFixed(places).replace(/\.?0+$/, "");
+            }
+
+            function stepInput(input, direction) {
+                const step = parseFloat(input.getAttribute("step") || "1") || 1;
+                const minAttr = input.getAttribute("min");
+                const maxAttr = input.getAttribute("max");
+                const min = minAttr === null || minAttr === "" ? null : parseFloat(minAttr);
+                const max = maxAttr === null || maxAttr === "" ? null : parseFloat(maxAttr);
+                const current = input.value === "" ? (direction > 0 && min !== null ? min - step : 0) : parseFloat(input.value);
+                let next = (Number.isFinite(current) ? current : 0) + (direction * step);
+                if (min !== null) next = Math.max(min, next);
+                if (max !== null) next = Math.min(max, next);
+                input.value = normalize(next, decimalPlaces(input.getAttribute("step")));
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+
+            function enhance(input) {
+                if (!input || input.dataset.stepperEnhanced) return;
+                input.dataset.stepperEnhanced = "true";
+                const wrapper = document.createElement("div");
+                wrapper.className = "number-stepper";
+                const controls = document.createElement("div");
+                controls.className = "number-stepper-controls";
+                const increment = document.createElement("button");
+                const decrement = document.createElement("button");
+                increment.type = "button";
+                decrement.type = "button";
+                increment.textContent = "+";
+                decrement.textContent = "-";
+                increment.setAttribute("aria-label", "Increase quantity");
+                decrement.setAttribute("aria-label", "Decrease quantity");
+                increment.addEventListener("click", () => stepInput(input, 1));
+                decrement.addEventListener("click", () => stepInput(input, -1));
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+                controls.appendChild(increment);
+                controls.appendChild(decrement);
+                wrapper.appendChild(controls);
+            }
+
+            enhance(document.getElementById("id_qty"));
         })();
 
         (function () {

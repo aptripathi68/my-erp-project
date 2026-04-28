@@ -207,7 +207,12 @@ class InventoryInwardForm(forms.Form):
     rack_number = forms.CharField(required=False, max_length=50)
     shelf_number = forms.CharField(required=False, max_length=50)
     bin_number = forms.CharField(required=False, max_length=50)
-    qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
+    qty = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        widget=forms.NumberInput(attrs={"step": "0.001", "min": "0.001", "inputmode": "decimal"}),
+    )
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
@@ -369,7 +374,13 @@ class BulkInventoryInwardForm(BulkItemSelectionForm):
 
 
 class BulkInventoryInwardLineForm(forms.Form):
-    qty = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Qty")
+    qty = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        label="Qty",
+        widget=forms.NumberInput(attrs={"step": "0.001", "min": "0.001", "inputmode": "decimal"}),
+    )
     weight = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), label="Weight (Kgs)")
     rate_per_kg = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.00"), label="Rate/Kg")
     heat_number = forms.CharField(required=False, max_length=100, label="Heat Number")
