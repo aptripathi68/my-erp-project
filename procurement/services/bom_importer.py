@@ -142,15 +142,6 @@ ALIASES = {
         "assembly quantity",
         "assy qty",
     ],
-    "drawing_no": [
-        "drawing no",
-        "dwg no",
-        "drg no",
-        "drawing",
-        "dwg",
-        "drg",
-    ],
-   
     "item_no": [
         "item no",
         "item number",
@@ -217,7 +208,6 @@ class ExtractedRow:
     excel_row: int
     mark_no: str
     erc_quantity: Decimal
-    drawing_no: str
     item_no: str
     item_description_raw: str
     grade_raw: str
@@ -421,8 +411,6 @@ def validate_and_extract_workbook(
 
         last_mark = ""
         last_erc_quantity = Decimal("1")
-        last_drawing = ""
-
         for excel_r, row_vals in enumerate(
             ws.iter_rows(min_row=header_row + 1, values_only=True),
             start=header_row + 1,
@@ -450,7 +438,6 @@ def validate_and_extract_workbook(
 
             mark_no = get_cell(row_vals, col_map, "mark_no")
             erc_quantity = get_cell(row_vals, col_map, "erc_quantity")
-            drawing_no = get_cell(row_vals, col_map, "drawing_no")
             item_no = get_cell(row_vals, col_map, "item_no")
             qty_all = get_cell(row_vals, col_map, "qty_all")
             length_mm = get_cell(row_vals, col_map, "length")
@@ -463,9 +450,6 @@ def validate_and_extract_workbook(
             erc_qty_dec = _to_decimal(erc_quantity)
             if erc_qty_dec is not None and erc_qty_dec > 0:
                 last_erc_quantity = erc_qty_dec
-
-            if drawing_no and str(drawing_no).strip():
-                last_drawing = str(drawing_no).strip()
 
             item_no_final = str(item_no).strip() if item_no else ""
             qty_dec = _to_decimal(qty_all) or Decimal("1")
@@ -542,7 +526,6 @@ def validate_and_extract_workbook(
                     excel_row=excel_r,
                     mark_no=last_mark,
                     erc_quantity=last_erc_quantity,
-                    drawing_no=last_drawing,
                     item_no=item_no_final,
                     item_description_raw=item_desc_raw,
                     grade_raw=grade_raw,

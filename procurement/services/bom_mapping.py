@@ -2,7 +2,6 @@ COLUMN_RULES = {
     "item_description": ["item", "section", "member", "description"],
     "grade": ["grade", "material"],
     "mark_no": ["mark", "mark no"],
-    "drawing_no": ["drawing", "dwg"],
     "item_no": ["item no", "part"],
     "qty_all": ["qty", "quantity", "nos"],
     "length": ["length", "len"],

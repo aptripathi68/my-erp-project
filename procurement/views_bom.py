@@ -85,7 +85,6 @@ def _build_user_sheet_mappings(request, headers_info):
             "grade": request.POST.get(f"{sheet_name}__grade", "").strip(),
             "mark_no": request.POST.get(f"{sheet_name}__mark_no", "").strip(),
             "erc_quantity": request.POST.get(f"{sheet_name}__erc_quantity", "").strip(),
-            "drawing_no": request.POST.get(f"{sheet_name}__drawing_no", "").strip(),
             "item_no": request.POST.get(f"{sheet_name}__item_no", "").strip(),
             "qty_all": request.POST.get(f"{sheet_name}__qty_all", "").strip(),
             "length": request.POST.get(f"{sheet_name}__length", "").strip(),
