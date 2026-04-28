@@ -1,126 +1,59 @@
 from django import forms
-from xlrd import sheet
 
-from drawings.models import DrawingSheetRevision
-from procurement.models import BOMHeader, BOMMark
+from drawings.models import Drawing, DrawingSheet, DrawingSheetRevision
 
 
 class DrawingUploadSelectForm(forms.Form):
-    bom = forms.ModelChoiceField(
-        queryset=BOMHeader.objects.all().order_by("-id"),
-        label="Select BOM Record",
-        help_text="Choose the BOM record first. Drawing numbers will be loaded from this BOM.",
-    )
-
-    drawing_no = forms.ChoiceField(
-        choices=[],
-        required=False,
+    drawing_no = forms.CharField(
+        max_length=100,
         label="Drawing Number",
-        help_text="Select a drawing number from the chosen BOM.",
+        help_text="Enter the drawing number exactly as shown on the drawing.",
     )
-
     title = forms.CharField(
         max_length=255,
         required=False,
         label="Drawing Title",
     )
-
     sheet_no = forms.CharField(
         max_length=20,
         label="Sheet No",
     )
-
     revision_no = forms.CharField(
         max_length=50,
         label="Revision No",
     )
-
     upload_file = forms.FileField(
         label="Drawing PDF",
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        bom = None
-
-        if self.is_bound:
-            bom_id = self.data.get("bom")
-            if bom_id:
-                try:
-                    bom = BOMHeader.objects.get(pk=bom_id)
-                except BOMHeader.DoesNotExist:
-                    bom = None
-        else:
-            bom = self.initial.get("bom")
-
-        if bom:
-            drawing_nos = (
-                BOMMark.objects.filter(bom=bom)
-                .exclude(drawing_no__isnull=True)
-                .exclude(drawing_no__exact="")
-                .values_list("drawing_no", flat=True)
-                .distinct()
-                .order_by("drawing_no")
-            )
-            self.fields["drawing_no"].choices = [(d, d) for d in drawing_nos]
-        else:
-            self.fields["drawing_no"].choices = []
-
     def clean(self):
         cleaned_data = super().clean()
-        bom = cleaned_data.get("bom")
-        drawing_no = cleaned_data.get("drawing_no")
-        sheet_no = cleaned_data.get("sheet_no")
-        revision_no = cleaned_data.get("revision_no")
+        drawing_no = (cleaned_data.get("drawing_no") or "").strip()
+        sheet_no = (cleaned_data.get("sheet_no") or "").strip()
+        revision_no = (cleaned_data.get("revision_no") or "").strip()
 
-        from drawings.models import Drawing, DrawingSheet, DrawingSheetRevision
-
-        if bom and drawing_no and sheet_no and revision_no:
-
-            drawing = Drawing.objects.filter(
-                project=bom,
-                drawing_no=drawing_no
-            ).first()
-
+        if drawing_no and sheet_no and revision_no:
+            drawing = Drawing.objects.filter(project__isnull=True, drawing_no=drawing_no).first()
             if drawing:
-                sheet = DrawingSheet.objects.filter(
-                    drawing=drawing,
-                    sheet_no=sheet_no
-                ).first()
-
+                sheet = DrawingSheet.objects.filter(drawing=drawing, sheet_no=sheet_no).first()
                 if sheet:
                     existing_revision = DrawingSheetRevision.objects.filter(
                         drawing_sheet=sheet,
-                        revision_no=revision_no
+                        revision_no=revision_no,
                     ).first()
-
                     if existing_revision and existing_revision.verification_status != DrawingSheetRevision.STATUS_REJECTED:
                         raise forms.ValidationError(
                             "This sheet revision already exists. Please upload a new revision number."
-                    )
-        if bom and drawing_no:
-            exists = BOMMark.objects.filter(
-                bom=bom,
-                drawing_no=drawing_no,
-            ).exists()
-            if not exists:
-                raise forms.ValidationError("Selected drawing number does not belong to the selected BOM.")
+                        )
 
         return cleaned_data
-    
-class BulkDrawingUploadForm(forms.Form):
-    bom = forms.ModelChoiceField(
-        queryset=BOMHeader.objects.all().order_by("-id"),
-        label="Select BOM Record",
-        help_text="Choose the BOM against which this drawing batch is being uploaded.",
-    )
 
+
+class BulkDrawingUploadForm(forms.Form):
     upload_file = forms.FileField(
         label="ZIP / PDF Bundle",
         help_text="Upload one ZIP file or one multi-page PDF bundle.",
     )
-
     batch_name = forms.CharField(
         max_length=255,
         required=False,

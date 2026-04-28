@@ -3,12 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
-from .forms import DrawingUploadSelectForm
-from .models import DrawingSheetRevision
-from .services import create_or_update_sheet_revision
 from .storage import generate_presigned_preview_url, generate_presigned_download_url
 from django.http import JsonResponse
-from procurement.models import BOMHeader, BOMMark
 from .forms import DrawingUploadSelectForm, BulkDrawingUploadForm
 from .models import DrawingSheetRevision, DrawingImportBatch
 from .services import create_or_update_sheet_revision, process_drawing_bundle
@@ -23,7 +19,6 @@ def upload_from_bom(request):
     if request.method == "POST":
         form = DrawingUploadSelectForm(request.POST, request.FILES)
         if form.is_valid():
-            bom = form.cleaned_data["bom"]
             drawing_no = form.cleaned_data["drawing_no"]
             title = form.cleaned_data["title"]
             sheet_no = form.cleaned_data["sheet_no"]
@@ -33,7 +28,7 @@ def upload_from_bom(request):
             revision = create_or_update_sheet_revision(
                 drawing_no=drawing_no,
                 title=title,
-                project=bom,
+                project=None,
                 sheet_no=sheet_no,
                 revision_no=revision_no,
                 uploaded_file=upload_file,
@@ -43,23 +38,14 @@ def upload_from_bom(request):
             messages.success(
                 request,
                 (
-                    f"Drawing uploaded successfully for BOM #{bom.id}, "
-                    f"Drawing {drawing_no}, Sheet {sheet_no}, Revision {revision_no}. "
+                    f"Drawing {drawing_no}, Sheet {sheet_no}, Revision {revision_no} uploaded successfully. "
                     f"Please preview and confirm before production use."
                 ),
             )
             return redirect("drawings:revision_detail", pk=revision.pk)
     else:
         initial = {}
-        bom_id = request.GET.get("bom")
         drawing_no = request.GET.get("drawing_no")
-
-        if bom_id:
-            try:
-                bom = BOMHeader.objects.get(pk=bom_id)
-                initial["bom"] = bom
-            except BOMHeader.DoesNotExist:
-                pass
 
         if drawing_no:
             initial["drawing_no"] = drawing_no
@@ -71,7 +57,7 @@ def upload_from_bom(request):
         "drawings/upload_from_bom.html",
         {
             "form": form,
-            "page_title": "Drawings Upload from BOM",
+            "page_title": "Drawing Upload",
         },
     )
 
@@ -134,36 +120,16 @@ def reject_revision(request, pk):
 
 @login_required
 def bom_drawing_numbers(request):
-    bom_id = request.GET.get("bom_id")
-    results = []
-
-    if bom_id:
-        try:
-            bom = BOMHeader.objects.get(pk=bom_id)
-            drawing_nos = (
-                BOMMark.objects.filter(bom=bom)
-                .exclude(drawing_no__isnull=True)
-                .exclude(drawing_no__exact="")
-                .values_list("drawing_no", flat=True)
-                .distinct()
-                .order_by("drawing_no")
-            )
-            results = [{"value": d, "label": d} for d in drawing_nos]
-        except BOMHeader.DoesNotExist:
-            results = []
-
-    return JsonResponse({"drawing_numbers": results})
+    return JsonResponse({"drawing_numbers": []})
 @login_required
 def bulk_upload(request):
     if request.method == "POST":
         form = BulkDrawingUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            bom = form.cleaned_data["bom"]
             upload_file = form.cleaned_data["upload_file"]
             batch_name = form.cleaned_data.get("batch_name") or ""
 
             batch = DrawingImportBatch.objects.create(
-                bom=bom,
                 batch_name=batch_name,
                 source_filename=upload_file.name,
                 uploaded_by=request.user,

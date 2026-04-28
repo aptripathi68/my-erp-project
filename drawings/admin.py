@@ -75,7 +75,6 @@ class DrawingAdmin(admin.ModelAdmin):
     list_display = (
         "drawing_no",
         "title",
-        "project",
         "created_at",
         "upload_button",
     )
@@ -83,7 +82,7 @@ class DrawingAdmin(admin.ModelAdmin):
         "drawing_no",
         "title",
     )
-    list_filter = ("project",)
+    list_filter = ("created_at",)
 
     def upload_button(self, obj):
         has_revisions = DrawingSheetRevision.objects.filter(
@@ -100,9 +99,8 @@ class DrawingAdmin(admin.ModelAdmin):
 
         url = reverse("drawings:upload_from_bom")
         return format_html(
-            '<a class="button" href="{}?bom={}&drawing_no={}">Upload Drawing</a>',
+            '<a class="button" href="{}?drawing_no={}">Upload Drawing</a>',
             url,
-            obj.project_id or "",
             obj.drawing_no,
         )
 
@@ -323,14 +321,13 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
 class DrawingImportBatchAdmin(admin.ModelAdmin):
     list_display = (
         "id",
-        "bom",
         "batch_name",
         "source_filename",
         "uploaded_by",
         "uploaded_at",
     )
     search_fields = ("batch_name", "source_filename")
-    list_filter = ("bom", "uploaded_at")
+    list_filter = ("uploaded_at",)
 
 
 @admin.register(DrawingImportFile)
@@ -352,5 +349,4 @@ class DrawingImportFileAdmin(admin.ModelAdmin):
         "confirmed_drawing_no",
     )
     list_filter = ("status", "batch")
-
 

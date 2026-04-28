@@ -16,7 +16,6 @@ from django.utils import timezone
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-from drawings.models import Drawing
 from estimation.models import EstimateProject
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
 from .services.backbone import duplicate_work_order_exists, normalize_wo_number, sync_bom_to_backbone
@@ -33,7 +32,6 @@ MAPPING_FIELDS = (
     "grade",
     "mark_no",
     "erc_quantity",
-    "drawing_no",
     "item_no",
     "qty_all",
     "length",
@@ -422,26 +420,17 @@ def bom_upload(request):
                     key = (
                         row.sheet_name,
                         row.mark_no or "",
-                        getattr(row, "drawing_no", "") or "",
                     )
 
                     if key not in mark_map:
-                        drawing_obj = None
-
-                        if row.drawing_no:
-                            drawing_obj, _ = Drawing.objects.get_or_create(
-                                project=header,
-                                drawing_no=row.drawing_no.strip(),
-                            )
-
                         mark_map[key] = BOMMark.objects.create(
                             bom=header,
                             sheet_name=row.sheet_name,
                             erc_mark=row.mark_no or "",
                             erc_quantity=getattr(row, "erc_quantity", None) or 1,
                             main_section=row.item_description_raw or "",
-                            drawing_no=row.drawing_no or "",
-                            drawing=drawing_obj,
+                            drawing_no="",
+                            drawing=None,
                         )
 
                 comps = []
@@ -450,7 +439,6 @@ def bom_upload(request):
                     key = (
                         row.sheet_name,
                         row.mark_no or "",
-                        getattr(row, "drawing_no", "") or "",
                     )
 
                     bom_mark = mark_map[key]
@@ -591,7 +579,6 @@ def bom_export_master(request, bom_id: int):
         "erc_mark",
         "erc_quantity",
         "main_section",
-        "drawing_no",
         "part_mark",
         "section_name",
         "grade_name",
@@ -620,7 +607,6 @@ def bom_export_master(request, bom_id: int):
                 m.erc_mark,
                 float(m.erc_quantity),
                 m.main_section or "",
-                m.drawing_no or "",
                 c.part_mark or "",
                 c.section_name or "",
                 c.grade_name or "",

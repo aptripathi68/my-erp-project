@@ -96,7 +96,6 @@
                     <th>ERC Mark</th>
                     <th>ERC Qty</th>
                     <th>Generated INT-ERC Units</th>
-                    <th>Drawing No</th>
                     <th>Status</th>
                 </tr>
             </thead>
@@ -106,11 +105,10 @@
                     <td>{{ mark.erc_mark }}</td>
                     <td>{{ mark.erc_quantity }}</td>
                     <td>{{ mark.fabrication_jobs.count }}</td>
-                    <td>{{ mark.drawing_no|default:"-" }}</td>
                     <td>{{ mark.get_production_status_display }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5">No marks imported in this BOM.</td></tr>
+                <tr><td colspan="4">No marks imported in this BOM.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

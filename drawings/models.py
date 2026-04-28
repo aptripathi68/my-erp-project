@@ -4,8 +4,8 @@ from django.db import models, transaction
 
 class Drawing(models.Model):
     """
-    One drawing master, unique within a project.
-    BOM will link to this level only.
+    One drawing master.
+    Drawings are maintained independently from BOM processing.
     """
 
     project = models.ForeignKey(
@@ -156,8 +156,10 @@ class DrawingSheetRevision(models.Model):
 class DrawingImportBatch(models.Model):
     bom = models.ForeignKey(
         "procurement.BOMHeader",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="drawing_import_batches",
+        null=True,
+        blank=True,
     )
     batch_name = models.CharField(max_length=255, blank=True, default="")
     source_filename = models.CharField(max_length=255, blank=True, default="")
@@ -174,7 +176,7 @@ class DrawingImportBatch(models.Model):
         ordering = ["-uploaded_at"]
 
     def __str__(self):
-        return self.batch_name or f"BOM {self.bom_id} Batch {self.id}"
+        return self.batch_name or f"Drawing Batch {self.id}"
 
 
 class DrawingImportFile(models.Model):

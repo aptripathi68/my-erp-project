@@ -216,19 +216,6 @@
                         </tr>
 
                         <tr>
-                            <td>Drawing No</td>
-                            <td>
-                                <select name="{{ sheet_name }}__drawing_no">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"drawing_no" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-
-                        <tr>
                             <td>Part Mark</td>
                             <td>
                                 <select name="{{ sheet_name }}__item_no">
