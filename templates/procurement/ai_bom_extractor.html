@@ -36,7 +36,7 @@
 <body>
 <div class="card">
     <h2>BOM Column Mapper</h2>
-    <p class="small">Upload a company BOM, map each Kalpadeep standard field to the correct company BOM column, then preview, correct errors, download, or send directly to BOM validation.</p>
+    <p class="small">Enter common BOM details, upload a company BOM, map each Kalpadeep standard field to the correct company BOM column, then preview, download the standard template, or send to BOM validation.</p>
     <div class="actions">
         <a class="btn btn-secondary" href="{% url 'procurement:bom_upload' %}">Standard BOM Upload</a>
         <a class="btn btn-secondary" href="{% url 'dashboard_home' %}">Dashboard</a>
@@ -48,7 +48,7 @@
 {% endif %}
 
 <div class="card">
-    <h3>Upload Company BOM</h3>
+    <h3>Enter BOM Details and Upload Company BOM</h3>
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="field-grid">
@@ -162,7 +162,7 @@
         <input type="hidden" name="order_value" value="{{ order_value }}">
         <div class="actions">
             <button class="btn btn-secondary" type="submit" name="action" value="download_standard">Download Standard Template</button>
-            <button class="btn btn-success" type="submit" name="action" value="send_validation">Send Directly to BOM Validation</button>
+            <button class="btn btn-success" type="submit" name="action" value="send_validation">Send to BOM Validation</button>
         </div>
     </form>
 </div>

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import json
 import os
@@ -53,6 +53,17 @@ STANDARD_BOM_COLUMNS = [
     "Width mm",
     "Weight per Assembly",
     "Remarks",
+]
+
+BOM_DETAIL_FIELDS = [
+    ("bom_name", "WO Number"),
+    ("project_name", "Project Name"),
+    ("client_name", "Client Name"),
+    ("purchase_order_no", "Purchase Order No"),
+    ("purchase_order_date", "Purchase Order Date"),
+    ("delivery_date", "Delivery Date"),
+    ("order_rate", "Order Rate"),
+    ("order_value", "Order Value"),
 ]
 
 EXTRACTOR_FIELD_LABELS = {
@@ -178,6 +189,10 @@ def _revalidate_bom_upload_context(request):
 
 
 def _date_cell_to_iso(value: str) -> str:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
     value = (value or "").strip()
     if not value:
         return ""
@@ -185,6 +200,36 @@ def _date_cell_to_iso(value: str) -> str:
         return date.fromisoformat(value[:10]).isoformat()
     except ValueError:
         return value
+
+
+def _bom_metadata_from_context(context):
+    return {
+        key: (context.get(key) or "").strip()
+        for key, _label in BOM_DETAIL_FIELDS
+    }
+
+
+def _read_standard_bom_metadata(xlsx_path: str):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    if "BOM_DETAILS" not in wb.sheetnames:
+        return {}
+
+    reverse_labels = {label.lower(): key for key, label in BOM_DETAIL_FIELDS}
+    metadata = {}
+    ws = wb["BOM_DETAILS"]
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not row[0]:
+            continue
+        label = str(row[0]).strip().lower()
+        key = reverse_labels.get(label)
+        if not key:
+            continue
+        value = row[1] if len(row) > 1 else ""
+        if key in {"purchase_order_date", "delivery_date"}:
+            metadata[key] = _date_cell_to_iso(value)
+        else:
+            metadata[key] = "" if value is None else str(value).strip()
+    return metadata
 
 
 def _parse_decimal(value: str):
@@ -813,7 +858,7 @@ def _extract_company_bom_rows_for_upload(xlsx_path: str, instructions: str = "")
         return extraction
 
 
-def _standard_bom_workbook(rows):
+def _standard_bom_workbook(rows, metadata=None):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "BOM_UPLOAD"
@@ -833,13 +878,29 @@ def _standard_bom_workbook(rows):
         ])
     for index, width in enumerate([24, 14, 18, 22, 20, 22, 12, 12, 20, 30], start=1):
         ws.column_dimensions[get_column_letter(index)].width = width
+
+    details = wb.create_sheet("BOM_DETAILS")
+    details.append(["Field", "Value"])
+    metadata = metadata or {}
+    for key, label in BOM_DETAIL_FIELDS:
+        details.append([label, metadata.get(key, "")])
+    details.column_dimensions["A"].width = 28
+    details.column_dimensions["B"].width = 40
+
+    instructions = wb.create_sheet("Instructions")
+    instructions.append(["Instruction", "Details"])
+    instructions.append(["Do not rename BOM_UPLOAD headers", "Paste or correct repeated child part rows below the header row in BOM_UPLOAD."])
+    instructions.append(["Do not rename BOM_DETAILS", "WO Number, project, client, PO, dates, rate, and value are stored in BOM_DETAILS."])
+    instructions.append(["Dispatch MKD No", "Customer/company identity of the fabricated item."])
+    instructions.append(["Assembly Qty", "Number of separate fabricated units for this Dispatch MKD No."])
+    instructions.append(["Weight per Assembly", "Weight contribution of this child part for one fabricated unit."])
     return wb
 
 
-def _save_standard_bom_temp(rows):
+def _save_standard_bom_temp(rows, metadata=None):
     tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
     tmp.close()
-    wb = _standard_bom_workbook(rows)
+    wb = _standard_bom_workbook(rows, metadata=metadata)
     wb.save(tmp.name)
     return tmp.name
 
@@ -1084,29 +1145,7 @@ def generate_bom_int_erc(request, bom_id: int):
 
 @staff_member_required
 def download_standard_bom_template(request):
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "BOM_UPLOAD"
-    ws.append(STANDARD_BOM_COLUMNS)
-
-    instructions = wb.create_sheet("Instructions")
-    instructions.append(["Instruction", "Details"])
-    instructions.append(["Do not rename BOM_UPLOAD headers", "Paste or enter all BOM rows below the header row in BOM_UPLOAD."])
-    instructions.append(["BOM header details", "WO Number, project, client, PO, delivery, rate, and value are entered once on the upload screen."])
-    instructions.append(["Dispatch MKD No", "Customer/company identity of the fabricated item."])
-    instructions.append(["Assembly Qty", "Number of separate fabricated units for this Dispatch MKD No."])
-    instructions.append(["Section / Profile", "Must match Item Master section/profile text."])
-    instructions.append(["Grade / Quality", "Must match Item Master grade. Example: IS:2062 E250BR."])
-    instructions.append(["Part-Qty per Assembly", "Quantity of this child part in one fabricated unit."])
-    instructions.append(["Weight per Assembly", "Weight contribution of this child part for one fabricated unit."])
-    instructions.append(["Working BOM", "After validation, Create Working BOM will create one internal ERC/Main Mark for each Assembly Qty."])
-
-    widths = {
-        "A": 24, "B": 14, "C": 18, "D": 22, "E": 20, "F": 22,
-        "G": 12, "H": 12, "I": 20, "J": 30,
-    }
-    for col, width in widths.items():
-        ws.column_dimensions[col].width = width
+    wb = _standard_bom_workbook([], metadata={})
 
     resp = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1160,9 +1199,10 @@ def ai_bom_extractor(request):
             if not rows:
                 context["error"] = "Apply column mapping and preview rows before continuing."
                 return render(request, "procurement/ai_bom_extractor.html", context)
+            metadata = _bom_metadata_from_context(context)
 
             if action == "download_standard":
-                wb = _standard_bom_workbook(rows)
+                wb = _standard_bom_workbook(rows, metadata=metadata)
                 resp = HttpResponse(
                     content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
@@ -1170,7 +1210,7 @@ def ai_bom_extractor(request):
                 wb.save(resp)
                 return resp
 
-            standard_path = _save_standard_bom_temp(rows)
+            standard_path = _save_standard_bom_temp(rows, metadata=metadata)
             result = validate_and_extract_workbook(standard_path)
             request.session["bom_tmp_path"] = standard_path
             request.session["bom_name"] = context["bom_name"]
@@ -1261,26 +1301,27 @@ def bom_upload(request):
 
         result = validate_and_extract_workbook(tmp_path)
         request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
+        metadata = _read_standard_bom_metadata(tmp_path)
 
         request.session["bom_tmp_path"] = tmp_path
-        request.session["bom_name"] = bom_name
-        request.session["project_name"] = project_name
-        request.session["client_name"] = client_name
-        request.session["purchase_order_no"] = purchase_order_no
-        request.session["purchase_order_date"] = purchase_order_date
-        request.session["delivery_date"] = delivery_date
-        request.session["order_rate"] = order_rate
-        request.session["order_value"] = order_value
+        request.session["bom_name"] = metadata.get("bom_name") or bom_name
+        request.session["project_name"] = metadata.get("project_name") or project_name
+        request.session["client_name"] = metadata.get("client_name") or client_name
+        request.session["purchase_order_no"] = metadata.get("purchase_order_no") or purchase_order_no
+        request.session["purchase_order_date"] = metadata.get("purchase_order_date") or purchase_order_date
+        request.session["delivery_date"] = metadata.get("delivery_date") or delivery_date
+        request.session["order_rate"] = metadata.get("order_rate") or order_rate
+        request.session["order_value"] = metadata.get("order_value") or order_value
         request.session["estimate_project_id"] = estimate_project.id if estimate_project else None
 
-        context["bom_name"] = bom_name
-        context["project_name"] = project_name
-        context["client_name"] = client_name
-        context["purchase_order_no"] = purchase_order_no
-        context["purchase_order_date"] = purchase_order_date
-        context["delivery_date"] = delivery_date
-        context["order_rate"] = order_rate
-        context["order_value"] = order_value
+        context["bom_name"] = request.session["bom_name"]
+        context["project_name"] = request.session["project_name"]
+        context["client_name"] = request.session["client_name"]
+        context["purchase_order_no"] = request.session["purchase_order_no"]
+        context["purchase_order_date"] = request.session["purchase_order_date"]
+        context["delivery_date"] = request.session["delivery_date"]
+        context["order_rate"] = request.session["order_rate"]
+        context["order_value"] = request.session["order_value"]
         context["estimate_project"] = estimate_project
         context["uploaded_step"] = True
         context["result"] = result
