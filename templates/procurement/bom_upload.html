@@ -140,6 +140,12 @@
                 Download Validation Errors Excel
             </a>
         </p>
+        <form method="post" action="{% url 'procurement:bom_refresh_validation' %}">
+            {% csrf_token %}
+            <div class="actions">
+                <button class="btn btn-secondary" type="submit">Refresh Validation</button>
+            </div>
+        </form>
 
         <table>
             <tr>
@@ -153,6 +159,7 @@
                 <th>Engg Weight (kg)</th>
                 <th>Message</th>
                 <th>Possible Grades / Suggestions</th>
+                <th>Action</th>
             </tr>
             {% for e in result.errors %}
             <tr>
@@ -170,6 +177,27 @@
                     {% if e.suggestions %}
                         {% if e.possible_grades_for_section %}<br><br>{% endif %}
                         {{ e.suggestions|join:", " }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if e.type == "GRADE_MISMATCH" or e.type == "ITEM_GRADE_MISMATCH" %}
+                        <form method="post" action="{% url 'procurement:bom_add_item_master_from_error' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="section_name" value="{{ e.item_description_in_bom }}">
+                            <input type="hidden" name="grade_name" value="{{ e.grade_in_bom }}">
+                            {% if e.type == "ITEM_GRADE_MISMATCH" %}
+                                <label for="group2_{{ e.excel_row }}">Group2</label>
+                                <select id="group2_{{ e.excel_row }}" name="group2" required>
+                                    <option value="">Select</option>
+                                    {% for group2 in group2_list %}
+                                        <option value="{{ group2.id }}">{{ group2.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% endif %}
+                            <button class="btn btn-secondary" type="submit">Add to Item Master</button>
+                        </form>
+                    {% else %}
+                        -
                     {% endif %}
                 </td>
             </tr>

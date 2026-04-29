@@ -16,6 +16,16 @@ urlpatterns = [
         name="download_bom_validation_errors",
     ),
     path(
+        "bom/validation-errors/add-item-master/",
+        views_bom.bom_add_item_master_from_error,
+        name="bom_add_item_master_from_error",
+    ),
+    path(
+        "bom/validation-errors/refresh/",
+        views_bom.bom_refresh_validation,
+        name="bom_refresh_validation",
+    ),
+    path(
         "bom/<int:bom_id>/export-master/",
         views_bom.bom_export_master,
         name="bom_export_master",

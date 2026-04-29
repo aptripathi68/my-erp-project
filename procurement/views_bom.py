@@ -23,10 +23,11 @@ from openpyxl.utils import get_column_letter
 
 from estimation.models import EstimateProject
 from drawings.models import Drawing
+from masters.models import Grade, Group2, Item, normalize_item_description
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
 from .services.backbone import duplicate_work_order_exists, normalize_wo_number, sync_bom_to_backbone
 from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
-from .services.bom_importer import build_header_signature, validate_and_extract_workbook, workbook_sheet_headers
+from .services.bom_importer import build_header_signature, grade_match_variants, validate_and_extract_workbook, workbook_sheet_headers
 
 
 MAPPING_FIELDS = (
@@ -125,6 +126,55 @@ def _session_safe_errors(errors):
                 row[k] = str(v)
         safe.append(row)
     return safe
+
+
+def _item_master_section_match(section_name: str):
+    section_norm = normalize_item_description(section_name or "")
+    if not section_norm:
+        return None
+    for item in Item.objects.select_related("group2", "grade").filter(is_active=True).exclude(section_name=""):
+        if normalize_item_description(item.section_name or "") == section_norm:
+            return item
+    return None
+
+
+def _matching_grade_for_bom(group2, grade_name: str):
+    target_variants = set(grade_match_variants(grade_name))
+    if not target_variants:
+        return None
+    for grade in Grade.objects.filter(group2=group2):
+        grade_values = [grade.code or "", grade.name or "", f"{grade.code or ''} {grade.name or ''}"]
+        for value in grade_values:
+            if target_variants.intersection(grade_match_variants(value)):
+                return grade
+    return None
+
+
+def _grade_code_for_bom(grade_name: str):
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "", grade_name or "").upper()
+    return (cleaned or "BOMGRADE")[:50]
+
+
+def _revalidate_bom_upload_context(request):
+    tmp_path = request.session.get("bom_tmp_path")
+    if not tmp_path:
+        return None
+
+    result = validate_and_extract_workbook(tmp_path)
+    request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
+    return {
+        "result": result,
+        "uploaded_step": True,
+        "bom_name": request.session.get("bom_name", ""),
+        "project_name": request.session.get("project_name", ""),
+        "client_name": request.session.get("client_name", ""),
+        "purchase_order_no": request.session.get("purchase_order_no", ""),
+        "purchase_order_date": request.session.get("purchase_order_date", ""),
+        "delivery_date": request.session.get("delivery_date", ""),
+        "order_rate": request.session.get("order_rate", ""),
+        "order_value": request.session.get("order_value", ""),
+        "group2_list": Group2.objects.order_by("name"),
+    }
 
 
 def _date_cell_to_iso(value: str) -> str:
@@ -1139,6 +1189,7 @@ def ai_bom_extractor(request):
                 {
                     "result": result,
                     "uploaded_step": True,
+                    "group2_list": Group2.objects.order_by("name"),
                     "bom_name": context["bom_name"],
                     "project_name": context["project_name"],
                     "client_name": context["client_name"],
@@ -1233,6 +1284,7 @@ def bom_upload(request):
         context["estimate_project"] = estimate_project
         context["uploaded_step"] = True
         context["result"] = result
+        context["group2_list"] = Group2.objects.order_by("name")
 
         return render(request, "procurement/bom_upload.html", context)
 
@@ -1275,6 +1327,7 @@ def bom_upload(request):
         context["order_value"] = order_value_raw
         context["estimate_project"] = estimate_project
         context["uploaded_step"] = True
+        context["group2_list"] = Group2.objects.order_by("name")
 
         if request.POST.get("action") == "create_working_bom" and result["ok"]:
             wo_number = normalize_wo_number(bom_name)
@@ -1331,6 +1384,7 @@ def bom_upload(request):
     context["order_value"] = request.session.get("order_value", "")
     context["working_bom_id"] = request.session.get("working_bom_id")
     context["estimate_project"] = estimate_project
+    context["group2_list"] = Group2.objects.order_by("name")
     if estimate_project:
         context["bom_name"] = context["bom_name"] or estimate_project.work_order_no
         context["project_name"] = context["project_name"] or estimate_project.project_name
@@ -1344,6 +1398,96 @@ def bom_upload(request):
             context["delivery_date"]
             or (estimate_project.delivery_date.isoformat() if estimate_project.delivery_date else "")
         )
+    return render(request, "procurement/bom_upload.html", context)
+
+
+@staff_member_required
+def bom_add_item_master_from_error(request):
+    if request.method != "POST":
+        return redirect("procurement:bom_upload")
+
+    section_name = (request.POST.get("section_name") or "").strip()
+    grade_name = (request.POST.get("grade_name") or "").strip()
+    group2_id = request.POST.get("group2") or ""
+
+    if not section_name or not grade_name:
+        messages.error(request, "Section Name and Grade Name are required to add Item Master row.")
+        return redirect("procurement:bom_upload")
+
+    section_item = _item_master_section_match(section_name)
+    group2 = section_item.group2 if section_item else None
+    if not group2 and group2_id:
+        group2 = get_object_or_404(Group2, pk=group2_id)
+
+    if not group2:
+        messages.error(
+            request,
+            (
+                "Select Group2 to add a new section-grade combination that is not already "
+                "available in Item Master."
+            ),
+        )
+        context = _revalidate_bom_upload_context(request)
+        return render(request, "procurement/bom_upload.html", context) if context else redirect("procurement:bom_upload")
+
+    grade = _matching_grade_for_bom(group2, grade_name)
+    if not grade:
+        grade_code = _grade_code_for_bom(grade_name)
+        grade = Grade.objects.filter(group2=group2, code=grade_code).first()
+        if not grade:
+            grade = Grade.objects.create(
+                group2=group2,
+                code=grade_code,
+                name=grade_name[:200],
+            )
+
+    section_norm = normalize_item_description(section_name)
+    grade_variants = set(grade_match_variants(grade_name))
+    for item in Item.objects.select_related("grade").filter(group2=group2, is_active=True):
+        if normalize_item_description(item.section_name or "") != section_norm:
+            continue
+        item_grade_values = [
+            item.grade.code if item.grade else "",
+            item.grade.name if item.grade else "",
+            f"{item.grade.code if item.grade else ''} {item.grade.name if item.grade else ''}",
+        ]
+        if any(grade_variants.intersection(grade_match_variants(value)) for value in item_grade_values):
+            messages.info(request, f"Item Master already has {section_name} with {grade_name}.")
+            context = _revalidate_bom_upload_context(request)
+            return render(request, "procurement/bom_upload.html", context) if context else redirect("procurement:bom_upload")
+
+    item_description = f"{section_name} {grade_name}".strip()
+    try:
+        Item.objects.create(
+            group2=group2,
+            grade=grade,
+            section_name=section_name,
+            item_description=item_description,
+            unit_weight=Decimal("0"),
+            is_active=True,
+        )
+        messages.success(
+            request,
+            f"Added Item Master row for Section '{section_name}' and Grade '{grade_name}'. Unit weight set to 0.",
+        )
+    except Exception as exc:
+        messages.error(request, f"Unable to add Item Master row: {exc}")
+
+    context = _revalidate_bom_upload_context(request)
+    return render(request, "procurement/bom_upload.html", context) if context else redirect("procurement:bom_upload")
+
+
+@staff_member_required
+def bom_refresh_validation(request):
+    if request.method != "POST":
+        return redirect("procurement:bom_upload")
+
+    context = _revalidate_bom_upload_context(request)
+    if not context:
+        messages.error(request, "No uploaded BOM is available for refresh. Please upload again.")
+        return redirect("procurement:bom_upload")
+
+    messages.success(request, "BOM validation refreshed against the latest Item Master.")
     return render(request, "procurement/bom_upload.html", context)
 
 
