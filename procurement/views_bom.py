@@ -50,6 +50,55 @@ STANDARD_BOM_COLUMNS = [
     "Remarks",
 ]
 
+EXTRACTOR_FIELD_LABELS = {
+    "dispatch_mkd_no": "Dispatch MKD No",
+    "assembly_qty": "Assembly Qty",
+    "part_mark": "Part Mark / Item No",
+    "section_profile": "Section / Profile",
+    "grade_quality": "Grade / Quality",
+    "part_qty_per_assembly": "Part-Qty per Assembly",
+    "length_mm": "Length mm",
+    "width_mm": "Width mm",
+    "weight_per_assembly": "Weight per Assembly",
+    "remarks": "Remarks",
+}
+
+EXTRACTOR_ALIASES = {
+    "dispatch_mkd_no": [
+        "dispatch mkd no", "dispatch mkg no", "dispatch mark no", "dispatch mkd", "as marked",
+        "mark no", "mark", "du material", "material", "bom part no.",
+    ],
+    "assembly_qty": [
+        "assembly qty", "assy qty", "dispatch qty", "du quantity", "mark qty", "qty requested",
+    ],
+    "part_mark": [
+        "part mark", "part mark / item no", "item no", "item", "item code", "component", "material",
+    ],
+    "section_profile": [
+        "section / profile", "section profile", "section", "profile", "material section",
+        "material description", "component description", "du material description",
+    ],
+    "grade_quality": [
+        "grade / quality", "grade quality", "grade", "quality", "material grade", "mat grade",
+    ],
+    "part_qty_per_assembly": [
+        "part-qty per assembly", "part qty per assembly", "qty/assy", "qty per assy",
+        "qty per assembly", "unit qty", "qty", "qty all", "quantity",
+    ],
+    "length_mm": ["length mm", "length (mm)", "length", "len"],
+    "width_mm": ["width mm", "width (mm)", "width", "wd"],
+    "weight_per_assembly": [
+        "weight per assembly", "weight/assy.", "weight/assy", "engg. weight", "engg weight",
+        "unit wt. (kgs)", "unit wt", "unit weight", "drg wt. (kgs)", "total wt", "total weight",
+    ],
+    "remarks": ["remarks", "remark", "revision"],
+}
+
+EXTRACTOR_TARGET_ALIASES = {
+    field: [label.lower(), field.replace("_", " ")]
+    for field, label in EXTRACTOR_FIELD_LABELS.items()
+}
+
 
 def _has_planning_access(user):
     return user.is_authenticated and (
@@ -92,6 +141,184 @@ def _parse_decimal(value: str):
         return Decimal(value)
     except (InvalidOperation, ValueError):
         return None
+
+
+def _extractor_header(value) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().lower().replace("\n", " ")
+    return re.sub(r"\s+", " ", text)
+
+
+def _extractor_find_header_row(ws, max_scan_rows: int = 50):
+    for row_number, row in enumerate(ws.iter_rows(min_row=1, max_row=max_scan_rows, values_only=True), start=1):
+        headers = [_extractor_header(value) for value in row]
+        matches = 0
+        for aliases in EXTRACTOR_ALIASES.values():
+            if any(header in aliases for header in headers):
+                matches += 1
+        if matches >= 3:
+            return row_number, headers
+    return None, []
+
+
+def _extractor_auto_mapping(headers):
+    mapping = {}
+    for index, header in enumerate(headers):
+        if not header:
+            continue
+        for field, aliases in EXTRACTOR_ALIASES.items():
+            if field in mapping:
+                continue
+            if header in aliases:
+                mapping[field] = index
+                break
+    return mapping
+
+
+def _extractor_field_from_instruction(target: str):
+    target_norm = _extractor_header(target).replace("-", " ")
+    for field, aliases in EXTRACTOR_TARGET_ALIASES.items():
+        for alias in aliases:
+            alias_norm = alias.replace("-", " ")
+            if target_norm == alias_norm or target_norm in alias_norm or alias_norm in target_norm:
+                return field
+    return None
+
+
+def _extractor_instruction_mapping(headers, instructions: str):
+    mapping = {}
+    normalized_headers = [_extractor_header(header) for header in headers]
+    for line in (instructions or "").splitlines():
+        match = re.search(r"use\s+(.+?)\s+as\s+(.+)", line, flags=re.IGNORECASE)
+        if not match:
+            continue
+        source_text = _extractor_header(match.group(1))
+        field = _extractor_field_from_instruction(match.group(2))
+        if not field:
+            continue
+        for index, header in enumerate(normalized_headers):
+            if not header:
+                continue
+            if source_text == header or source_text in header or header in source_text:
+                mapping[field] = index
+                break
+    return mapping
+
+
+def _extractor_cell(row, mapping, field):
+    index = mapping.get(field)
+    if index is None or index >= len(row):
+        return ""
+    value = row[index]
+    return "" if value is None else str(value).strip()
+
+
+def _extractor_blankish(value: str) -> bool:
+    return (value or "").strip() in {"", "-", "--", "0"}
+
+
+def _extractor_numeric_or_blank(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    return value if _parse_decimal(value.replace(",", "")) is not None else ""
+
+
+def _extract_company_bom_rows(xlsx_path: str, instructions: str = ""):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    rows = []
+    sheets = []
+    for sheet_name in wb.sheetnames:
+        if any(token in sheet_name.lower() for token in ["summary", "notes", "index", "cover"]):
+            continue
+        ws = wb[sheet_name]
+        header_row, headers = _extractor_find_header_row(ws)
+        if not header_row:
+            sheets.append({"sheet_name": sheet_name, "detected": False, "mapping": {}})
+            continue
+
+        mapping = _extractor_auto_mapping(headers)
+        mapping.update(_extractor_instruction_mapping(headers, instructions))
+        sheets.append({
+            "sheet_name": sheet_name,
+            "detected": True,
+            "header_row": header_row,
+            "mapping": {
+                EXTRACTOR_FIELD_LABELS[field]: headers[index]
+                for field, index in mapping.items()
+                if index < len(headers)
+            },
+        })
+
+        for excel_row, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+            if not row or all(value is None or str(value).strip() == "" for value in row):
+                continue
+            assembly_qty = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "assembly_qty")) or "1"
+            part_qty = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "part_qty_per_assembly")) or "1"
+            length_mm = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "length_mm"))
+            width_mm = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "width_mm"))
+            weight_per_assembly = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "weight_per_assembly"))
+            extracted = {
+                "source_sheet": sheet_name,
+                "source_row": excel_row,
+                "dispatch_mkd_no": _extractor_cell(row, mapping, "dispatch_mkd_no"),
+                "assembly_qty": assembly_qty,
+                "part_mark": _extractor_cell(row, mapping, "part_mark"),
+                "section_profile": _extractor_cell(row, mapping, "section_profile"),
+                "grade_quality": _extractor_cell(row, mapping, "grade_quality"),
+                "part_qty_per_assembly": part_qty,
+                "length_mm": length_mm,
+                "width_mm": width_mm,
+                "weight_per_assembly": weight_per_assembly,
+                "remarks": _extractor_cell(row, mapping, "remarks"),
+            }
+            if _extractor_blankish(extracted["dispatch_mkd_no"]):
+                extracted["dispatch_mkd_no"] = ""
+            if (
+                _extractor_blankish(extracted["section_profile"])
+                and _extractor_blankish(extracted["part_mark"])
+            ):
+                continue
+            rows.append(extracted)
+    warnings = []
+    required = ["dispatch_mkd_no", "section_profile", "grade_quality", "part_qty_per_assembly", "weight_per_assembly"]
+    for field in required:
+        missing = sum(1 for row in rows if not row.get(field))
+        if missing:
+            warnings.append(f"{missing} row(s) missing {EXTRACTOR_FIELD_LABELS[field]}.")
+    return {"rows": rows, "sheets": sheets, "warnings": warnings}
+
+
+def _standard_bom_workbook(rows):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "BOM_UPLOAD"
+    ws.append(STANDARD_BOM_COLUMNS)
+    for row in rows:
+        ws.append([
+            row.get("dispatch_mkd_no", ""),
+            row.get("assembly_qty", ""),
+            row.get("part_mark", ""),
+            row.get("section_profile", ""),
+            row.get("grade_quality", ""),
+            row.get("part_qty_per_assembly", ""),
+            row.get("length_mm", ""),
+            row.get("width_mm", ""),
+            row.get("weight_per_assembly", ""),
+            row.get("remarks", ""),
+        ])
+    for index, width in enumerate([24, 14, 18, 22, 20, 22, 12, 12, 20, 30], start=1):
+        ws.column_dimensions[get_column_letter(index)].width = width
+    return wb
+
+
+def _save_standard_bom_temp(rows):
+    tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+    tmp.close()
+    wb = _standard_bom_workbook(rows)
+    wb.save(tmp.name)
+    return tmp.name
 
 
 def _quantity_to_count(value) -> int:
@@ -364,6 +591,92 @@ def download_standard_bom_template(request):
     resp["Content-Disposition"] = 'attachment; filename="kalpadeep_standard_bom_template.xlsx"'
     wb.save(resp)
     return resp
+
+
+@staff_member_required
+def ai_bom_extractor(request):
+    context = {
+        "bom_name": request.POST.get("bom_name") or request.session.get("extractor_bom_name", ""),
+        "project_name": request.POST.get("project_name") or request.session.get("extractor_project_name", ""),
+        "client_name": request.POST.get("client_name") or request.session.get("extractor_client_name", ""),
+        "purchase_order_no": request.POST.get("purchase_order_no") or request.session.get("extractor_purchase_order_no", ""),
+        "purchase_order_date": request.POST.get("purchase_order_date") or request.session.get("extractor_purchase_order_date", ""),
+        "delivery_date": request.POST.get("delivery_date") or request.session.get("extractor_delivery_date", ""),
+        "order_rate": request.POST.get("order_rate") or request.session.get("extractor_order_rate", ""),
+        "order_value": request.POST.get("order_value") or request.session.get("extractor_order_value", ""),
+        "instructions": request.POST.get("instructions") or request.session.get("extractor_instructions", ""),
+    }
+
+    action = request.POST.get("action", "")
+
+    if request.method == "POST":
+        for key in [
+            "bom_name", "project_name", "client_name", "purchase_order_no",
+            "purchase_order_date", "delivery_date", "order_rate", "order_value",
+        ]:
+            request.session[f"extractor_{key}"] = context[key]
+
+        if request.FILES.get("file"):
+            upload = request.FILES["file"]
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                for chunk in upload.chunks():
+                    tmp.write(chunk)
+                request.session["extractor_tmp_path"] = tmp.name
+
+        tmp_path = request.session.get("extractor_tmp_path")
+        if not tmp_path:
+            context["error"] = "Upload a company BOM file first."
+            return render(request, "procurement/ai_bom_extractor.html", context)
+
+        if action == "reextract":
+            request.session["extractor_instructions"] = context["instructions"]
+
+        extraction = _extract_company_bom_rows(tmp_path, context["instructions"])
+        request.session["extractor_rows"] = extraction["rows"]
+        context.update(extraction)
+        context["preview_rows"] = extraction["rows"][:100]
+
+        if action == "download_standard":
+            wb = _standard_bom_workbook(extraction["rows"])
+            resp = HttpResponse(
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            resp["Content-Disposition"] = 'attachment; filename="ai_extracted_standard_bom.xlsx"'
+            wb.save(resp)
+            return resp
+
+        if action == "send_validation":
+            standard_path = _save_standard_bom_temp(extraction["rows"])
+            result = validate_and_extract_workbook(standard_path)
+            request.session["bom_tmp_path"] = standard_path
+            request.session["bom_name"] = context["bom_name"]
+            request.session["project_name"] = context["project_name"]
+            request.session["client_name"] = context["client_name"]
+            request.session["purchase_order_no"] = context["purchase_order_no"]
+            request.session["purchase_order_date"] = context["purchase_order_date"]
+            request.session["delivery_date"] = context["delivery_date"]
+            request.session["order_rate"] = context["order_rate"]
+            request.session["order_value"] = context["order_value"]
+            request.session["estimate_project_id"] = None
+            request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
+            return render(
+                request,
+                "procurement/bom_upload.html",
+                {
+                    "result": result,
+                    "uploaded_step": True,
+                    "bom_name": context["bom_name"],
+                    "project_name": context["project_name"],
+                    "client_name": context["client_name"],
+                    "purchase_order_no": context["purchase_order_no"],
+                    "purchase_order_date": context["purchase_order_date"],
+                    "delivery_date": context["delivery_date"],
+                    "order_rate": context["order_rate"],
+                    "order_value": context["order_value"],
+                },
+            )
+
+    return render(request, "procurement/ai_bom_extractor.html", context)
 
 
 @staff_member_required

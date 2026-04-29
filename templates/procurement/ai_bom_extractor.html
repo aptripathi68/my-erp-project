@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI BOM Template Extractor</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;margin:24px;background:#f7f9fb;color:#24313d;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+        h2,h3{margin:0 0 10px;}
+        .btn{display:inline-block;padding:10px 16px;border:none;border-radius:6px;cursor:pointer;font-weight:600;text-decoration:none;}
+        .btn-primary{background:#5f839d;color:#fff;}
+        .btn-success{background:#2e7d32;color:#fff;}
+        .btn-secondary{background:#fff;color:#24313d;border:1px solid #cfd8df;}
+        .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+        .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;}
+        label{display:block;font-weight:700;margin-bottom:6px;}
+        input,textarea{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;box-sizing:border-box;}
+        textarea{min-height:90px;}
+        table{width:100%;border-collapse:collapse;background:#fff;}
+        th,td{border:1px solid #d9e2ec;padding:8px 10px;vertical-align:top;text-align:left;}
+        th{background:#eef3f7;}
+        .small{font-size:13px;color:#667786;}
+        .warn{color:#92400e;}
+        .error{color:#b00020;}
+        @media (max-width:768px){body{margin:12px;} .btn{width:100%;box-sizing:border-box;text-align:center;} th,td{font-size:14px;}}
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>AI BOM Template Extractor</h2>
+    <p class="small">Upload a company BOM, preview extracted rows in Kalpadeep standard format, refine with instructions, then download or send directly to BOM validation.</p>
+    <div class="actions">
+        <a class="btn btn-secondary" href="{% url 'procurement:bom_upload' %}">Standard BOM Upload</a>
+        <a class="btn btn-secondary" href="{% url 'dashboard_home' %}">Dashboard</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="card"><p class="error"><strong>{{ error }}</strong></p></div>
+{% endif %}
+
+<div class="card">
+    <h3>Upload Company BOM</h3>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="field-grid">
+            <div><label for="bom_name">WO Number</label><input id="bom_name" type="text" name="bom_name" value="{{ bom_name }}" required></div>
+            <div><label for="project_name">Project Name</label><input id="project_name" type="text" name="project_name" value="{{ project_name }}"></div>
+            <div><label for="client_name">Client Name</label><input id="client_name" type="text" name="client_name" value="{{ client_name }}"></div>
+            <div><label for="purchase_order_no">Purchase Order No</label><input id="purchase_order_no" type="text" name="purchase_order_no" value="{{ purchase_order_no }}"></div>
+            <div><label for="purchase_order_date">Purchase Order Date</label><input id="purchase_order_date" type="date" name="purchase_order_date" value="{{ purchase_order_date }}"></div>
+            <div><label for="delivery_date">Delivery Date</label><input id="delivery_date" type="date" name="delivery_date" value="{{ delivery_date }}"></div>
+            <div><label for="order_rate">Order Rate</label><input id="order_rate" type="text" name="order_rate" value="{{ order_rate }}"></div>
+            <div><label for="order_value">Order Value</label><input id="order_value" type="text" name="order_value" value="{{ order_value }}"></div>
+            <div><label for="file">Company BOM File</label><input id="file" type="file" name="file" accept=".xlsx,.xlsm"></div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-primary" type="submit" name="action" value="extract">Extract & Preview</button>
+        </div>
+    </form>
+</div>
+
+{% if rows %}
+<div class="card">
+    <h3>Extraction Preview</h3>
+    <p class="small">Rows extracted: <strong>{{ rows|length }}</strong>. Preview shows first 100 rows.</p>
+    {% if warnings %}
+        {% for warning in warnings %}<p class="warn">{{ warning }}</p>{% endfor %}
+    {% endif %}
+    <h3>Detected Mapping</h3>
+    <table>
+        <tr><th>Sheet</th><th>Detected</th><th>Mapping Used</th></tr>
+        {% for sheet in sheets %}
+        <tr>
+            <td>{{ sheet.sheet_name }}</td>
+            <td>{% if sheet.detected %}Yes{% else %}No{% endif %}</td>
+            <td>
+                {% for field, column in sheet.mapping.items %}
+                    <strong>{{ field }}:</strong> {{ column }}<br>
+                {% empty %}
+                    -
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h3>Re-extract With Instructions</h3>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="bom_name" value="{{ bom_name }}">
+        <input type="hidden" name="project_name" value="{{ project_name }}">
+        <input type="hidden" name="client_name" value="{{ client_name }}">
+        <input type="hidden" name="purchase_order_no" value="{{ purchase_order_no }}">
+        <input type="hidden" name="purchase_order_date" value="{{ purchase_order_date }}">
+        <input type="hidden" name="delivery_date" value="{{ delivery_date }}">
+        <input type="hidden" name="order_rate" value="{{ order_rate }}">
+        <input type="hidden" name="order_value" value="{{ order_value }}">
+        <label for="instructions">Instructions</label>
+        <textarea id="instructions" name="instructions" placeholder="Example: Use Material Section as Section / Profile&#10;Use Engg. Wt. as Weight per Assembly">{{ instructions }}</textarea>
+        <div class="actions">
+            <button class="btn btn-primary" type="submit" name="action" value="reextract">Re-extract</button>
+            <button class="btn btn-secondary" type="submit" name="action" value="download_standard">Download Standard Template</button>
+            <button class="btn btn-success" type="submit" name="action" value="send_validation">Send Directly to BOM Validation</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Standard BOM Rows Preview</h3>
+    <table>
+        <tr>
+            <th>Dispatch MKD No</th><th>Assembly Qty</th><th>Part Mark</th><th>Section / Profile</th><th>Grade / Quality</th>
+            <th>Part-Qty per Assembly</th><th>Length</th><th>Width</th><th>Weight per Assembly</th><th>Remarks</th>
+        </tr>
+        {% for row in preview_rows %}
+        <tr>
+            <td>{{ row.dispatch_mkd_no }}</td>
+            <td>{{ row.assembly_qty }}</td>
+            <td>{{ row.part_mark }}</td>
+            <td>{{ row.section_profile }}</td>
+            <td>{{ row.grade_quality }}</td>
+            <td>{{ row.part_qty_per_assembly }}</td>
+            <td>{{ row.length_mm }}</td>
+            <td>{{ row.width_mm }}</td>
+            <td>{{ row.weight_per_assembly }}</td>
+            <td>{{ row.remarks }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+</body>
+</html>
