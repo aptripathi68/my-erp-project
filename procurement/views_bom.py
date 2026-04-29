@@ -559,11 +559,19 @@ def _extractor_mapping_sheets(xlsx_path: str):
             continue
 
         default_mapping = _extractor_auto_mapping(headers)
+        default_selected = (
+            "bom" in sheet_name.lower()
+            or (
+                "dispatch_mkd_no" in default_mapping
+                and "section_profile" in default_mapping
+            )
+        )
         sheets.append({
             "index": sheet_index,
             "sheet_name": sheet_name,
             "header_row": header_row,
             "columns": columns,
+            "selected": default_selected,
             "default_mapping": {field: str(index) for field, index in default_mapping.items()},
             "field_options": [
                 {
@@ -596,6 +604,8 @@ def _mapping_display(sheet_mappings):
 def _posted_extractor_sheet_mappings(request, mapping_sheets):
     sheet_mappings = []
     for sheet in mapping_sheets:
+        if request.POST.get(f"use_sheet__{sheet['index']}") != "1":
+            continue
         mapping = {}
         labels = {}
         for field in EXTRACTOR_FIELD_LABELS:

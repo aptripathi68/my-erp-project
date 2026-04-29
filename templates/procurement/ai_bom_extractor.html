@@ -25,6 +25,9 @@
         .error{color:#b00020;}
         .pill{display:inline-block;background:#e8f1f8;border:1px solid #cfd8df;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:700;}
         .table-wrap{overflow:auto;}
+        .sheet-head{display:flex;gap:10px;align-items:center;margin:18px 0 6px;}
+        .sheet-head input{width:auto;}
+        .sheet-head label{margin:0;}
         @media (max-width:768px){body{margin:12px;} .btn{width:100%;box-sizing:border-box;text-align:center;} th,td{font-size:14px;}}
     </style>
 </head>
@@ -78,7 +81,10 @@
         <input type="hidden" name="order_rate" value="{{ order_rate }}">
         <input type="hidden" name="order_value" value="{{ order_value }}">
         {% for sheet in mapping_sheets %}
-            <h3>{{ sheet.sheet_name }}</h3>
+            <div class="sheet-head">
+                <input type="checkbox" id="use_sheet_{{ sheet.index }}" name="use_sheet__{{ sheet.index }}" value="1" {% if sheet.selected %}checked{% endif %}>
+                <label for="use_sheet_{{ sheet.index }}"><strong>Use sheet:</strong> {{ sheet.sheet_name }}</label>
+            </div>
             <p class="small">Header row detected: {{ sheet.header_row }}</p>
             <div class="table-wrap">
             <table>
