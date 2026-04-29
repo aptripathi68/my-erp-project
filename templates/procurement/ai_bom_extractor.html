@@ -25,6 +25,8 @@
         .error{color:#b00020;}
         .pill{display:inline-block;background:#e8f1f8;border:1px solid #cfd8df;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:700;}
         .table-wrap{overflow:auto;}
+        .summary-row td{background:#f2f7fb;font-weight:700;border-top:2px solid #9fb8c8;}
+        .child-row td:first-child{padding-left:24px;}
         .sheet-head{display:flex;gap:10px;align-items:center;margin:18px 0 6px;}
         .sheet-head input{width:auto;}
         .sheet-head label{margin:0;}
@@ -146,33 +148,6 @@
     </div>
 </div>
 
-{% if dispatch_summary %}
-<div class="card">
-    <h3>Dispatch MKD Summary</h3>
-    <p class="small">Repeated Dispatch MKD No rows are child parts used to fabricate that Dispatch MKD No. Weight per assembly is the sum of child part weights for one fabricated assembly.</p>
-    <div class="table-wrap">
-    <table>
-        <tr>
-            <th>Dispatch MKD No</th>
-            <th>Assembly Qty</th>
-            <th>Child Part Rows</th>
-            <th>Weight per Assembly</th>
-            <th>Rows With Errors</th>
-        </tr>
-        {% for item in dispatch_summary %}
-        <tr>
-            <td>{{ item.dispatch_mkd_no }}</td>
-            <td>{{ item.assembly_qty }}</td>
-            <td>{{ item.child_parts }}</td>
-            <td>{{ item.weight_per_assembly }}</td>
-            <td>{{ item.errors }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
-</div>
-{% endif %}
-
 <div class="card">
     <h3>Next Step</h3>
     <form method="post">
@@ -193,36 +168,47 @@
 </div>
 
 <div class="card">
-    <h3>Standard BOM Rows Preview</h3>
+    <h3>Grouped BOM Rows Preview</h3>
+    <p class="small">Each Dispatch MKD No summary row is followed by the child part rows used to fabricate it.</p>
     <div class="table-wrap">
     <table>
         <tr>
-            <th>Source Sheet</th><th>Source Row</th>
-            <th>Dispatch MKD No</th><th>Assembly Qty</th><th>Part Mark</th><th>Section / Profile</th><th>Grade / Quality</th>
+            <th>Dispatch / Child Part</th><th>Source Sheet</th><th>Source Row</th><th>Assembly Qty</th><th>Part Mark</th><th>Section / Profile</th><th>Grade / Quality</th>
             <th>Part-Qty per Assembly</th><th>Length</th><th>Width</th><th>Weight per Assembly</th><th>Remarks</th><th>Errors</th>
         </tr>
-        {% for row in preview_rows %}
-        <tr>
-            <td>{{ row.source_sheet }}</td>
-            <td>{{ row.source_row }}</td>
-            <td>{{ row.dispatch_mkd_no }}</td>
-            <td>{{ row.assembly_qty }}</td>
-            <td>{{ row.part_mark }}</td>
-            <td>{{ row.section_profile }}</td>
-            <td>{{ row.grade_quality }}</td>
-            <td>{{ row.part_qty_per_assembly }}</td>
-            <td>{{ row.length_mm }}</td>
-            <td>{{ row.width_mm }}</td>
-            <td>{{ row.weight_per_assembly }}</td>
-            <td>{{ row.remarks }}</td>
-            <td>
-                {% for error in row.errors %}
-                    <span class="error">{{ error }}</span><br>
-                {% empty %}
-                    -
-                {% endfor %}
-            </td>
-        </tr>
+        {% for group in grouped_dispatch_rows %}
+            <tr class="summary-row">
+                <td>{{ group.dispatch_mkd_no }}</td>
+                <td colspan="2">Summary</td>
+                <td>{{ group.assembly_qty }}</td>
+                <td colspan="3">Child part rows: {{ group.child_parts }}</td>
+                <td colspan="3">Rows with errors: {{ group.errors }}</td>
+                <td>{{ group.weight_per_assembly }}</td>
+                <td colspan="2">Weight per assembly</td>
+            </tr>
+            {% for row in group.rows %}
+            <tr class="child-row">
+                <td>{{ row.dispatch_mkd_no }}</td>
+                <td>{{ row.source_sheet }}</td>
+                <td>{{ row.source_row }}</td>
+                <td>{{ row.assembly_qty }}</td>
+                <td>{{ row.part_mark }}</td>
+                <td>{{ row.section_profile }}</td>
+                <td>{{ row.grade_quality }}</td>
+                <td>{{ row.part_qty_per_assembly }}</td>
+                <td>{{ row.length_mm }}</td>
+                <td>{{ row.width_mm }}</td>
+                <td>{{ row.weight_per_assembly }}</td>
+                <td>{{ row.remarks }}</td>
+                <td>
+                    {% for error in row.errors %}
+                        <span class="error">{{ error }}</span><br>
+                    {% empty %}
+                        -
+                    {% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
         {% endfor %}
     </table>
     </div>

@@ -313,6 +313,44 @@ def _extractor_dispatch_summary(rows):
     return summary
 
 
+def _extractor_grouped_dispatch_rows(rows):
+    groups = []
+    by_dispatch = {}
+    for row in rows:
+        dispatch_mkd_no = row.get("dispatch_mkd_no") or "(blank)"
+        group = by_dispatch.get(dispatch_mkd_no)
+        if group is None:
+            group = {
+                "dispatch_mkd_no": dispatch_mkd_no,
+                "assembly_qty": row.get("assembly_qty") or "",
+                "child_parts": 0,
+                "weight_per_assembly": Decimal("0"),
+                "has_weight": False,
+                "errors": 0,
+                "rows": [],
+            }
+            by_dispatch[dispatch_mkd_no] = group
+            groups.append(group)
+
+        group["rows"].append(row)
+        group["child_parts"] += 1
+        if not group["assembly_qty"] and row.get("assembly_qty"):
+            group["assembly_qty"] = row.get("assembly_qty")
+        weight = _parse_decimal((row.get("weight_per_assembly") or "").replace(",", ""))
+        if weight is not None:
+            group["weight_per_assembly"] += weight
+            group["has_weight"] = True
+        if row.get("errors"):
+            group["errors"] += 1
+
+    for group in groups:
+        if group["has_weight"]:
+            group["weight_per_assembly"] = str(group["weight_per_assembly"].normalize())
+        else:
+            group["weight_per_assembly"] = ""
+    return groups
+
+
 def _extractor_workbook_context(xlsx_path: str):
     wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
     context = []
@@ -1136,6 +1174,7 @@ def ai_bom_extractor(request):
         context.update(extraction)
         context["preview_rows"] = extraction["rows"]
         context["dispatch_summary"] = _extractor_dispatch_summary(extraction["rows"])
+        context["grouped_dispatch_rows"] = _extractor_grouped_dispatch_rows(extraction["rows"])
 
     return render(request, "procurement/ai_bom_extractor.html", context)
 
