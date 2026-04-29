@@ -38,6 +38,11 @@
         <p><strong>BOM Name:</strong> {{ header.bom_name }}</p>
         <p><strong>Project:</strong> {{ header.project_name }}</p>
         <p><strong>Client:</strong> {{ header.client_name }}</p>
+        {% if header.is_locked %}
+        <p style="color:#805400;">
+            This BOM is marked as process started/locked. Staff deletion will still remove its linked planning records.
+        </p>
+        {% endif %}
         <p style="color:#b00020;">
             This will delete the BOM header, all engineering marks, and all BOM components linked to it.
             {% if linked_drawing_count %}

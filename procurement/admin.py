@@ -95,8 +95,6 @@ class BOMHeaderAdmin(admin.ModelAdmin):
 
     @admin.display(description="Delete")
     def delete_link(self, obj):
-        if obj.is_locked:
-            return "Locked"
         url = reverse("procurement:bom_delete", args=[obj.pk])
         return format_html('<a class="button" href="{}">Delete</a>', url)
 

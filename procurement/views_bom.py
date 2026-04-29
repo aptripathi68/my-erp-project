@@ -695,10 +695,6 @@ def bom_export_master(request, bom_id: int):
 def bom_delete(request, bom_id):
     header = get_object_or_404(BOMHeader, id=bom_id)
 
-    if header.is_locked:
-        messages.error(request, "This BOM cannot be deleted. Process already started.")
-        return redirect("procurement:planning_dashboard")
-
     if request.method == "POST":
         drawing_count = Drawing.objects.filter(project=header).count()
         with transaction.atomic():
