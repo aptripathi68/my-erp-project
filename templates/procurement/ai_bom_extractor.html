@@ -117,7 +117,7 @@
 {% if rows %}
 <div class="card">
     <h3>Extraction Preview</h3>
-    <p class="small">Rows extracted: <strong>{{ rows|length }}</strong>. Preview shows first 100 rows.</p>
+    <p class="small">Rows extracted: <strong>{{ rows|length }}</strong>. All extracted rows are shown below.</p>
     {% if extractor_mode %}
         <p><span class="pill">Extractor used: {{ extractor_mode }}</span></p>
     {% endif %}
@@ -145,6 +145,33 @@
     </table>
     </div>
 </div>
+
+{% if dispatch_summary %}
+<div class="card">
+    <h3>Dispatch MKD Summary</h3>
+    <p class="small">Repeated Dispatch MKD No rows are child parts used to fabricate that Dispatch MKD No. Weight per assembly is the sum of child part weights for one fabricated assembly.</p>
+    <div class="table-wrap">
+    <table>
+        <tr>
+            <th>Dispatch MKD No</th>
+            <th>Assembly Qty</th>
+            <th>Child Part Rows</th>
+            <th>Weight per Assembly</th>
+            <th>Rows With Errors</th>
+        </tr>
+        {% for item in dispatch_summary %}
+        <tr>
+            <td>{{ item.dispatch_mkd_no }}</td>
+            <td>{{ item.assembly_qty }}</td>
+            <td>{{ item.child_parts }}</td>
+            <td>{{ item.weight_per_assembly }}</td>
+            <td>{{ item.errors }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endif %}
 
 <div class="card">
     <h3>Next Step</h3>
