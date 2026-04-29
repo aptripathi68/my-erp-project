@@ -23,6 +23,8 @@
         .small{font-size:13px;color:#667786;}
         .warn{color:#92400e;}
         .error{color:#b00020;}
+        .pill{display:inline-block;background:#e8f1f8;border:1px solid #cfd8df;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:700;}
+        .table-wrap{overflow:auto;}
         @media (max-width:768px){body{margin:12px;} .btn{width:100%;box-sizing:border-box;text-align:center;} th,td{font-size:14px;}}
     </style>
 </head>
@@ -65,10 +67,15 @@
 <div class="card">
     <h3>Extraction Preview</h3>
     <p class="small">Rows extracted: <strong>{{ rows|length }}</strong>. Preview shows first 100 rows.</p>
+    {% if extractor_mode %}
+        <p><span class="pill">Extractor used: {{ extractor_mode }}</span></p>
+    {% endif %}
     {% if warnings %}
+        <h3>Warnings / Errors Detected</h3>
         {% for warning in warnings %}<p class="warn">{{ warning }}</p>{% endfor %}
     {% endif %}
     <h3>Detected Mapping</h3>
+    <div class="table-wrap">
     <table>
         <tr><th>Sheet</th><th>Detected</th><th>Mapping Used</th></tr>
         {% for sheet in sheets %}
@@ -85,6 +92,7 @@
         </tr>
         {% endfor %}
     </table>
+    </div>
 </div>
 
 <div class="card">
@@ -102,7 +110,7 @@
         <label for="instructions">Instructions</label>
         <textarea id="instructions" name="instructions" placeholder="Example: Use Material Section as Section / Profile&#10;Use Engg. Wt. as Weight per Assembly">{{ instructions }}</textarea>
         <div class="actions">
-            <button class="btn btn-primary" type="submit" name="action" value="reextract">Re-extract</button>
+            <button class="btn btn-primary" type="submit" name="action" value="reextract">Submit Re-extract</button>
             <button class="btn btn-secondary" type="submit" name="action" value="download_standard">Download Standard Template</button>
             <button class="btn btn-success" type="submit" name="action" value="send_validation">Send Directly to BOM Validation</button>
         </div>
@@ -111,13 +119,17 @@
 
 <div class="card">
     <h3>Standard BOM Rows Preview</h3>
+    <div class="table-wrap">
     <table>
         <tr>
+            <th>Source Sheet</th><th>Source Row</th>
             <th>Dispatch MKD No</th><th>Assembly Qty</th><th>Part Mark</th><th>Section / Profile</th><th>Grade / Quality</th>
-            <th>Part-Qty per Assembly</th><th>Length</th><th>Width</th><th>Weight per Assembly</th><th>Remarks</th>
+            <th>Part-Qty per Assembly</th><th>Length</th><th>Width</th><th>Weight per Assembly</th><th>Remarks</th><th>Errors</th>
         </tr>
         {% for row in preview_rows %}
         <tr>
+            <td>{{ row.source_sheet }}</td>
+            <td>{{ row.source_row }}</td>
             <td>{{ row.dispatch_mkd_no }}</td>
             <td>{{ row.assembly_qty }}</td>
             <td>{{ row.part_mark }}</td>
@@ -128,9 +140,17 @@
             <td>{{ row.width_mm }}</td>
             <td>{{ row.weight_per_assembly }}</td>
             <td>{{ row.remarks }}</td>
+            <td>
+                {% for error in row.errors %}
+                    <span class="error">{{ error }}</span><br>
+                {% empty %}
+                    -
+                {% endfor %}
+            </td>
         </tr>
         {% endfor %}
     </table>
+    </div>
 </div>
 {% endif %}
 </body>

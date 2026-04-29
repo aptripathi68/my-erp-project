@@ -4,7 +4,11 @@ import tempfile
 from io import BytesIO
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
+import json
+import os
 import re
+import urllib.error
+import urllib.request
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -147,7 +151,8 @@ def _extractor_header(value) -> str:
     if value is None:
         return ""
     text = str(value).strip().lower().replace("\n", " ")
-    return re.sub(r"\s+", " ", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _extractor_find_header_row(ws, max_scan_rows: int = 50):
@@ -155,7 +160,8 @@ def _extractor_find_header_row(ws, max_scan_rows: int = 50):
         headers = [_extractor_header(value) for value in row]
         matches = 0
         for aliases in EXTRACTOR_ALIASES.values():
-            if any(header in aliases for header in headers):
+            normalized_aliases = {_extractor_header(alias) for alias in aliases}
+            if any(header in normalized_aliases for header in headers):
                 matches += 1
         if matches >= 3:
             return row_number, headers
@@ -164,14 +170,14 @@ def _extractor_find_header_row(ws, max_scan_rows: int = 50):
 
 def _extractor_auto_mapping(headers):
     mapping = {}
-    for index, header in enumerate(headers):
-        if not header:
-            continue
-        for field, aliases in EXTRACTOR_ALIASES.items():
+    for field, aliases in EXTRACTOR_ALIASES.items():
+        for alias in aliases:
+            alias_norm = _extractor_header(alias)
+            for index, header in enumerate(headers):
+                if header and header == alias_norm:
+                    mapping[field] = index
+                    break
             if field in mapping:
-                continue
-            if header in aliases:
-                mapping[field] = index
                 break
     return mapping
 
@@ -190,6 +196,24 @@ def _extractor_instruction_mapping(headers, instructions: str):
     mapping = {}
     normalized_headers = [_extractor_header(header) for header in headers]
     for line in (instructions or "").splitlines():
+        column_match = re.search(
+            r"(.+?)\s+(?:is|in|from|=|:).*?\bcolumn\s+([A-Z]+|\d+)\b",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if column_match:
+            field = _extractor_field_from_instruction(column_match.group(1))
+            raw_column = column_match.group(2).strip().upper()
+            if field:
+                if raw_column.isdigit():
+                    mapping[field] = max(0, int(raw_column) - 1)
+                else:
+                    column_index = 0
+                    for char in raw_column:
+                        column_index = column_index * 26 + (ord(char) - ord("A") + 1)
+                    mapping[field] = max(0, column_index - 1)
+                continue
+
         match = re.search(r"use\s+(.+?)\s+as\s+(.+)", line, flags=re.IGNORECASE)
         if not match:
             continue
@@ -223,6 +247,227 @@ def _extractor_numeric_or_blank(value: str) -> str:
     if not value:
         return ""
     return value if _parse_decimal(value.replace(",", "")) is not None else ""
+
+
+def _extractor_trim(value, limit: int = 120) -> str:
+    value = "" if value is None else str(value).strip()
+    value = re.sub(r"\s+", " ", value)
+    if len(value) > limit:
+        return value[: limit - 3] + "..."
+    return value
+
+
+def _extractor_row_quality(rows):
+    warnings = []
+    required = ["dispatch_mkd_no", "section_profile", "grade_quality", "part_qty_per_assembly", "weight_per_assembly"]
+    for field in required:
+        missing = sum(1 for row in rows if not row.get(field))
+        if missing:
+            warnings.append(f"{missing} row(s) missing {EXTRACTOR_FIELD_LABELS[field]}.")
+
+    for row in rows:
+        errors = []
+        for field in required:
+            if not row.get(field):
+                errors.append(f"Missing {EXTRACTOR_FIELD_LABELS[field]}")
+        for field in ["assembly_qty", "part_qty_per_assembly", "length_mm", "width_mm", "weight_per_assembly"]:
+            value = (row.get(field) or "").replace(",", "")
+            if value and _parse_decimal(value) is None:
+                errors.append(f"Invalid number in {EXTRACTOR_FIELD_LABELS[field]}")
+        row["errors"] = errors
+    return warnings
+
+
+def _extractor_workbook_context(xlsx_path: str):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    context = []
+    total_rows = 0
+    max_total_rows = 160
+
+    for sheet_name in wb.sheetnames:
+        if len(context) >= 6 or total_rows >= max_total_rows:
+            break
+        if any(token in sheet_name.lower() for token in ["summary", "notes", "index", "cover"]):
+            continue
+
+        ws = wb[sheet_name]
+        header_row, headers = _extractor_find_header_row(ws)
+        if not header_row:
+            header_row = 1
+            headers = []
+
+        raw_header_values = []
+        header_cells = next(ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True), [])
+        for index, value in enumerate(header_cells[:40], start=1):
+            if value is None or str(value).strip() == "":
+                continue
+            raw_header_values.append({
+                "column": get_column_letter(index),
+                "index": index,
+                "header": _extractor_trim(value),
+                "normalized_header": headers[index - 1] if index <= len(headers) else _extractor_header(value),
+            })
+
+        data_rows = []
+        for row_number, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+            if total_rows >= max_total_rows or len(data_rows) >= 80:
+                break
+            cells = {}
+            for index, value in enumerate(row[:40], start=1):
+                text = _extractor_trim(value)
+                if text:
+                    cells[get_column_letter(index)] = text
+            if not cells:
+                continue
+            data_rows.append({"row_number": row_number, "cells": cells})
+            total_rows += 1
+
+        if raw_header_values or data_rows:
+            context.append({
+                "sheet_name": sheet_name,
+                "header_row": header_row,
+                "headers": raw_header_values,
+                "sample_rows": data_rows,
+            })
+
+    return context
+
+
+def _extractor_json_from_text(text: str):
+    text = (text or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"```$", "", text).strip()
+    return json.loads(text)
+
+
+def _normalize_ai_extracted_rows(payload):
+    rows = []
+    for raw in payload.get("rows", []):
+        if not isinstance(raw, dict):
+            continue
+        row = {
+            "source_sheet": _extractor_trim(raw.get("source_sheet")),
+            "source_row": raw.get("source_row") or "",
+            "dispatch_mkd_no": _extractor_trim(raw.get("dispatch_mkd_no")),
+            "assembly_qty": _extractor_numeric_or_blank(_extractor_trim(raw.get("assembly_qty"))) or "1",
+            "part_mark": _extractor_trim(raw.get("part_mark")),
+            "section_profile": _extractor_trim(raw.get("section_profile")),
+            "grade_quality": _extractor_trim(raw.get("grade_quality")),
+            "part_qty_per_assembly": _extractor_numeric_or_blank(_extractor_trim(raw.get("part_qty_per_assembly"))) or "1",
+            "length_mm": _extractor_numeric_or_blank(_extractor_trim(raw.get("length_mm"))),
+            "width_mm": _extractor_numeric_or_blank(_extractor_trim(raw.get("width_mm"))),
+            "weight_per_assembly": _extractor_numeric_or_blank(_extractor_trim(raw.get("weight_per_assembly"))),
+            "remarks": _extractor_trim(raw.get("remarks"), limit=240),
+        }
+        if row["section_profile"] or row["part_mark"] or row["dispatch_mkd_no"]:
+            rows.append(row)
+    return rows
+
+
+def _extract_company_bom_rows_with_ai(xlsx_path: str, instructions: str = ""):
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+
+    workbook_context = _extractor_workbook_context(xlsx_path)
+    if not workbook_context:
+        raise RuntimeError("No readable workbook rows were found for AI extraction.")
+
+    system_prompt = (
+        "You are a BOM extraction agent for a steel fabrication ERP. "
+        "Convert uploaded company BOM rows into Kalpadeep's standard BOM upload rows. "
+        "Follow user instructions as corrections to your mapping. "
+        "Return only valid JSON. Do not include markdown."
+    )
+    user_prompt = {
+        "task": "Extract standard BOM rows from the workbook context.",
+        "standard_fields": {
+            "source_sheet": "Original Excel sheet name.",
+            "source_row": "Original Excel row number used for this extracted row.",
+            "dispatch_mkd_no": "Customer/company Dispatch MKD No or dispatch mark identity.",
+            "assembly_qty": "Number of separate fabricated assemblies for this dispatch mark.",
+            "part_mark": "Child part mark/item/component code.",
+            "section_profile": "Section/Profile/Material description of the child part.",
+            "grade_quality": "Material grade/quality.",
+            "part_qty_per_assembly": "Child part quantity used in one assembly.",
+            "length_mm": "Length in mm if available.",
+            "width_mm": "Width in mm if available.",
+            "weight_per_assembly": "Weight contribution of this child part for one assembly.",
+            "remarks": "Any relevant remarks.",
+        },
+        "rules": [
+            "Use numeric values only for quantity, length, width, and weight fields.",
+            "If a numeric field is not available, use an empty string, except assembly_qty and part_qty_per_assembly may default to 1.",
+            "Do not create total quantity. Do not multiply weight by assembly quantity.",
+            "Skip title, note, subtotal, and total rows.",
+            "If user instructions mention a column number or letter for a field, obey that mapping.",
+            "Include warnings for uncertain mappings or missing required fields.",
+        ],
+        "user_instructions": instructions or "",
+        "workbook": workbook_context,
+        "json_schema": {
+            "rows": [
+                {
+                    "source_sheet": "",
+                    "source_row": 0,
+                    "dispatch_mkd_no": "",
+                    "assembly_qty": "",
+                    "part_mark": "",
+                    "section_profile": "",
+                    "grade_quality": "",
+                    "part_qty_per_assembly": "",
+                    "length_mm": "",
+                    "width_mm": "",
+                    "weight_per_assembly": "",
+                    "remarks": "",
+                }
+            ],
+            "sheets": [
+                {"sheet_name": "", "detected": True, "mapping": {"Dispatch MKD No": "Column I / Dispatch MKD No"}}
+            ],
+            "warnings": [""],
+        },
+    }
+
+    request_body = {
+        "model": os.environ.get("OPENAI_BOM_MODEL", "gpt-4.1-mini"),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_prompt, ensure_ascii=True)},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0,
+    }
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=75) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"OpenAI extraction failed: {detail[:500]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenAI extraction failed: {exc.reason}") from exc
+
+    content = response_payload["choices"][0]["message"]["content"]
+    payload = _extractor_json_from_text(content)
+    rows = _normalize_ai_extracted_rows(payload)
+    warnings = [str(w) for w in payload.get("warnings", []) if str(w).strip()]
+    warnings.extend(_extractor_row_quality(rows))
+    return {
+        "rows": rows,
+        "sheets": payload.get("sheets") or [],
+        "warnings": warnings,
+        "extractor_mode": "OpenAI AI Agent",
+    }
 
 
 def _extract_company_bom_rows(xlsx_path: str, instructions: str = ""):
@@ -281,13 +526,21 @@ def _extract_company_bom_rows(xlsx_path: str, instructions: str = ""):
             ):
                 continue
             rows.append(extracted)
-    warnings = []
-    required = ["dispatch_mkd_no", "section_profile", "grade_quality", "part_qty_per_assembly", "weight_per_assembly"]
-    for field in required:
-        missing = sum(1 for row in rows if not row.get(field))
-        if missing:
-            warnings.append(f"{missing} row(s) missing {EXTRACTOR_FIELD_LABELS[field]}.")
-    return {"rows": rows, "sheets": sheets, "warnings": warnings}
+    warnings = _extractor_row_quality(rows)
+    return {"rows": rows, "sheets": sheets, "warnings": warnings, "extractor_mode": "Rule fallback"}
+
+
+def _extract_company_bom_rows_for_upload(xlsx_path: str, instructions: str = ""):
+    try:
+        return _extract_company_bom_rows_with_ai(xlsx_path, instructions)
+    except Exception as exc:
+        extraction = _extract_company_bom_rows(xlsx_path, instructions)
+        extraction["warnings"] = [
+            f"AI agent could not complete extraction, so rule fallback was used. Reason: {exc}",
+            *extraction.get("warnings", []),
+        ]
+        extraction["extractor_mode"] = "Rule fallback"
+        return extraction
 
 
 def _standard_bom_workbook(rows):
@@ -631,7 +884,7 @@ def ai_bom_extractor(request):
         if action == "reextract":
             request.session["extractor_instructions"] = context["instructions"]
 
-        extraction = _extract_company_bom_rows(tmp_path, context["instructions"])
+        extraction = _extract_company_bom_rows_for_upload(tmp_path, context["instructions"])
         request.session["extractor_rows"] = extraction["rows"]
         context.update(extraction)
         context["preview_rows"] = extraction["rows"][:100]
