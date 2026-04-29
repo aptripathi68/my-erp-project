@@ -17,6 +17,7 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 
 from estimation.models import EstimateProject
+from drawings.models import Drawing
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
 from .services.backbone import duplicate_work_order_exists, normalize_wo_number, sync_bom_to_backbone
 from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
@@ -699,8 +700,22 @@ def bom_delete(request, bom_id):
         return redirect("procurement:planning_dashboard")
 
     if request.method == "POST":
-        header.delete()
-        messages.success(request, "BOM deleted successfully.")
+        drawing_count = Drawing.objects.filter(project=header).count()
+        with transaction.atomic():
+            Drawing.objects.filter(project=header).delete()
+            header.delete()
+        if drawing_count:
+            messages.success(request, f"BOM and {drawing_count} linked drawing record(s) deleted successfully.")
+        else:
+            messages.success(request, "BOM deleted successfully.")
         return redirect("procurement:planning_dashboard")
 
-    return render(request, "procurement/bom_delete_confirm.html", {"header": header})
+    linked_drawing_count = Drawing.objects.filter(project=header).count()
+    return render(
+        request,
+        "procurement/bom_delete_confirm.html",
+        {
+            "header": header,
+            "linked_drawing_count": linked_drawing_count,
+        },
+    )

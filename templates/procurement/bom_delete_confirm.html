@@ -40,6 +40,9 @@
         <p><strong>Client:</strong> {{ header.client_name }}</p>
         <p style="color:#b00020;">
             This will delete the BOM header, all engineering marks, and all BOM components linked to it.
+            {% if linked_drawing_count %}
+            It will also delete {{ linked_drawing_count }} drawing record(s) linked to this BOM.
+            {% endif %}
         </p>
 
         <form method="post">
