@@ -3,7 +3,8 @@ from __future__ import annotations
 import tempfile
 from io import BytesIO
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
+import re
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -21,13 +22,7 @@ from drawings.models import Drawing
 from .models import BOMColumnMapping, BOMComponent, BOMHeader, BOMMark
 from .services.backbone import duplicate_work_order_exists, normalize_wo_number, sync_bom_to_backbone
 from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
-from .services.bom_importer import (
-    build_header_signature,
-    get_cell,
-    validate_and_extract_workbook,
-    workbook_sheet_headers,
-    _h,
-)
+from .services.bom_importer import build_header_signature, validate_and_extract_workbook, workbook_sheet_headers
 
 
 MAPPING_FIELDS = (
@@ -43,41 +38,17 @@ MAPPING_FIELDS = (
 )
 
 STANDARD_BOM_COLUMNS = [
-    "WO Number",
-    "Project Name",
-    "Client Name",
-    "Purchase Order No",
-    "Purchase Order Date",
-    "Delivery Date",
-    "Order Rate",
-    "Order Value",
-    "Source Sheet",
-    "Source Row",
-    "Drawing / Dispatch Mark No",
-    "ERC Mark / Main Mark",
+    "Dispatch MKD No",
     "Assembly Qty",
     "Part Mark / Item No",
     "Section / Profile",
     "Grade / Quality",
-    "Qty per Assembly",
-    "Total Qty",
+    "Part-Qty per Assembly",
     "Length mm",
     "Width mm",
-    "Unit Weight kg",
-    "Total Weight kg",
+    "Weight per Assembly",
     "Remarks",
 ]
-
-STANDARD_METADATA_ALIASES = {
-    "bom_name": ["wo number", "work order", "work order no", "bom name"],
-    "project_name": ["project name"],
-    "client_name": ["client name", "customer name"],
-    "purchase_order_no": ["purchase order no", "po number", "po no"],
-    "purchase_order_date": ["purchase order date", "po date"],
-    "delivery_date": ["delivery date"],
-    "order_rate": ["order rate"],
-    "order_value": ["order value"],
-}
 
 
 def _has_planning_access(user):
@@ -103,39 +74,6 @@ def _session_safe_errors(errors):
     return safe
 
 
-def _standard_bom_metadata(xlsx_path: str) -> dict:
-    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
-    headers_info = workbook_sheet_headers(xlsx_path)
-
-    for sheet_name, info in headers_info.items():
-        if not info.get("detected"):
-            continue
-
-        ws = wb[sheet_name]
-        header_row = info.get("header_row")
-        headers = info.get("headers") or []
-        header_norms = [_h(h) for h in headers]
-        col_map = {}
-        for key, aliases in STANDARD_METADATA_ALIASES.items():
-            for idx, header_norm in enumerate(header_norms):
-                if header_norm in aliases:
-                    col_map[key] = idx
-                    break
-
-        if not col_map:
-            continue
-
-        for row_vals in ws.iter_rows(min_row=header_row + 1, values_only=True):
-            if not row_vals or all(v is None or str(v).strip() == "" for v in row_vals):
-                continue
-            return {
-                key: str(get_cell(row_vals, col_map, key) or "").strip()
-                for key in STANDARD_METADATA_ALIASES
-            }
-
-    return {}
-
-
 def _date_cell_to_iso(value: str) -> str:
     value = (value or "").strip()
     if not value:
@@ -154,6 +92,93 @@ def _parse_decimal(value: str):
         return Decimal(value)
     except (InvalidOperation, ValueError):
         return None
+
+
+def _quantity_to_count(value) -> int:
+    qty = Decimal(value or "0")
+    if qty <= 0:
+        return 0
+    return int(qty.to_integral_value(rounding=ROUND_CEILING))
+
+
+def _mark_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9]+", "-", value or "").strip("-").upper()
+    return token or "MARK"
+
+
+def _internal_erc_mark(wo_number: str, dispatch_mkd_no: str, sequence: int) -> str:
+    suffix = f"{_mark_token(dispatch_mkd_no)}-{sequence}"
+    prefix_budget = max(1, 99 - len(suffix))
+    prefix = _mark_token(wo_number)[:prefix_budget].strip("-") or "WO"
+    return f"{prefix}-{suffix}"[:100]
+
+
+def _create_working_bom(
+    *,
+    result,
+    estimate_project,
+    bom_name,
+    project_name,
+    client_name,
+    purchase_order_no,
+    purchase_order_date,
+    delivery_date,
+    order_rate,
+    order_value,
+    user,
+) -> BOMHeader:
+    with transaction.atomic():
+        header = BOMHeader.objects.create(
+            estimate_project=estimate_project,
+            bom_name=bom_name,
+            project_name=project_name,
+            client_name=client_name,
+            purchase_order_no=purchase_order_no,
+            purchase_order_date=purchase_order_date,
+            delivery_date=delivery_date,
+            order_rate=order_rate,
+            order_value=order_value,
+            uploaded_by=user,
+            uploaded_at=timezone.now(),
+        )
+
+        rows_by_dispatch = {}
+        for row in result["extracted"]:
+            key = (row.sheet_name, row.mark_no or "")
+            rows_by_dispatch.setdefault(key, []).append(row)
+
+        components = []
+        for (sheet_name, dispatch_mkd_no), rows in rows_by_dispatch.items():
+            assembly_qty = max(_quantity_to_count(row.erc_quantity) for row in rows) or 1
+            for sequence in range(1, assembly_qty + 1):
+                bom_mark = BOMMark.objects.create(
+                    bom=header,
+                    sheet_name=sheet_name,
+                    erc_mark=_internal_erc_mark(bom_name, dispatch_mkd_no, sequence),
+                    erc_quantity=Decimal("1"),
+                    main_section=rows[0].item_description_raw or "",
+                    drawing_no=dispatch_mkd_no or "",
+                    drawing=None,
+                )
+                for row in rows:
+                    components.append(
+                        BOMComponent(
+                            bom_mark=bom_mark,
+                            part_mark=row.item_no or "",
+                            section_name=row.item_description_raw or "",
+                            grade_name=getattr(row, "grade_raw", "") or "",
+                            part_quantity_per_assy=row.qty_all,
+                            length_mm=row.length_mm,
+                            width_mm=row.width_mm,
+                            engg_weight_kg=row.line_weight_kg,
+                            item_id=row.item_id,
+                            item_description_raw=row.item_description_raw or "",
+                            excel_row=row.excel_row,
+                        )
+                    )
+
+        BOMComponent.objects.bulk_create(components, batch_size=2000)
+        return header
 
 
 def _build_user_sheet_mappings(request, headers_info):
@@ -317,17 +342,18 @@ def download_standard_bom_template(request):
     instructions = wb.create_sheet("Instructions")
     instructions.append(["Instruction", "Details"])
     instructions.append(["Do not rename BOM_UPLOAD headers", "Paste or enter all BOM rows below the header row in BOM_UPLOAD."])
-    instructions.append(["WO Number", "Required. Put the same WO Number on each row."])
+    instructions.append(["BOM header details", "WO Number, project, client, PO, delivery, rate, and value are entered once on the upload screen."])
+    instructions.append(["Dispatch MKD No", "Customer/company identity of the fabricated item."])
+    instructions.append(["Assembly Qty", "Number of separate fabricated units for this Dispatch MKD No."])
     instructions.append(["Section / Profile", "Must match Item Master section/profile text."])
     instructions.append(["Grade / Quality", "Must match Item Master grade. Example: IS:2062 E250BR."])
-    instructions.append(["Qty per Assembly", "Quantity of this part in one ERC/main mark."])
-    instructions.append(["Assembly Qty", "Quantity of ERC/main mark. If blank, system uses 1."])
-    instructions.append(["Import rule", "Upload, correct validation errors if any, then import only when errors are zero."])
+    instructions.append(["Part-Qty per Assembly", "Quantity of this child part in one fabricated unit."])
+    instructions.append(["Weight per Assembly", "Weight contribution of this child part for one fabricated unit."])
+    instructions.append(["Working BOM", "After validation, Create Working BOM will create one internal ERC/Main Mark for each Assembly Qty."])
 
     widths = {
-        "A": 18, "B": 24, "C": 22, "D": 20, "E": 18, "F": 16, "G": 14, "H": 14,
-        "I": 18, "J": 12, "K": 24, "L": 20, "M": 14, "N": 18, "O": 22, "P": 20,
-        "Q": 16, "R": 12, "S": 12, "T": 12, "U": 16, "V": 16, "W": 30,
+        "A": 24, "B": 14, "C": 18, "D": 22, "E": 20, "F": 22,
+        "G": 12, "H": 12, "I": 20, "J": 30,
     }
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
@@ -360,15 +386,14 @@ def bom_upload(request):
                 tmp.write(chunk)
             tmp_path = tmp.name
 
-        metadata = _standard_bom_metadata(tmp_path)
-        bom_name = (metadata.get("bom_name") or (estimate_project.work_order_no if estimate_project else "") or f.name).strip()
-        project_name = (metadata.get("project_name") or (estimate_project.project_name if estimate_project else "")).strip()
-        client_name = (metadata.get("client_name") or (estimate_project.client_name if estimate_project else "")).strip()
-        purchase_order_no = (metadata.get("purchase_order_no") or (estimate_project.purchase_order_no if estimate_project else "")).strip()
-        purchase_order_date = _date_cell_to_iso(metadata.get("purchase_order_date") or (estimate_project.purchase_order_date.isoformat() if estimate_project and estimate_project.purchase_order_date else ""))
-        delivery_date = _date_cell_to_iso(metadata.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else ""))
-        order_rate = (metadata.get("order_rate") or "").strip()
-        order_value = (metadata.get("order_value") or "").strip()
+        bom_name = (request.POST.get("bom_name") or (estimate_project.work_order_no if estimate_project else "")).strip()
+        project_name = (request.POST.get("project_name") or (estimate_project.project_name if estimate_project else "")).strip()
+        client_name = (request.POST.get("client_name") or (estimate_project.client_name if estimate_project else "")).strip()
+        purchase_order_no = (request.POST.get("purchase_order_no") or (estimate_project.purchase_order_no if estimate_project else "")).strip()
+        purchase_order_date = (request.POST.get("purchase_order_date") or (estimate_project.purchase_order_date.isoformat() if estimate_project and estimate_project.purchase_order_date else "")).strip()
+        delivery_date = (request.POST.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else "")).strip()
+        order_rate = (request.POST.get("order_rate") or "").strip()
+        order_value = (request.POST.get("order_value") or "").strip()
 
         result = validate_and_extract_workbook(tmp_path)
         request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
@@ -398,8 +423,8 @@ def bom_upload(request):
 
         return render(request, "procurement/bom_upload.html", context)
 
-    # STEP 2: Re-validate / Import the uploaded standard template
-    if request.method == "POST" and request.POST.get("action") in ["validate", "import"]:
+    # STEP 2: Re-validate / Create working BOM from the uploaded standard template
+    if request.method == "POST" and request.POST.get("action") in ["validate", "create_working_bom"]:
         tmp_path = request.session.get("bom_tmp_path")
         bom_name = request.session.get("bom_name", "Uploaded BOM")
         project_name = request.session.get("project_name", "")
@@ -438,7 +463,7 @@ def bom_upload(request):
         context["estimate_project"] = estimate_project
         context["uploaded_step"] = True
 
-        if request.POST.get("action") == "import" and result["ok"]:
+        if request.POST.get("action") == "create_working_bom" and result["ok"]:
             wo_number = normalize_wo_number(bom_name)
             if not wo_number:
                 context["error"] = "WO Number is required."
@@ -464,71 +489,21 @@ def bom_upload(request):
             order_rate = _parse_decimal(order_rate_raw)
             order_value = _parse_decimal(order_value_raw)
 
-            with transaction.atomic():
-                header = BOMHeader.objects.create(
-                    estimate_project=estimate_project,
-                    bom_name=bom_name,
-                    project_name=project_name,
-                    client_name=client_name,
-                    purchase_order_no=purchase_order_no,
-                    purchase_order_date=purchase_order_date,
-                    delivery_date=delivery_date,
-                    order_rate=order_rate,
-                    order_value=order_value,
-                    uploaded_by=request.user,
-                    uploaded_at=timezone.now(),
-                )
-
-                mark_map = {}
-
-                for row in result["extracted"]:
-                    key = (
-                        row.sheet_name,
-                        row.mark_no or "",
-                    )
-
-                    if key not in mark_map:
-                        mark_map[key] = BOMMark.objects.create(
-                            bom=header,
-                            sheet_name=row.sheet_name,
-                            erc_mark=row.mark_no or "",
-                            erc_quantity=getattr(row, "erc_quantity", None) or 1,
-                            main_section=row.item_description_raw or "",
-                            drawing_no="",
-                            drawing=None,
-                        )
-
-                comps = []
-
-                for row in result["extracted"]:
-                    key = (
-                        row.sheet_name,
-                        row.mark_no or "",
-                    )
-
-                    bom_mark = mark_map[key]
-
-                    comps.append(
-                        BOMComponent(
-                            bom_mark=bom_mark,
-                            part_mark=row.item_no or "",
-                            section_name=row.item_description_raw or "",
-                            grade_name=getattr(row, "grade_raw", "") or "",
-                            part_quantity_per_assy=row.qty_all,
-                            length_mm=row.length_mm,
-                            width_mm=row.width_mm,
-                            engg_weight_kg=row.line_weight_kg,
-                            item_id=row.item_id,
-                            item_description_raw=row.item_description_raw or "",
-                            excel_row=row.excel_row,
-                        )
-                    )
-
-                BOMComponent.objects.bulk_create(comps, batch_size=2000)
-                backbone_result = sync_bom_to_backbone(header, created_by=request.user)
-
-            context["imported_bom_id"] = header.id
-            context["backbone_result"] = backbone_result
+            header = _create_working_bom(
+                result=result,
+                estimate_project=estimate_project,
+                bom_name=bom_name,
+                project_name=project_name,
+                client_name=client_name,
+                purchase_order_no=purchase_order_no,
+                purchase_order_date=purchase_order_date,
+                delivery_date=delivery_date,
+                order_rate=order_rate,
+                order_value=order_value,
+                user=request.user,
+            )
+            request.session["working_bom_id"] = header.id
+            context["working_bom_id"] = header.id
 
         return render(request, "procurement/bom_upload.html", context)
 
@@ -541,6 +516,7 @@ def bom_upload(request):
     context["delivery_date"] = request.session.get("delivery_date", "")
     context["order_rate"] = request.session.get("order_rate", "")
     context["order_value"] = request.session.get("order_value", "")
+    context["working_bom_id"] = request.session.get("working_bom_id")
     context["estimate_project"] = estimate_project
     if estimate_project:
         context["bom_name"] = context["bom_name"] or estimate_project.work_order_no
@@ -632,32 +608,33 @@ def bom_export_master(request, bom_id: int):
     ws.title = "BOM_MASTER"
 
     ws.append([
-        "bom_name",
-        "project_name",
-        "client_name",
-        "purchase_order_no",
-        "purchase_order_date",
-        "delivery_date",
-        "order_rate",
-        "order_value",
-        "sheet_name",
-        "erc_mark",
-        "erc_quantity",
-        "main_section",
-        "part_mark",
-        "section_name",
-        "grade_name",
-        "item_description_master",
-        "part_quantity_per_assy",
-        "length_mm",
-        "width_mm",
-        "engg_weight_kg",
-        "excel_row",
+        "WO Number",
+        "Project Name",
+        "Client Name",
+        "Purchase Order No",
+        "Purchase Order Date",
+        "Delivery Date",
+        "Order Rate",
+        "Order Value",
+        "Source Sheet",
+        "Dispatch MKD No",
+        "Internal ERC/Main Mark",
+        "Part Mark / Item No",
+        "Section / Profile",
+        "Grade / Quality",
+        "Item Master Description",
+        "Part-Qty per Assembly",
+        "Length mm",
+        "Width mm",
+        "Weight per Assembly",
+        "ERC/Main Mark Weight",
+        "Source Excel Row",
     ])
 
     marks = header.marks.prefetch_related("components", "components__item").all()
 
     for m in marks:
+        mark_weight = sum((c.engg_weight_kg or Decimal("0")) for c in m.components.all())
         for c in m.components.all():
             ws.append([
                 header.bom_name,
@@ -669,9 +646,8 @@ def bom_export_master(request, bom_id: int):
                 float(header.order_rate) if getattr(header, "order_rate", None) is not None else "",
                 float(header.order_value) if getattr(header, "order_value", None) is not None else "",
                 m.sheet_name,
-                m.erc_mark,
-                float(m.erc_quantity),
-                m.main_section or "",
+                m.drawing_no or "",
+                m.erc_mark or "",
                 c.part_mark or "",
                 c.section_name or "",
                 c.grade_name or "",
@@ -680,6 +656,7 @@ def bom_export_master(request, bom_id: int):
                 float(c.length_mm) if c.length_mm is not None else "",
                 float(c.width_mm) if c.width_mm is not None else "",
                 float(c.engg_weight_kg) if c.engg_weight_kg is not None else "",
+                float(mark_weight),
                 c.excel_row,
             ])
 
@@ -689,6 +666,40 @@ def bom_export_master(request, bom_id: int):
     resp["Content-Disposition"] = f'attachment; filename="BOM_MASTER_{header.id}.xlsx"'
     wb.save(resp)
     return resp
+
+
+@staff_member_required
+def working_bom_verified(request, bom_id: int):
+    if request.method != "POST":
+        return redirect("procurement:bom_upload")
+
+    header = get_object_or_404(BOMHeader, id=bom_id)
+    backbone_result = sync_bom_to_backbone(header, created_by=request.user)
+    header.is_locked = True
+    header.save(update_fields=["is_locked"])
+    request.session.pop("working_bom_id", None)
+    messages.success(
+        request,
+        (
+            "Working BOM verified. "
+            f"{backbone_result['created_ercs']} ERC record(s), "
+            f"{backbone_result['created_units']} INT-ERC unit(s), and "
+            f"{backbone_result['created_requirements']} requirement line(s) created."
+        ),
+    )
+    return redirect("procurement:planning_bom_detail", bom_id=header.id)
+
+
+@staff_member_required
+def working_bom_not_verified(request, bom_id: int):
+    if request.method != "POST":
+        return redirect("procurement:bom_upload")
+
+    header = get_object_or_404(BOMHeader, id=bom_id)
+    header.delete()
+    request.session.pop("working_bom_id", None)
+    messages.warning(request, "Working BOM discarded. Please correct and upload the BOM again.")
+    return redirect("procurement:bom_upload")
 
 
 @staff_member_required

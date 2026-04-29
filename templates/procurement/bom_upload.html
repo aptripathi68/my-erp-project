@@ -16,12 +16,14 @@
         table{width:100%;border-collapse:collapse;background:#fff;}
         th,td{border:1px solid #d9e2ec;padding:8px 10px;vertical-align:top;text-align:left;}
         th{background:#eef3f7;}
-        input[type="file"]{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;max-width:520px;box-sizing:border-box;}
+        input[type="text"],input[type="date"],input[type="file"]{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;box-sizing:border-box;}
         .error-head{color:#b00020;}
         .ok{color:green;font-weight:700;}
         .small{font-size:13px;color:#667786;}
         .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px;}
         .meta div{border:1px solid #edf2f5;border-radius:6px;padding:8px 10px;background:#fbfdff;}
+        .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;}
+        label{display:block;font-weight:700;margin-bottom:6px;}
         @media (max-width:768px){body{margin:12px;} .btn{width:100%;box-sizing:border-box;text-align:center;} th,td{font-size:14px;}}
     </style>
 </head>
@@ -30,7 +32,7 @@
     <h2>Standard BOM Upload</h2>
     <p class="small">
         Download the Kalpadeep standard BOM template, paste or enter BOM rows in that template, then upload the filled file.
-        The system will validate Item Master matching and allow import only when errors are zero.
+        Enter BOM/order details once on this screen. The Excel template should contain only repeated child part rows.
     </p>
     <div class="actions">
         <a class="btn btn-primary" href="{% url 'procurement:download_standard_bom_template' %}">Download Standard BOM Template</a>
@@ -45,6 +47,14 @@
 </div>
 {% endif %}
 
+{% if messages %}
+<div class="card">
+    {% for message in messages %}
+    <div>{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="card">
     <h3>Upload Filled Standard BOM Template</h3>
     <form method="post" enctype="multipart/form-data">
@@ -53,7 +63,44 @@
         <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
         <p class="small"><strong>Linked Estimation:</strong> {{ estimate_project.inquiry_no }} - {{ estimate_project.project_name }}</p>
         {% endif %}
-        <input type="file" name="file" accept=".xlsx,.xlsm" required>
+        <div class="field-grid">
+            <div>
+                <label for="bom_name">WO Number</label>
+                <input id="bom_name" type="text" name="bom_name" value="{{ bom_name|default:'' }}" required>
+            </div>
+            <div>
+                <label for="project_name">Project Name</label>
+                <input id="project_name" type="text" name="project_name" value="{{ project_name|default:'' }}">
+            </div>
+            <div>
+                <label for="client_name">Client Name</label>
+                <input id="client_name" type="text" name="client_name" value="{{ client_name|default:'' }}">
+            </div>
+            <div>
+                <label for="purchase_order_no">Purchase Order No</label>
+                <input id="purchase_order_no" type="text" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}">
+            </div>
+            <div>
+                <label for="purchase_order_date">Purchase Order Date</label>
+                <input id="purchase_order_date" type="date" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}">
+            </div>
+            <div>
+                <label for="delivery_date">Delivery Date</label>
+                <input id="delivery_date" type="date" name="delivery_date" value="{{ delivery_date|default:'' }}">
+            </div>
+            <div>
+                <label for="order_rate">Order Rate</label>
+                <input id="order_rate" type="text" name="order_rate" value="{{ order_rate|default:'' }}">
+            </div>
+            <div>
+                <label for="order_value">Order Value</label>
+                <input id="order_value" type="text" name="order_value" value="{{ order_value|default:'' }}">
+            </div>
+            <div>
+                <label for="file">Standard BOM Excel File</label>
+                <input id="file" type="file" name="file" accept=".xlsx,.xlsm" required>
+            </div>
+        </div>
         <div class="actions">
             <button class="btn btn-primary" type="submit">Upload & Validate</button>
         </div>
@@ -74,7 +121,7 @@
 </div>
 {% endif %}
 
-{% if result and not imported_bom_id %}
+{% if result and not working_bom_id %}
 <div class="card">
     <h3>Validation Summary</h3>
     <p>
@@ -98,7 +145,7 @@
                 <th>Error Type</th>
                 <th>Sheet</th>
                 <th>Row</th>
-                <th>ERC Mark</th>
+                <th>Dispatch MKD No</th>
                 <th>Part Mark</th>
                 <th>Section Name</th>
                 <th>Grade Name</th>
@@ -132,28 +179,28 @@
         <form method="post">
             {% csrf_token %}
             <div class="actions">
-                <button class="btn btn-success" type="submit" name="action" value="import">Import BOM</button>
+                <button class="btn btn-success" type="submit" name="action" value="create_working_bom">Create Working BOM</button>
             </div>
         </form>
     {% endif %}
 </div>
 {% endif %}
 
-{% if imported_bom_id %}
+{% if working_bom_id %}
 <div class="card">
-    <h3 class="ok">Imported</h3>
-    <p><strong>BOM ID:</strong> {{ imported_bom_id }}</p>
-    {% if backbone_result %}
-    <p>
-        <strong>ERP Backbone:</strong>
-        Work Order linked, {{ backbone_result.created_ercs }} ERC record(s),
-        {{ backbone_result.created_units }} INT-ERC unit(s), and
-        {{ backbone_result.created_requirements }} requirement line(s) created.
-    </p>
-    {% endif %}
+    <h3 class="ok">Working BOM Created</h3>
+    <p><strong>BOM ID:</strong> {{ working_bom_id }}</p>
+    <p class="small">Download and verify the working BOM. If it is correct, click Verified to create the ERP backbone. If not, click Not Verified to discard this working BOM and upload again.</p>
     <div class="actions">
-        <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">Download Master BOM Excel</a>
-        <a class="btn btn-primary" href="{% url 'dashboard_home' %}">Home</a>
+        <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' working_bom_id %}">Download Working BOM Excel</a>
+        <form method="post" action="{% url 'procurement:working_bom_verified' working_bom_id %}">
+            {% csrf_token %}
+            <button class="btn btn-success" type="submit">Verified</button>
+        </form>
+        <form method="post" action="{% url 'procurement:working_bom_not_verified' working_bom_id %}">
+            {% csrf_token %}
+            <button class="btn btn-secondary" type="submit">Not Verified</button>
+        </form>
     </div>
 </div>
 {% endif %}

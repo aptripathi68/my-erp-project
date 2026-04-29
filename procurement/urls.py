@@ -19,6 +19,8 @@ urlpatterns = [
         views_bom.bom_export_master,
         name="bom_export_master",
     ),
+    path("bom/<int:bom_id>/working/verified/", views_bom.working_bom_verified, name="working_bom_verified"),
+    path("bom/<int:bom_id>/working/not-verified/", views_bom.working_bom_not_verified, name="working_bom_not_verified"),
     path("bom/<int:bom_id>/delete/", 
          views_bom.bom_delete, 
          name="bom_delete"),
