@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI BOM Template Extractor</title>
+    <title>BOM Column Mapper</title>
     <style>
         body{font-family:Arial,Helvetica,sans-serif;margin:24px;background:#f7f9fb;color:#24313d;}
         .card{background:#fff;border:1px solid #d9e2ec;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
@@ -15,7 +15,7 @@
         .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
         .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;}
         label{display:block;font-weight:700;margin-bottom:6px;}
-        input,textarea{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;box-sizing:border-box;}
+        input,textarea,select{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;box-sizing:border-box;background:#fff;}
         textarea{min-height:90px;}
         table{width:100%;border-collapse:collapse;background:#fff;}
         th,td{border:1px solid #d9e2ec;padding:8px 10px;vertical-align:top;text-align:left;}
@@ -30,8 +30,8 @@
 </head>
 <body>
 <div class="card">
-    <h2>AI BOM Template Extractor</h2>
-    <p class="small">Upload a company BOM, preview extracted rows in Kalpadeep standard format, refine with instructions, then download or send directly to BOM validation.</p>
+    <h2>BOM Column Mapper</h2>
+    <p class="small">Upload a company BOM, map each Kalpadeep standard field to the correct company BOM column, then preview, correct errors, download, or send directly to BOM validation.</p>
     <div class="actions">
         <a class="btn btn-secondary" href="{% url 'procurement:bom_upload' %}">Standard BOM Upload</a>
         <a class="btn btn-secondary" href="{% url 'dashboard_home' %}">Dashboard</a>
@@ -58,10 +58,55 @@
             <div><label for="file">Company BOM File</label><input id="file" type="file" name="file" accept=".xlsx,.xlsm"></div>
         </div>
         <div class="actions">
-            <button class="btn btn-primary" type="submit" name="action" value="extract">Extract & Preview</button>
+            <button class="btn btn-primary" type="submit" name="action" value="extract">Upload & Map Columns</button>
         </div>
     </form>
 </div>
+
+{% if mapping_sheets %}
+<div class="card">
+    <h3>Map BOM Columns to Standard Template</h3>
+    <p class="small">Left side shows Kalpadeep standard template fields. Right side lets you select the matching column from the uploaded company BOM. Check every mapping before preview.</p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="bom_name" value="{{ bom_name }}">
+        <input type="hidden" name="project_name" value="{{ project_name }}">
+        <input type="hidden" name="client_name" value="{{ client_name }}">
+        <input type="hidden" name="purchase_order_no" value="{{ purchase_order_no }}">
+        <input type="hidden" name="purchase_order_date" value="{{ purchase_order_date }}">
+        <input type="hidden" name="delivery_date" value="{{ delivery_date }}">
+        <input type="hidden" name="order_rate" value="{{ order_rate }}">
+        <input type="hidden" name="order_value" value="{{ order_value }}">
+        {% for sheet in mapping_sheets %}
+            <h3>{{ sheet.sheet_name }}</h3>
+            <p class="small">Header row detected: {{ sheet.header_row }}</p>
+            <div class="table-wrap">
+            <table>
+                <tr><th>Standard Template Field</th><th>Select Uploaded BOM Column</th></tr>
+                {% for item in sheet.field_options %}
+                <tr>
+                    <td><strong>{{ item.label }}</strong></td>
+                    <td>
+                        <select name="map__{{ sheet.index }}__{{ item.field }}">
+                            <option value="">Do not map</option>
+                            {% for column in sheet.columns %}
+                                <option value="{{ column.index }}" {% if column.index|stringformat:"s" == item.selected %}selected{% endif %}>
+                                    {{ column.letter }} - {{ column.header }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+        {% endfor %}
+        <div class="actions">
+            <button class="btn btn-primary" type="submit" name="action" value="apply_mapping">Apply Mapping & Preview</button>
+        </div>
+    </form>
+</div>
+{% endif %}
 
 {% if rows %}
 <div class="card">
@@ -96,7 +141,7 @@
 </div>
 
 <div class="card">
-    <h3>Re-extract With Instructions</h3>
+    <h3>Next Step</h3>
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="bom_name" value="{{ bom_name }}">
@@ -107,10 +152,7 @@
         <input type="hidden" name="delivery_date" value="{{ delivery_date }}">
         <input type="hidden" name="order_rate" value="{{ order_rate }}">
         <input type="hidden" name="order_value" value="{{ order_value }}">
-        <label for="instructions">Instructions</label>
-        <textarea id="instructions" name="instructions" placeholder="Example: Use Material Section as Section / Profile&#10;Use Engg. Wt. as Weight per Assembly">{{ instructions }}</textarea>
         <div class="actions">
-            <button class="btn btn-primary" type="submit" name="action" value="reextract">Submit Re-extract</button>
             <button class="btn btn-secondary" type="submit" name="action" value="download_standard">Download Standard Template</button>
             <button class="btn btn-success" type="submit" name="action" value="send_validation">Send Directly to BOM Validation</button>
         </div>

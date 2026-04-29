@@ -530,6 +530,143 @@ def _extract_company_bom_rows(xlsx_path: str, instructions: str = ""):
     return {"rows": rows, "sheets": sheets, "warnings": warnings, "extractor_mode": "Rule fallback"}
 
 
+def _extractor_mapping_sheets(xlsx_path: str):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    sheets = []
+    for sheet_index, sheet_name in enumerate(wb.sheetnames):
+        if any(token in sheet_name.lower() for token in ["summary", "notes", "index", "cover"]):
+            continue
+        ws = wb[sheet_name]
+        header_row, headers = _extractor_find_header_row(ws)
+        if not header_row:
+            header_row = 1
+            raw_header_values = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])
+            headers = [_extractor_header(value) for value in raw_header_values]
+        else:
+            raw_header_values = next(ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True), [])
+
+        columns = []
+        for column_index, value in enumerate(raw_header_values, start=1):
+            if value is None or str(value).strip() == "":
+                continue
+            columns.append({
+                "index": column_index - 1,
+                "letter": get_column_letter(column_index),
+                "header": _extractor_trim(value),
+            })
+
+        if not columns:
+            continue
+
+        default_mapping = _extractor_auto_mapping(headers)
+        sheets.append({
+            "index": sheet_index,
+            "sheet_name": sheet_name,
+            "header_row": header_row,
+            "columns": columns,
+            "default_mapping": {field: str(index) for field, index in default_mapping.items()},
+            "field_options": [
+                {
+                    "field": field,
+                    "label": label,
+                    "selected": str(default_mapping.get(field, "")),
+                }
+                for field, label in EXTRACTOR_FIELD_LABELS.items()
+            ],
+        })
+    return sheets
+
+
+def _mapping_display(sheet_mappings):
+    display = []
+    for mapping in sheet_mappings:
+        display.append({
+            "sheet_name": mapping["sheet_name"],
+            "detected": True,
+            "header_row": mapping["header_row"],
+            "mapping": {
+                EXTRACTOR_FIELD_LABELS[field]: mapping["column_labels"].get(field, "")
+                for field in EXTRACTOR_FIELD_LABELS
+                if mapping["mapping"].get(field) is not None
+            },
+        })
+    return display
+
+
+def _posted_extractor_sheet_mappings(request, mapping_sheets):
+    sheet_mappings = []
+    for sheet in mapping_sheets:
+        mapping = {}
+        labels = {}
+        for field in EXTRACTOR_FIELD_LABELS:
+            raw_index = request.POST.get(f"map__{sheet['index']}__{field}", "").strip()
+            if raw_index == "":
+                continue
+            try:
+                column_index = int(raw_index)
+            except ValueError:
+                continue
+            mapping[field] = column_index
+            column = next((col for col in sheet["columns"] if col["index"] == column_index), None)
+            if column:
+                labels[field] = f"{column['letter']} - {column['header']}"
+
+        if mapping:
+            sheet_mappings.append({
+                "sheet_name": sheet["sheet_name"],
+                "header_row": sheet["header_row"],
+                "mapping": mapping,
+                "column_labels": labels,
+            })
+    return sheet_mappings
+
+
+def _extract_company_bom_rows_from_mapping(xlsx_path: str, sheet_mappings):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    rows = []
+    for sheet_mapping in sheet_mappings:
+        sheet_name = sheet_mapping["sheet_name"]
+        if sheet_name not in wb.sheetnames:
+            continue
+        ws = wb[sheet_name]
+        mapping = sheet_mapping["mapping"]
+        header_row = sheet_mapping["header_row"]
+        for excel_row, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+            if not row or all(value is None or str(value).strip() == "" for value in row):
+                continue
+            assembly_qty = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "assembly_qty")) or "1"
+            part_qty = _extractor_numeric_or_blank(_extractor_cell(row, mapping, "part_qty_per_assembly")) or "1"
+            extracted = {
+                "source_sheet": sheet_name,
+                "source_row": excel_row,
+                "dispatch_mkd_no": _extractor_cell(row, mapping, "dispatch_mkd_no"),
+                "assembly_qty": assembly_qty,
+                "part_mark": _extractor_cell(row, mapping, "part_mark"),
+                "section_profile": _extractor_cell(row, mapping, "section_profile"),
+                "grade_quality": _extractor_cell(row, mapping, "grade_quality"),
+                "part_qty_per_assembly": part_qty,
+                "length_mm": _extractor_numeric_or_blank(_extractor_cell(row, mapping, "length_mm")),
+                "width_mm": _extractor_numeric_or_blank(_extractor_cell(row, mapping, "width_mm")),
+                "weight_per_assembly": _extractor_numeric_or_blank(_extractor_cell(row, mapping, "weight_per_assembly")),
+                "remarks": _extractor_cell(row, mapping, "remarks"),
+            }
+            if (
+                _extractor_blankish(extracted["dispatch_mkd_no"])
+                and _extractor_blankish(extracted["section_profile"])
+                and _extractor_blankish(extracted["part_mark"])
+            ):
+                continue
+            rows.append(extracted)
+
+    warnings = _extractor_row_quality(rows)
+    return {
+        "rows": rows,
+        "sheets": _mapping_display(sheet_mappings),
+        "warnings": warnings,
+        "extractor_mode": "Manual column mapping",
+    }
+
+
 def _extract_company_bom_rows_for_upload(xlsx_path: str, instructions: str = ""):
     try:
         return _extract_company_bom_rows_with_ai(xlsx_path, instructions)
@@ -881,25 +1018,26 @@ def ai_bom_extractor(request):
             context["error"] = "Upload a company BOM file first."
             return render(request, "procurement/ai_bom_extractor.html", context)
 
-        if action == "reextract":
-            request.session["extractor_instructions"] = context["instructions"]
+        mapping_sheets = _extractor_mapping_sheets(tmp_path)
+        context["mapping_sheets"] = mapping_sheets
+        context["field_labels"] = EXTRACTOR_FIELD_LABELS
 
-        extraction = _extract_company_bom_rows_for_upload(tmp_path, context["instructions"])
-        request.session["extractor_rows"] = extraction["rows"]
-        context.update(extraction)
-        context["preview_rows"] = extraction["rows"][:100]
+        if action in {"download_standard", "send_validation"}:
+            rows = request.session.get("extractor_rows") or []
+            if not rows:
+                context["error"] = "Apply column mapping and preview rows before continuing."
+                return render(request, "procurement/ai_bom_extractor.html", context)
 
-        if action == "download_standard":
-            wb = _standard_bom_workbook(extraction["rows"])
-            resp = HttpResponse(
-                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            resp["Content-Disposition"] = 'attachment; filename="ai_extracted_standard_bom.xlsx"'
-            wb.save(resp)
-            return resp
+            if action == "download_standard":
+                wb = _standard_bom_workbook(rows)
+                resp = HttpResponse(
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                resp["Content-Disposition"] = 'attachment; filename="mapped_standard_bom.xlsx"'
+                wb.save(resp)
+                return resp
 
-        if action == "send_validation":
-            standard_path = _save_standard_bom_temp(extraction["rows"])
+            standard_path = _save_standard_bom_temp(rows)
             result = validate_and_extract_workbook(standard_path)
             request.session["bom_tmp_path"] = standard_path
             request.session["bom_name"] = context["bom_name"]
@@ -928,6 +1066,30 @@ def ai_bom_extractor(request):
                     "order_value": context["order_value"],
                 },
             )
+
+        if action in {"extract", ""}:
+            if not mapping_sheets:
+                context["error"] = "No usable header row was found in the uploaded BOM."
+            return render(request, "procurement/ai_bom_extractor.html", context)
+
+        if action == "apply_mapping":
+            sheet_mappings = _posted_extractor_sheet_mappings(request, mapping_sheets)
+            if not sheet_mappings:
+                context["error"] = "Select at least one BOM column mapping."
+                return render(request, "procurement/ai_bom_extractor.html", context)
+            extraction = _extract_company_bom_rows_from_mapping(tmp_path, sheet_mappings)
+        elif action == "reextract":
+            request.session["extractor_instructions"] = context["instructions"]
+            extraction = _extract_company_bom_rows_for_upload(tmp_path, context["instructions"])
+        else:
+            extraction = _extract_company_bom_rows_from_mapping(
+                tmp_path,
+                _posted_extractor_sheet_mappings(request, mapping_sheets),
+            )
+
+        request.session["extractor_rows"] = extraction["rows"]
+        context.update(extraction)
+        context["preview_rows"] = extraction["rows"][:100]
 
     return render(request, "procurement/ai_bom_extractor.html", context)
 
