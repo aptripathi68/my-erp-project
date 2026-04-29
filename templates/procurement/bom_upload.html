@@ -2,304 +2,94 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>BOM Upload Wizard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard BOM Upload</title>
     <style>
-        body{
-            font-family:Arial, Helvetica, sans-serif;
-            margin:24px;
-            background:#f7f9fb;
-            color:#24313d;
-        }
-        .card{
-            background:#fff;
-            border:1px solid #d9e2ec;
-            border-radius:10px;
-            padding:20px;
-            margin-bottom:20px;
-            box-shadow:0 2px 8px rgba(0,0,0,0.05);
-        }
-        h2, h3{ margin-bottom:10px; }
-        .btn{
-            display:inline-block;
-            padding:10px 16px;
-            border:none;
-            border-radius:6px;
-            cursor:pointer;
-            font-weight:600;
-            text-decoration:none;
-        }
-        .btn-primary{ background:#5f839d; color:#fff; }
-        .btn-success{ background:#2e7d32; color:#fff; }
-        .btn-secondary{ background:#fff; color:#24313d; border:1px solid #cfd8df; }
-        table{
-            width:100%;
-            border-collapse:collapse;
-            background:#fff;
-        }
-        th, td{
-            border:1px solid #d9e2ec;
-            padding:8px 10px;
-            vertical-align:top;
-            text-align:left;
-        }
-        th{ background:#eef3f7; }
-        select, input[type="text"], input[type="file"], input[type="date"], input[type="number"]{
-            padding:8px 10px;
-            border:1px solid #cfd8df;
-            border-radius:6px;
-        }
-        .error-head{ color:#b00020; }
-        .ok{ color:green; font-weight:700; }
-        .small{ font-size:13px; color:#667786; }
+        body{font-family:Arial,Helvetica,sans-serif;margin:24px;background:#f7f9fb;color:#24313d;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+        h2,h3{margin:0 0 10px;}
+        .btn{display:inline-block;padding:10px 16px;border:none;border-radius:6px;cursor:pointer;font-weight:600;text-decoration:none;}
+        .btn-primary{background:#5f839d;color:#fff;}
+        .btn-success{background:#2e7d32;color:#fff;}
+        .btn-secondary{background:#fff;color:#24313d;border:1px solid #cfd8df;}
+        .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+        table{width:100%;border-collapse:collapse;background:#fff;}
+        th,td{border:1px solid #d9e2ec;padding:8px 10px;vertical-align:top;text-align:left;}
+        th{background:#eef3f7;}
+        input[type="file"]{padding:8px 10px;border:1px solid #cfd8df;border-radius:6px;width:100%;max-width:520px;box-sizing:border-box;}
+        .error-head{color:#b00020;}
+        .ok{color:green;font-weight:700;}
+        .small{font-size:13px;color:#667786;}
+        .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px;}
+        .meta div{border:1px solid #edf2f5;border-radius:6px;padding:8px 10px;background:#fbfdff;}
+        @media (max-width:768px){body{margin:12px;} .btn{width:100%;box-sizing:border-box;text-align:center;} th,td{font-size:14px;}}
     </style>
 </head>
 <body>
-{% load procurement_extras %}
-
 <div class="card">
-    <h2>BOM Upload Wizard</h2>
-
-<div class="card">
-    <h2>BOM Upload Wizard</h2>
-
-    <p style="margin-bottom:16px;">
-        <a class="btn btn-secondary" href="{% url 'export_item_master' %}">
-            Download Current Item Master
-        </a>
-    </p>    
-    {% if error %}
-        <p style="color:red;"><strong>{{ error }}</strong></p>
-    {% endif %}
-
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {% if estimate_project %}
-        <div style="margin-bottom:12px;padding:12px;border:1px solid #d7e4ec;border-radius:8px;background:#eef6fa;">
-            <strong>Linked Estimation:</strong> {{ estimate_project.inquiry_no }} - {{ estimate_project.project_name }}
-            <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
-        </div>
-        {% endif %}
-
-        <div>
-            <label><strong>WO Number</strong></label><br>
-            <input type="text" name="bom_name" value="{{ bom_name|default:'' }}" style="width:420px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Project Name</strong></label><br>
-            <input type="text" name="project_name" value="{{ project_name|default:'' }}" style="width:420px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Client Name</strong></label><br>
-            <input type="text" name="client_name" value="{{ client_name|default:'' }}" style="width:420px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Purchase Order No</strong></label><br>
-            <input type="text" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}" style="width:420px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Purchase Order Date</strong></label><br>
-            <input type="date" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}" style="width:220px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Delivery Date</strong></label><br>
-            <input type="date" name="delivery_date" value="{{ delivery_date|default:'' }}" style="width:220px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Order Rate</strong></label><br>
-            <input type="text" name="order_rate" value="{{ order_rate|default:'' }}" style="width:220px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Order Value</strong></label><br>
-            <input type="text" name="order_value" value="{{ order_value|default:'' }}" style="width:220px;">
-        </div>
-
-        <div style="margin-top:12px;">
-            <label><strong>Select BOM Excel File</strong></label><br>
-            <input type="file" name="file" required>
-        </div>
-
-        <div style="margin-top:16px;">
-            <button class="btn btn-primary" type="submit">Upload & Detect Columns</button>
-        </div>
-    </form>
+    <h2>Standard BOM Upload</h2>
+    <p class="small">
+        Download the Kalpadeep standard BOM template, paste or enter BOM rows in that template, then upload the filled file.
+        The system will validate Item Master matching and allow import only when errors are zero.
+    </p>
+    <div class="actions">
+        <a class="btn btn-primary" href="{% url 'procurement:download_standard_bom_template' %}">Download Standard BOM Template</a>
+        <a class="btn btn-secondary" href="{% url 'export_item_master' %}">Download Current Item Master</a>
+        <a class="btn btn-secondary" href="{% url 'dashboard_home' %}">Dashboard</a>
+    </div>
 </div>
 
-{% if mapping_step and headers_info %}
+{% if error %}
 <div class="card">
-    <h3>Step 2: Map BOM columns</h3>
-    <p class="small">Detected mappings are pre-selected. Adjust only if needed, then click Validate. Import will reuse the same mapping.</p>
-
-    <form method="post">
-        {% csrf_token %}
-
-        <input type="hidden" name="bom_name" value="{{ bom_name|default:'' }}">
-        <input type="hidden" name="project_name" value="{{ project_name|default:'' }}">
-        <input type="hidden" name="client_name" value="{{ client_name|default:'' }}">
-        <input type="hidden" name="purchase_order_no" value="{{ purchase_order_no|default:'' }}">
-        <input type="hidden" name="purchase_order_date" value="{{ purchase_order_date|default:'' }}">
-        <input type="hidden" name="delivery_date" value="{{ delivery_date|default:'' }}">
-        <input type="hidden" name="order_rate" value="{{ order_rate|default:'' }}">
-        <input type="hidden" name="order_value" value="{{ order_value|default:'' }}">
-        {% if estimate_project %}
-        <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
-        {% endif %}
-
-        {% for sheet_name, info in headers_info.items %}
-            <div class="card">
-                <h3>Sheet: {{ sheet_name }}</h3>
-
-                {% if not info.detected %}
-                    <p style="color:red;">Header row not detected for this sheet.</p>
-                {% else %}
-                    <p><strong>Detected Header Row:</strong> {{ info.header_row }}</p>
-
-                    {% with sheet_selected=selected_mappings|get_item:sheet_name %}
-                    <table>
-                        <tr>
-                            <th>Our Standard BOM Field</th>
-                            <th>Select BOM Column</th>
-                        </tr>
-
-                        <tr>
-                            <td>Section Name (for Item Master match)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__item_description" required>
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"item_description" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Grade Name (for Item Master match)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__grade" required>
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"grade" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>ERC Mark</td>
-                            <td>
-                                <select name="{{ sheet_name }}__mark_no">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"mark_no" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>ERC Mark Quantity</td>
-                            <td>
-                                <select name="{{ sheet_name }}__erc_quantity">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"erc_quantity" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Part Mark</td>
-                            <td>
-                                <select name="{{ sheet_name }}__item_no">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"item_no" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Part Quantity per Assy</td>
-                            <td>
-                                <select name="{{ sheet_name }}__qty_all">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"qty_all" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Length (mm)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__length">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"length" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Width (mm)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__width">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"width" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td>Engg Weight (kg)</td>
-                            <td>
-                                <select name="{{ sheet_name }}__unit_wt">
-                                    <option value="">Select column</option>
-                                    {% for h in info.headers %}
-                                        <option value="{{ h }}" {% if sheet_selected|get_item:"unit_wt" == h %}selected{% endif %}>{{ h }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                        </tr>
-                    </table>
-                    {% endwith %}
-                {% endif %}
-            </div>
-        {% endfor %}
-
-        <div style="margin-top:20px;">
-            <button class="btn btn-primary" type="submit" name="action" value="validate">Validate</button>
-            {% if result and result.ok %}
-                <button class="btn btn-success" type="submit" name="action" value="import">Import</button>
-            {% endif %}
-        </div>
-    </form>
+    <p style="color:red;"><strong>{{ error }}</strong></p>
 </div>
 {% endif %}
 
-{% if result %}
+<div class="card">
+    <h3>Upload Filled Standard BOM Template</h3>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% if estimate_project %}
+        <input type="hidden" name="estimate_project" value="{{ estimate_project.id }}">
+        <p class="small"><strong>Linked Estimation:</strong> {{ estimate_project.inquiry_no }} - {{ estimate_project.project_name }}</p>
+        {% endif %}
+        <input type="file" name="file" accept=".xlsx,.xlsm" required>
+        <div class="actions">
+            <button class="btn btn-primary" type="submit">Upload & Validate</button>
+        </div>
+    </form>
+</div>
+
+{% if uploaded_step %}
+<div class="card">
+    <h3>Uploaded BOM Details</h3>
+    <div class="meta">
+        <div><strong>WO Number</strong><br>{{ bom_name|default:"-" }}</div>
+        <div><strong>Project Name</strong><br>{{ project_name|default:"-" }}</div>
+        <div><strong>Client Name</strong><br>{{ client_name|default:"-" }}</div>
+        <div><strong>Purchase Order No</strong><br>{{ purchase_order_no|default:"-" }}</div>
+        <div><strong>Purchase Order Date</strong><br>{{ purchase_order_date|default:"-" }}</div>
+        <div><strong>Delivery Date</strong><br>{{ delivery_date|default:"-" }}</div>
+    </div>
+</div>
+{% endif %}
+
+{% if result and not imported_bom_id %}
 <div class="card">
     <h3>Validation Summary</h3>
+    <p>
+        Sheets used: <strong>{{ result.summary.sheets_used }}</strong>,
+        Rows extracted: <strong>{{ result.summary.rows_extracted }}</strong>,
+        Marks found: <strong>{{ result.summary.marks_found }}</strong>,
+        Errors: <strong>{{ result.summary.errors }}</strong>
+    </p>
 
     {% if result.errors %}
-        <h3 class="error-head">Errors (Fix Item Master or BOM and re-upload)</h3>
+        <h3 class="error-head">Errors Found</h3>
         <p>
-            <strong>{{ result.summary.errors }}</strong> validation errors found.
+            Correct the standard BOM template or Item Master, then upload the corrected file again.
             <a class="btn btn-secondary" href="{% url 'procurement:download_bom_validation_errors' %}">
-                Download Validation Errors (Excel)
+                Download Validation Errors Excel
             </a>
         </p>
 
@@ -328,9 +118,7 @@
                 <td>{{ e.unit_weight_in_bom }}</td>
                 <td>{{ e.message }}</td>
                 <td>
-                    {% if e.possible_grades_for_section %}
-                        {{ e.possible_grades_for_section|join:", " }}
-                    {% endif %}
+                    {% if e.possible_grades_for_section %}{{ e.possible_grades_for_section|join:", " }}{% endif %}
                     {% if e.suggestions %}
                         {% if e.possible_grades_for_section %}<br><br>{% endif %}
                         {{ e.suggestions|join:", " }}
@@ -340,14 +128,20 @@
             {% endfor %}
         </table>
     {% else %}
-        <h3 class="ok">Validation OK ✅</h3>
+        <h3 class="ok">Validation OK</h3>
+        <form method="post">
+            {% csrf_token %}
+            <div class="actions">
+                <button class="btn btn-success" type="submit" name="action" value="import">Import BOM</button>
+            </div>
+        </form>
     {% endif %}
 </div>
 {% endif %}
 
 {% if imported_bom_id %}
 <div class="card">
-    <h3 class="ok">Imported ✅</h3>
+    <h3 class="ok">Imported</h3>
     <p><strong>BOM ID:</strong> {{ imported_bom_id }}</p>
     {% if backbone_result %}
     <p>
@@ -357,16 +151,11 @@
         {{ backbone_result.created_requirements }} requirement line(s) created.
     </p>
     {% endif %}
-    <p>
-        <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">
-            Download Master BOM Excel
-        </a>
-        <a class="btn btn-primary" href="{% url 'dashboard_home' %}" style="margin-left:8px;">
-            Home
-        </a>
-    </p>
+    <div class="actions">
+        <a class="btn btn-secondary" href="{% url 'procurement:bom_export_master' imported_bom_id %}">Download Master BOM Excel</a>
+        <a class="btn btn-primary" href="{% url 'dashboard_home' %}">Home</a>
+    </div>
 </div>
 {% endif %}
-
 </body>
 </html>

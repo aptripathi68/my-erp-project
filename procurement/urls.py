@@ -8,6 +8,7 @@ urlpatterns = [
     path("planning/bom/<int:bom_id>/", views_bom.planning_bom_detail, name="planning_bom_detail"),
     path("planning/bom/<int:bom_id>/generate-int-erc/", views_bom.generate_bom_int_erc, name="generate_bom_int_erc"),
     path("bom/upload/", views_bom.bom_upload, name="bom_upload"),
+    path("bom/template/download/", views_bom.download_standard_bom_template, name="download_standard_bom_template"),
     path(
         "bom/validation-errors/download/",
         views_bom.download_bom_validation_errors,

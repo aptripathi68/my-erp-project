@@ -22,8 +22,10 @@ from .services.backbone import duplicate_work_order_exists, normalize_wo_number,
 from .services.planning import bom_material_evaluation, bom_planning_summary, generate_int_erc_jobs
 from .services.bom_importer import (
     build_header_signature,
+    get_cell,
     validate_and_extract_workbook,
     workbook_sheet_headers,
+    _h,
 )
 
 
@@ -38,6 +40,43 @@ MAPPING_FIELDS = (
     "width",
     "unit_wt",
 )
+
+STANDARD_BOM_COLUMNS = [
+    "WO Number",
+    "Project Name",
+    "Client Name",
+    "Purchase Order No",
+    "Purchase Order Date",
+    "Delivery Date",
+    "Order Rate",
+    "Order Value",
+    "Source Sheet",
+    "Source Row",
+    "Drawing / Dispatch Mark No",
+    "ERC Mark / Main Mark",
+    "Assembly Qty",
+    "Part Mark / Item No",
+    "Section / Profile",
+    "Grade / Quality",
+    "Qty per Assembly",
+    "Total Qty",
+    "Length mm",
+    "Width mm",
+    "Unit Weight kg",
+    "Total Weight kg",
+    "Remarks",
+]
+
+STANDARD_METADATA_ALIASES = {
+    "bom_name": ["wo number", "work order", "work order no", "bom name"],
+    "project_name": ["project name"],
+    "client_name": ["client name", "customer name"],
+    "purchase_order_no": ["purchase order no", "po number", "po no"],
+    "purchase_order_date": ["purchase order date", "po date"],
+    "delivery_date": ["delivery date"],
+    "order_rate": ["order rate"],
+    "order_value": ["order value"],
+}
 
 
 def _has_planning_access(user):
@@ -61,6 +100,49 @@ def _session_safe_errors(errors):
                 row[k] = str(v)
         safe.append(row)
     return safe
+
+
+def _standard_bom_metadata(xlsx_path: str) -> dict:
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    headers_info = workbook_sheet_headers(xlsx_path)
+
+    for sheet_name, info in headers_info.items():
+        if not info.get("detected"):
+            continue
+
+        ws = wb[sheet_name]
+        header_row = info.get("header_row")
+        headers = info.get("headers") or []
+        header_norms = [_h(h) for h in headers]
+        col_map = {}
+        for key, aliases in STANDARD_METADATA_ALIASES.items():
+            for idx, header_norm in enumerate(header_norms):
+                if header_norm in aliases:
+                    col_map[key] = idx
+                    break
+
+        if not col_map:
+            continue
+
+        for row_vals in ws.iter_rows(min_row=header_row + 1, values_only=True):
+            if not row_vals or all(v is None or str(v).strip() == "" for v in row_vals):
+                continue
+            return {
+                key: str(get_cell(row_vals, col_map, key) or "").strip()
+                for key in STANDARD_METADATA_ALIASES
+            }
+
+    return {}
+
+
+def _date_cell_to_iso(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    try:
+        return date.fromisoformat(value[:10]).isoformat()
+    except ValueError:
+        return value
 
 
 def _parse_decimal(value: str):
@@ -225,6 +307,39 @@ def generate_bom_int_erc(request, bom_id: int):
 
 
 @staff_member_required
+def download_standard_bom_template(request):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "BOM_UPLOAD"
+    ws.append(STANDARD_BOM_COLUMNS)
+
+    instructions = wb.create_sheet("Instructions")
+    instructions.append(["Instruction", "Details"])
+    instructions.append(["Do not rename BOM_UPLOAD headers", "Paste or enter all BOM rows below the header row in BOM_UPLOAD."])
+    instructions.append(["WO Number", "Required. Put the same WO Number on each row."])
+    instructions.append(["Section / Profile", "Must match Item Master section/profile text."])
+    instructions.append(["Grade / Quality", "Must match Item Master grade. Example: IS:2062 E250BR."])
+    instructions.append(["Qty per Assembly", "Quantity of this part in one ERC/main mark."])
+    instructions.append(["Assembly Qty", "Quantity of ERC/main mark. If blank, system uses 1."])
+    instructions.append(["Import rule", "Upload, correct validation errors if any, then import only when errors are zero."])
+
+    widths = {
+        "A": 18, "B": 24, "C": 22, "D": 20, "E": 18, "F": 16, "G": 14, "H": 14,
+        "I": 18, "J": 12, "K": 24, "L": 20, "M": 14, "N": 18, "O": 22, "P": 20,
+        "Q": 16, "R": 12, "S": 12, "T": 12, "U": 16, "V": 16, "W": 30,
+    }
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+    resp = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    resp["Content-Disposition"] = 'attachment; filename="kalpadeep_standard_bom_template.xlsx"'
+    wb.save(resp)
+    return resp
+
+
+@staff_member_required
 def bom_upload(request):
     context = {}
     estimate_project = None
@@ -235,43 +350,27 @@ def bom_upload(request):
         except EstimateProject.DoesNotExist:
             estimate_project = None
 
-    # STEP 1: Upload file -> detect headers -> show mapping screen
+    # STEP 1: Upload standard template -> validate immediately
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
-
-        bom_name = (request.POST.get("bom_name") or (estimate_project.work_order_no if estimate_project else "") or f.name).strip()
-        project_name = (request.POST.get("project_name") or (estimate_project.project_name if estimate_project else "")).strip()
-        client_name = (request.POST.get("client_name") or (estimate_project.client_name if estimate_project else "")).strip()
-        purchase_order_no = (request.POST.get("purchase_order_no") or (estimate_project.purchase_order_no if estimate_project else "")).strip()
-        purchase_order_date = (request.POST.get("purchase_order_date") or (estimate_project.purchase_order_date.isoformat() if estimate_project and estimate_project.purchase_order_date else "")).strip()
-        delivery_date = (request.POST.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else "")).strip()
-        order_rate = (request.POST.get("order_rate") or "").strip()
-        order_value = (request.POST.get("order_value") or "").strip()
-        wo_number = normalize_wo_number(bom_name)
-
-        if not wo_number:
-            context["error"] = "WO Number is required."
-            return render(request, "procurement/bom_upload.html", context)
-
-        if duplicate_work_order_exists(wo_number):
-            context["error"] = "This WO already exists."
-            context["bom_name"] = bom_name
-            context["project_name"] = project_name
-            context["client_name"] = client_name
-            context["purchase_order_no"] = purchase_order_no
-            context["purchase_order_date"] = purchase_order_date
-            context["delivery_date"] = delivery_date
-            context["order_rate"] = order_rate
-            context["order_value"] = order_value
-            context["estimate_project"] = estimate_project
-            return render(request, "procurement/bom_upload.html", context)
 
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
             for chunk in f.chunks():
                 tmp.write(chunk)
             tmp_path = tmp.name
 
-        headers_info = workbook_sheet_headers(tmp_path)
+        metadata = _standard_bom_metadata(tmp_path)
+        bom_name = (metadata.get("bom_name") or (estimate_project.work_order_no if estimate_project else "") or f.name).strip()
+        project_name = (metadata.get("project_name") or (estimate_project.project_name if estimate_project else "")).strip()
+        client_name = (metadata.get("client_name") or (estimate_project.client_name if estimate_project else "")).strip()
+        purchase_order_no = (metadata.get("purchase_order_no") or (estimate_project.purchase_order_no if estimate_project else "")).strip()
+        purchase_order_date = _date_cell_to_iso(metadata.get("purchase_order_date") or (estimate_project.purchase_order_date.isoformat() if estimate_project and estimate_project.purchase_order_date else ""))
+        delivery_date = _date_cell_to_iso(metadata.get("delivery_date") or (estimate_project.delivery_date.isoformat() if estimate_project and estimate_project.delivery_date else ""))
+        order_rate = (metadata.get("order_rate") or "").strip()
+        order_value = (metadata.get("order_value") or "").strip()
+
+        result = validate_and_extract_workbook(tmp_path)
+        request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
 
         request.session["bom_tmp_path"] = tmp_path
         request.session["bom_name"] = bom_name
@@ -284,19 +383,6 @@ def bom_upload(request):
         request.session["order_value"] = order_value
         request.session["estimate_project_id"] = estimate_project.id if estimate_project else None
 
-        auto_mappings = {}
-        for sheet_name, info in headers_info.items():
-            if not info.get("detected"):
-                continue
-            auto_mappings[sheet_name] = info.get("mapping", {}) if "mapping" in info else {}
-
-        persisted_mappings = _load_persisted_mappings(headers_info)
-        for sheet_name, saved_mapping in persisted_mappings.items():
-            if any(saved_mapping.values()):
-                auto_mappings[sheet_name] = saved_mapping
-
-        request.session["bom_selected_mappings"] = auto_mappings
-
         context["bom_name"] = bom_name
         context["project_name"] = project_name
         context["client_name"] = client_name
@@ -306,14 +392,12 @@ def bom_upload(request):
         context["order_rate"] = order_rate
         context["order_value"] = order_value
         context["estimate_project"] = estimate_project
-        context["headers_info"] = headers_info
-        context["selected_mappings"] = auto_mappings
-        context["mapping_step"] = True
-        context["result"] = None
+        context["uploaded_step"] = True
+        context["result"] = result
 
         return render(request, "procurement/bom_upload.html", context)
 
-    # STEP 2: Validate / Import using selected mapping
+    # STEP 2: Re-validate / Import the uploaded standard template
     if request.method == "POST" and request.POST.get("action") in ["validate", "import"]:
         tmp_path = request.session.get("bom_tmp_path")
         bom_name = request.session.get("bom_name", "Uploaded BOM")
@@ -337,24 +421,7 @@ def bom_upload(request):
             except EstimateProject.DoesNotExist:
                 estimate_project = None
 
-        headers_info = workbook_sheet_headers(tmp_path)
-
-        posted_mappings = _build_user_sheet_mappings(request, headers_info)
-        session_mappings = request.session.get("bom_selected_mappings", {})
-
-        if _has_any_mapping(posted_mappings):
-            user_sheet_mappings = posted_mappings
-            request.session["bom_selected_mappings"] = user_sheet_mappings
-        else:
-            user_sheet_mappings = session_mappings
-
-        if _has_any_mapping(user_sheet_mappings):
-            _persist_sheet_mappings(headers_info, user_sheet_mappings, request.user)
-
-        result = validate_and_extract_workbook(
-            tmp_path,
-            user_sheet_mappings=user_sheet_mappings,
-        )
+        result = validate_and_extract_workbook(tmp_path)
 
         request.session["bom_validation_errors"] = _session_safe_errors(result.get("errors", []))
 
@@ -368,9 +435,7 @@ def bom_upload(request):
         context["order_rate"] = order_rate_raw
         context["order_value"] = order_value_raw
         context["estimate_project"] = estimate_project
-        context["headers_info"] = headers_info
-        context["selected_mappings"] = user_sheet_mappings
-        context["mapping_step"] = True
+        context["uploaded_step"] = True
 
         if request.POST.get("action") == "import" and result["ok"]:
             wo_number = normalize_wo_number(bom_name)
