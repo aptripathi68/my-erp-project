@@ -2,182 +2,117 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Edit Item</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Master</title>
     <style>
-        body{
-            margin:0;
-            font-family:Arial, Helvetica, sans-serif;
-            background:#f4f6f8;
-            color:#24313d;
-        }
-        .topbar{
-            background:#5f839d;
-            color:white;
-            padding:20px 28px;
-        }
-        .topbar h1{
-            margin:0;
-            font-size:30px;
-            color:#f0d76b;
-        }
-        .topbar p{
-            margin:8px 0 0;
-        }
-        .container{
-            max-width:900px;
-            margin:30px auto;
-            background:white;
-            padding:24px;
-            border-radius:10px;
-            box-shadow:0 3px 12px rgba(0,0,0,0.08);
-        }
-        .grid{
-            display:grid;
-            grid-template-columns:1fr 1fr;
-            gap:18px;
-        }
-        .full{
-            grid-column:1 / -1;
-        }
-        label{
-            display:block;
-            font-weight:600;
-            margin-bottom:6px;
-        }
-        input, select, textarea{
-            width:100%;
-            padding:10px 12px;
-            border:1px solid #cfd8df;
-            border-radius:6px;
-            font-size:15px;
-            box-sizing:border-box;
-        }
-        .actions{
-            margin-top:24px;
-            display:flex;
-            gap:12px;
-        }
-        .btn{
-            display:inline-block;
-            padding:10px 16px;
-            border-radius:6px;
-            text-decoration:none;
-            border:none;
-            cursor:pointer;
-            font-weight:600;
-        }
-        .btn-primary{
-            background:#5f839d;
-            color:white;
-        }
-        .btn-light{
-            background:white;
-            color:#24313d;
-            border:1px solid #cfd8df;
-        }
-        .msg{
-            padding:10px 12px;
-            border-radius:6px;
-            margin-bottom:14px;
-        }
-        .msg.error{
-            background:#fde8e8;
-            color:#a11;
-        }
-        .msg.success{
-            background:#e8f7e8;
-            color:#176b17;
+        body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;color:#24313d;}
+        .topbar{background:#5f839d;color:white;padding:20px 28px;}
+        .topbar h1{margin:0;font-size:30px;color:#f0d76b;}
+        .topbar p{margin:8px 0 0;}
+        .container{max-width:1180px;margin:30px auto;background:white;padding:24px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.08);}
+        .toolbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;}
+        .search{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+        .search input{min-width:260px;padding:10px 12px;border:1px solid #cfd8df;border-radius:6px;font-size:15px;}
+        .actions{display:flex;gap:10px;flex-wrap:wrap;}
+        .btn{display:inline-block;padding:10px 16px;border-radius:6px;text-decoration:none;border:none;cursor:pointer;font-weight:600;}
+        .btn-primary{background:#5f839d;color:white;}
+        .btn-success{background:#2d686f;color:white;}
+        .btn-light{background:white;color:#24313d;border:1px solid #cfd8df;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{border:1px solid #d9e2ec;padding:9px 10px;text-align:left;vertical-align:top;}
+        th{background:#eef3f7;}
+        .muted{color:#667786;}
+        .status{font-weight:700;}
+        .status.active{color:#166534;}
+        .status.inactive{color:#92400e;}
+        .msg{padding:10px 12px;border-radius:6px;margin-bottom:14px;}
+        .msg.error{background:#fde8e8;color:#a11;}
+        .msg.success{background:#e8f7e8;color:#176b17;}
+        @media (max-width:768px){
+            .topbar{padding:16px;}
+            .topbar h1{font-size:24px;}
+            .container{margin:12px;padding:14px;}
+            .search,.search input,.actions,.btn{width:100%;box-sizing:border-box;}
+            table,thead,tbody,tr,th,td{display:block;width:100%;box-sizing:border-box;}
+            thead{display:none;}
+            tr{border:1px solid #d9e2ec;border-radius:8px;margin-bottom:12px;overflow:hidden;}
+            td{border:none;border-bottom:1px solid #edf2f5;}
+            td::before{content:attr(data-label);display:block;font-weight:700;margin-bottom:4px;color:#516274;}
         }
     </style>
 </head>
 <body>
     <div class="topbar">
         <h1>Kalpadeep Industries Private Limited</h1>
-        <p>Edit Item Master</p>
+        <p>Item Master</p>
     </div>
 
     <div class="container">
         {% if messages %}
             {% for message in messages %}
-                <div class="msg {% if message.tags %}{{ message.tags }}{% endif %}">
-                    {{ message }}
-                </div>
+                <div class="msg {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
             {% endfor %}
         {% endif %}
 
-        <form method="post">
-            {% csrf_token %}
-
-            <div class="grid">
-                <div>
-                    <label>Item Master ID</label>
-                    <input type="text" name="item_master_id" value="{{ item.item_master_id }}" required>
-                </div>
-
-                <div>
-                    <label>Section Name</label>
-                    <input type="text" name="section_name" value="{{ item.section_name }}" required>
-                </div>
-
-                <div class="full">
-                    <label>Item Description</label>
-                    <textarea name="item_description" rows="3" required>{{ item.item_description }}</textarea>
-                </div>
-
-                <div>
-                    <label>Group2</label>
-                    <select name="group2" required>
-                        <option value="">Select Group2</option>
-                        {% for g in group2_list %}
-                            <option value="{{ g.id }}" {% if item.group2_id == g.id %}selected{% endif %}>
-                                {{ g.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div>
-                    <label>Grade</label>
-                    <select name="grade" required>
-                        <option value="">Select Grade</option>
-                        {% for g in grade_list %}
-                            <option value="{{ g.id }}" {% if item.grade_id == g.id %}selected{% endif %}>
-                                {{ g.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div>
-                    <label>Unit Weight</label>
-                    <input type="number" step="0.001" name="unit_weight" value="{{ item.unit_weight }}" required>
-                </div>
-
-                <div>
-                    <label>Unit Weight Basis</label>
-                    <select name="unit_weight_basis" required>
-                        <option value="">Select Basis</option>
-                        {% for value, label in unit_weight_basis_choices %}
-                            <option value="{{ value }}" {% if item.unit_weight_basis == value %}selected{% endif %}>
-                                {{ label }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="full">
-                    <label>
-                        <input type="checkbox" name="is_active" {% if item.is_active %}checked{% endif %}>
-                        Is Active
-                    </label>
-                </div>
-            </div>
-
+        <div class="toolbar">
+            <form class="search" method="get">
+                <input type="text" name="q" value="{{ q }}" placeholder="Search ID, section, or item description">
+                <button class="btn btn-primary" type="submit">Search</button>
+                {% if q %}
+                    <a class="btn btn-light" href="{% url 'item_master_list' %}">Clear</a>
+                {% endif %}
+            </form>
             <div class="actions">
-                <button class="btn btn-primary" type="submit">Save Changes</button>
-                <a class="btn btn-light" href="/item-master/">Back to List</a>
+                <a class="btn btn-success" href="{% url 'export_item_master' %}">Download Excel</a>
+                <a class="btn btn-primary" href="{% url 'item_master_add' %}">Add Item</a>
+                <a class="btn btn-light" href="{% url 'dashboard_home' %}">Dashboard</a>
             </div>
-        </form>
+        </div>
+
+        <p class="muted">Showing {{ items|length }} item(s). Use Download Excel to verify the full Item Master.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Item Master ID</th>
+                    <th>Section Name</th>
+                    <th>Item Description</th>
+                    <th>Group2</th>
+                    <th>Grade</th>
+                    <th>Unit Weight</th>
+                    <th>Basis</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td data-label="Item Master ID">{{ item.item_master_id }}</td>
+                    <td data-label="Section Name">{{ item.section_name }}</td>
+                    <td data-label="Item Description">{{ item.item_description }}</td>
+                    <td data-label="Group2">{{ item.group2.name }}</td>
+                    <td data-label="Grade">{{ item.grade.name }}</td>
+                    <td data-label="Unit Weight">{{ item.unit_weight }}</td>
+                    <td data-label="Basis">{{ item.get_unit_weight_basis_display }}</td>
+                    <td data-label="Status">
+                        {% if item.is_active %}
+                            <span class="status active">Active</span>
+                        {% else %}
+                            <span class="status inactive">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Action">
+                        <a href="{% url 'item_master_edit' item.id %}">Edit</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9">No item master records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </body>
 </html>

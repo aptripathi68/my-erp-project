@@ -76,6 +76,7 @@ class ItemAdmin(admin.ModelAdmin):
     list_per_page = 25
     save_on_top = True
     list_select_related = ("group2", "grade")
+    change_list_template = "admin/masters/item/change_list.html"
 
     readonly_fields = [
         "item_description_norm",
