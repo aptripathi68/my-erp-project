@@ -45,7 +45,7 @@
         <form method="post">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Confirm Delete</button>
-            <a href="{% url 'procurement:bom_upload' %}" class="btn btn-secondary">Cancel</a>
+            <a href="{% url 'procurement:planning_dashboard' %}" class="btn btn-secondary">Cancel</a>
         </form>
     </div>
 </body>

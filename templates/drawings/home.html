@@ -1,2 +1,81 @@
-<h1>Drawing Management Module</h1>
-<p>Drawing module is under development.</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing Management</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;color:#1f2a34;margin:20px;}
+        .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
+        .btn{display:inline-block;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:700;border:1px solid #cfd8df;background:#fff;color:#1f2a34;}
+        .btn-primary{background:#2d686f;color:#fff;border-color:#2d686f;}
+        .btn-danger{background:#b42318;color:#fff;border-color:#b42318;}
+        .actions{display:flex;gap:10px;flex-wrap:wrap;}
+        .muted{color:#5f6f7d;}
+        table{width:100%;border-collapse:collapse;background:#fff;}
+        th,td{border:1px solid #e2e8ee;padding:10px;text-align:left;vertical-align:top;}
+        th{background:#eef4f7;}
+        .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#eef4f7;color:#314253;}
+        @media (max-width:768px){body{margin:12px;} th,td{font-size:14px;padding:8px;} .btn{width:100%;box-sizing:border-box;text-align:center;}}
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1 style="margin:0 0 6px;">Drawing Management</h1>
+            <p class="muted" style="margin:0;">Review uploaded drawings and remove old revisions when they are no longer required.</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-primary" href="{% url 'drawings:upload_from_bom' %}">Upload Drawing</a>
+            <a class="btn" href="{% url 'drawings:bulk_upload' %}">Bulk Upload</a>
+            <a class="btn" href="{% url 'dashboard_home' %}">Dashboard</a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="card">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2 style="margin-top:0;">Recent Drawing Revisions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Drawing</th>
+                    <th>Sheet</th>
+                    <th>Revision</th>
+                    <th>Status</th>
+                    <th>Current</th>
+                    <th>Uploaded</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for revision in revisions %}
+                <tr>
+                    <td>{{ revision.drawing_sheet.drawing.drawing_no }}</td>
+                    <td>{{ revision.drawing_sheet.sheet_no }}</td>
+                    <td>{{ revision.revision_no }}</td>
+                    <td><span class="badge">{{ revision.get_verification_status_display }}</span></td>
+                    <td>{% if revision.is_current %}Yes{% else %}No{% endif %}</td>
+                    <td>{{ revision.uploaded_at }}</td>
+                    <td>
+                        <a class="btn" href="{% url 'drawings:revision_detail' revision.pk %}">Open</a>
+                        {% if user.is_staff %}
+                        <a class="btn btn-danger" href="{% url 'drawings:delete_revision' revision.pk %}">Delete</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">No drawing revisions are available yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

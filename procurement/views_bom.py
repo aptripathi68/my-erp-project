@@ -627,12 +627,15 @@ def bom_export_master(request, bom_id: int):
 
 @staff_member_required
 def bom_delete(request, bom_id):
-    bom = get_object_or_404(BOMHeader, id=bom_id)
+    header = get_object_or_404(BOMHeader, id=bom_id)
 
-    if bom.is_locked:
+    if header.is_locked:
         messages.error(request, "This BOM cannot be deleted. Process already started.")
-        return redirect("procurement:bom_records")
+        return redirect("procurement:planning_dashboard")
 
-    bom.delete()
-    messages.success(request, "BOM deleted successfully.")
-    return redirect("procurement:bom_records")
+    if request.method == "POST":
+        header.delete()
+        messages.success(request, "BOM deleted successfully.")
+        return redirect("procurement:planning_dashboard")
+
+    return render(request, "procurement/bom_delete_confirm.html", {"header": header})

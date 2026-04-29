@@ -77,6 +77,7 @@ class DrawingAdmin(admin.ModelAdmin):
         "title",
         "created_at",
         "upload_button",
+        "delete_link",
     )
     search_fields = (
         "drawing_no",
@@ -108,6 +109,11 @@ class DrawingAdmin(admin.ModelAdmin):
 
     inlines = [DrawingSheetInline]
 
+    @admin.display(description="Delete")
+    def delete_link(self, obj):
+        url = reverse("admin:drawings_drawing_delete", args=[obj.pk])
+        return format_html('<a class="button" href="{}">Delete</a>', url)
+
 
 
 
@@ -138,6 +144,7 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
         "uploaded_at",
         "download_link",
         "action_buttons",
+        "delete_link",
     )
     search_fields = (
         "drawing_sheet__drawing__drawing_no",
@@ -266,6 +273,13 @@ class DrawingSheetRevisionAdmin(admin.ModelAdmin):
 
     action_buttons.short_description = "Actions"
 
+    @admin.display(description="Delete")
+    def delete_link(self, obj):
+        if not obj.pk:
+            return "-"
+        url = reverse("drawings:delete_revision", args=[obj.pk])
+        return format_html('<a class="button" href="{}">Delete</a>', url)
+
     def confirm_revision_view(self, request, revision_id):
         obj = get_object_or_404(DrawingSheetRevision, pk=revision_id)
 
@@ -325,9 +339,15 @@ class DrawingImportBatchAdmin(admin.ModelAdmin):
         "source_filename",
         "uploaded_by",
         "uploaded_at",
+        "delete_link",
     )
     search_fields = ("batch_name", "source_filename")
     list_filter = ("uploaded_at",)
+
+    @admin.display(description="Delete")
+    def delete_link(self, obj):
+        url = reverse("admin:drawings_drawingimportbatch_delete", args=[obj.pk])
+        return format_html('<a class="button" href="{}">Delete</a>', url)
 
 
 @admin.register(DrawingImportFile)
@@ -349,4 +369,3 @@ class DrawingImportFileAdmin(admin.ModelAdmin):
         "confirmed_drawing_no",
     )
     list_filter = ("status", "batch")
-

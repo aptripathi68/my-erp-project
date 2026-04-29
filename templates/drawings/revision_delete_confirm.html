@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Drawing Revision</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;margin:24px;background:#f7f9fb;color:#24313d;}
+        .card{background:#fff;border:1px solid #d9e2ec;border-radius:10px;padding:20px;max-width:700px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+        .btn{display:inline-block;padding:10px 16px;border:none;border-radius:6px;cursor:pointer;font-weight:600;text-decoration:none;margin-right:10px;}
+        .btn-danger{background:#b00020;color:#fff;}
+        .btn-secondary{background:#fff;color:#24313d;border:1px solid #cfd8df;}
+        .warning{color:#b00020;}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Delete Drawing Revision</h2>
+        <p><strong>Drawing:</strong> {{ revision.drawing_sheet.drawing.drawing_no }}</p>
+        <p><strong>Sheet:</strong> {{ revision.drawing_sheet.sheet_no }}</p>
+        <p><strong>Revision:</strong> {{ revision.revision_no }}</p>
+        <p class="warning">This will remove this drawing revision record from ERP.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Confirm Delete</button>
+            <a href="{% url 'drawings:home' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</body>
+</html>

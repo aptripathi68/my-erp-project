@@ -40,6 +40,13 @@ urlpatterns = [
         name="reject_revision"
     ),
 
+    # Delete drawing revision
+    path(
+        "revision/<int:pk>/delete/",
+        views.delete_revision,
+        name="delete_revision"
+    ),
+
     # AJAX endpoint → get drawing numbers from BOM
     path(
         "ajax/bom-drawing-numbers/",

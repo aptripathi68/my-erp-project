@@ -10,6 +10,7 @@
         .card{background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
         .btn{display:inline-block;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:700;border:1px solid #cfd8df;background:#fff;color:#1f2a34;}
         .btn-primary{background:#2d686f;color:#fff;border-color:#2d686f;}
+        .btn-danger{background:#b42318;color:#fff;border-color:#b42318;}
         .muted{color:#5f6f7d;}
         .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;}
         .ok{background:#e8f6ee;color:#17633a;}
@@ -63,7 +64,12 @@
                         <span class="badge warn">{{ row.shortage_items }} shortage item(s)</span>
                         {% endif %}
                     </td>
-                    <td><a class="btn btn-primary" href="{% url 'procurement:planning_bom_detail' row.bom.id %}">Open Planning</a></td>
+                    <td>
+                        <a class="btn btn-primary" href="{% url 'procurement:planning_bom_detail' row.bom.id %}">Open Planning</a>
+                        {% if user.is_staff and not row.bom.is_locked %}
+                        <a class="btn btn-danger" href="{% url 'procurement:bom_delete' row.bom.id %}">Delete</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="6">No BOM records are available yet.</td></tr>

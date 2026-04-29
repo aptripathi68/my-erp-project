@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
 
 from .models import (
     Site,
@@ -72,6 +74,7 @@ class BOMHeaderAdmin(admin.ModelAdmin):
         "purchase_order_date",
         "uploaded_at",
         "uploaded_by",
+        "delete_link",
     )
 
     search_fields = (
@@ -89,6 +92,13 @@ class BOMHeaderAdmin(admin.ModelAdmin):
     )
 
     ordering = ("-uploaded_at",)
+
+    @admin.display(description="Delete")
+    def delete_link(self, obj):
+        if obj.is_locked:
+            return "Locked"
+        url = reverse("procurement:bom_delete", args=[obj.pk])
+        return format_html('<a class="button" href="{}">Delete</a>', url)
 
 
 @admin.register(WorkOrder)

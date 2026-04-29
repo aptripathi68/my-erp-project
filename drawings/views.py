@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
@@ -6,12 +7,25 @@ from django.utils import timezone
 from .storage import generate_presigned_preview_url, generate_presigned_download_url
 from django.http import JsonResponse
 from .forms import DrawingUploadSelectForm, BulkDrawingUploadForm
-from .models import DrawingSheetRevision, DrawingImportBatch
+from .models import Drawing, DrawingSheetRevision, DrawingImportBatch
 from .services import create_or_update_sheet_revision, process_drawing_bundle
 
 @login_required
 def home(request):
-    return render(request, "drawings/home.html")
+    drawings = Drawing.objects.prefetch_related("sheets__revisions").order_by("drawing_no")
+    revisions = (
+        DrawingSheetRevision.objects
+        .select_related("drawing_sheet", "drawing_sheet__drawing", "uploaded_by")
+        .order_by("-uploaded_at")[:100]
+    )
+    return render(
+        request,
+        "drawings/home.html",
+        {
+            "drawings": drawings,
+            "revisions": revisions,
+        },
+    )
 
 
 @login_required
@@ -117,6 +131,16 @@ def reject_revision(request, pk):
 
     messages.warning(request, "Drawing rejected. Please re-upload the correct file.")
     return redirect("drawings:revision_detail", pk=revision.pk)
+
+
+@staff_member_required
+def delete_revision(request, pk):
+    revision = get_object_or_404(DrawingSheetRevision, pk=pk)
+    if request.method == "POST":
+        revision.delete()
+        messages.success(request, "Drawing revision deleted successfully.")
+        return redirect("drawings:home")
+    return render(request, "drawings/revision_delete_confirm.html", {"revision": revision})
 
 @login_required
 def bom_drawing_numbers(request):
