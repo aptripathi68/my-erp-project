@@ -344,7 +344,7 @@
                     <h2>ERP Dashboard</h2>
                     <p>Use operational modules first for daily work. Dashboard and project status stay available below for monitoring, and ERP navigation is kept compact for cleaner mobile use.</p>
                 </div>
-                <button class="nav-toggle" type="button" onclick="document.getElementById('erp-navigation').open = !document.getElementById('erp-navigation').open;">
+                <button class="nav-toggle" id="erp-navigation-toggle" type="button" onclick="toggleErpNavigation();">
                     ERP Navigation
                 </button>
             </div>
@@ -530,5 +530,21 @@
             </div>
         </details>
     </div>
+    <script>
+        function toggleErpNavigation() {
+            const navPanel = document.getElementById("erp-navigation");
+            const navButton = document.getElementById("erp-navigation-toggle");
+            if (!navPanel || !navButton) {
+                return;
+            }
+
+            navPanel.open = !navPanel.open;
+            navButton.textContent = navPanel.open ? "Hide ERP Navigation" : "ERP Navigation";
+
+            if (navPanel.open) {
+                navPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }
+    </script>
 </body>
 </html>
