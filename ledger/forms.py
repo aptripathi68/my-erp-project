@@ -354,9 +354,17 @@ class BulkInventoryInwardForm(BulkItemSelectionForm):
     object_type = forms.ChoiceField(
         choices=[
             ("RAW", "Fresh Raw Material"),
-            ("OFFCUT", "Off-cut"),
-            ("SCRAP", "Scrap"),
-        ]
+        ],
+        initial="RAW",
+        label="Object Type",
+        help_text="Bulk item entry is only for Fresh Raw Material.",
+    )
+    number_of_items = forms.IntegerField(
+        min_value=1,
+        max_value=500,
+        initial=1,
+        label="Number of Items",
+        widget=forms.NumberInput(attrs={"step": "1", "min": "1", "max": "500", "inputmode": "numeric"}),
     )
     location = forms.ModelChoiceField(queryset=StockLocation.objects.filter(is_active=True, location_type="STORE").order_by("name"))
     project_reference = forms.CharField(required=False, max_length=100)
@@ -375,6 +383,7 @@ class BulkInventoryInwardForm(BulkItemSelectionForm):
 
 class BulkInventoryInwardLineForm(forms.Form):
     qty = forms.DecimalField(
+        required=False,
         max_digits=12,
         decimal_places=3,
         min_value=Decimal("0.001"),
@@ -396,6 +405,7 @@ class BulkInventoryInwardLineForm(forms.Form):
         label="File not available",
     )
     qr_code = forms.CharField(
+        required=False,
         max_length=50,
         label="QR Code",
         widget=forms.TextInput(
@@ -421,7 +431,7 @@ class BulkInventoryInwardLineForm(forms.Form):
     def clean_qr_code(self):
         qr_code = (self.cleaned_data.get("qr_code") or "").strip()
         if not qr_code:
-            raise ValidationError("QR code scanning is compulsory.")
+            return qr_code
         if not qr_code.isdigit():
             raise ValidationError("QR code must contain digits only.")
         if StockObject.objects.filter(qr_code=qr_code).exists():

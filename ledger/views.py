@@ -490,6 +490,7 @@ def _render_bulk_inventory_form(
     formset,
     submit_label,
     post_url,
+    fresh_raw_bulk=False,
 ):
     context = _inventory_context(request)
     context.update(
@@ -500,6 +501,7 @@ def _render_bulk_inventory_form(
             "formset": formset,
             "submit_label": submit_label,
             "post_url": post_url,
+            "fresh_raw_bulk": fresh_raw_bulk,
             "back_url": "ledger:inventory_dashboard",
         }
     )
@@ -985,7 +987,7 @@ def create_inventory_inward(request):
 
 @login_required
 def create_bulk_inventory_inward(request):
-    BulkInwardFormSet = formset_factory(BulkInventoryInwardLineForm, extra=50, min_num=1, validate_min=True)
+    BulkInwardFormSet = formset_factory(BulkInventoryInwardLineForm, extra=1, min_num=1, validate_min=True)
     if request.method == "GET":
         if not _has_inventory_access(request.user):
             messages.error(request, "You do not have permission to access inventory management.")
@@ -993,11 +995,12 @@ def create_bulk_inventory_inward(request):
         return _render_bulk_inventory_form(
             request,
             page_title="Bulk Item Entry In Store",
-            page_intro="Select Group-2, Section Name, Grade, and Item once. Then scan QR and enter quantity/weight for each physical item.",
+            page_intro="Fresh Raw Material bulk entry only. Select the item once, enter Number of Items, then enter per-item weight and common batch details once.",
             form=BulkInventoryInwardForm(),
             formset=BulkInwardFormSet(),
             submit_label="Record Bulk Item Entry",
             post_url="ledger:create_bulk_inventory_inward",
+            fresh_raw_bulk=True,
         )
     if not _can_manage_inventory(request.user):
         messages.error(request, "Only Store, Management, or Admin can record bulk inward inventory.")
@@ -1005,24 +1008,37 @@ def create_bulk_inventory_inward(request):
 
     form = BulkInventoryInwardForm(request.POST)
     formset = BulkInwardFormSet(request.POST, request.FILES)
-    rows_have_unique_qr = True
-    if formset.is_valid():
-        rows_have_unique_qr = _validate_unique_qr_rows(formset)
 
-    if form.is_valid() and formset.is_valid() and rows_have_unique_qr:
+    if form.is_valid() and formset.is_valid():
         entry_type = form.cleaned_data["entry_type"]
-        object_type = form.cleaned_data["object_type"]
+        object_type = "RAW"
         stock_for = form.cleaned_data["stock_for"]
         item = form.cleaned_data["item"]
         location = form.cleaned_data["location"]
+        number_of_items = form.cleaned_data["number_of_items"]
         remarks = form.cleaned_data.get("remarks") or ""
         rack_number = form.cleaned_data.get("rack_number") or ""
         shelf_number = form.cleaned_data.get("shelf_number") or ""
         bin_number = form.cleaned_data.get("bin_number") or ""
+        line_form = next(
+            (candidate for candidate in formset if candidate.cleaned_data and not candidate.cleaned_data.get("DELETE")),
+            None,
+        )
 
         created_stock_objects = []
         txn = None
         try:
+            if not line_form:
+                raise ValidationError("Enter fresh raw material weight and rate details.")
+
+            line_data = line_form.cleaned_data
+            test_certificate_url = _upload_or_reuse_inventory_certificate(
+                line_data.get("test_certificate_file"),
+                test_certificate_no=line_data.get("test_certificate_no") or "",
+                stock_for=stock_for,
+                object_type=object_type,
+            )
+
             with transaction.atomic():
                 txn = StockTxn.objects.create(
                     txn_type=_txn_type_for_inward(entry_type, object_type),
@@ -1034,35 +1050,22 @@ def create_bulk_inventory_inward(request):
                     created_by=request.user,
                     bridge_status="NOT_APPLICABLE",
                 )
-                for line_form in formset:
-                    if not line_form.cleaned_data or line_form.cleaned_data.get("DELETE"):
-                        continue
-                    photo_url = _upload_inventory_photo(
-                        line_form.cleaned_data.get("raw_material_photo"),
-                        stock_for=stock_for,
-                        object_type=object_type,
-                    )
-                    test_certificate_url = _upload_or_reuse_inventory_certificate(
-                        line_form.cleaned_data.get("test_certificate_file"),
-                        test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
-                        stock_for=stock_for,
-                        object_type=object_type,
-                    )
+                for _ in range(number_of_items):
                     stock_object = _build_stock_object(
                         object_type=object_type,
                         item=item,
-                        qty=line_form.cleaned_data["qty"],
-                        weight=line_form.cleaned_data["weight"],
+                        qty=Decimal("1.000"),
+                        weight=line_data["weight"],
                         source_type=_source_type_for_inward(entry_type),
-                        rate_per_kg=line_form.cleaned_data["rate_per_kg"],
-                        heat_number=line_form.cleaned_data.get("heat_number") or "",
-                        plate_number=line_form.cleaned_data.get("plate_number") or "",
-                        test_certificate_no=line_form.cleaned_data.get("test_certificate_no") or "",
+                        rate_per_kg=line_data["rate_per_kg"],
+                        heat_number=line_data.get("heat_number") or "",
+                        plate_number=line_data.get("plate_number") or "",
+                        test_certificate_no=line_data.get("test_certificate_no") or "",
                         test_certificate_url=test_certificate_url,
-                        test_certificate_file_unavailable=line_form.cleaned_data.get("test_certificate_file_unavailable"),
+                        test_certificate_file_unavailable=line_data.get("test_certificate_file_unavailable"),
                         remarks=remarks,
-                        qr_code=line_form.cleaned_data["qr_code"],
-                        photo_url=photo_url,
+                        qr_code="",
+                        photo_url="",
                     )
                     stock_object.rack_number = rack_number
                     stock_object.shelf_number = shelf_number
@@ -1073,8 +1076,8 @@ def create_bulk_inventory_inward(request):
                         txn=txn,
                         item=item,
                         stock_object=stock_object,
-                        qty=line_form.cleaned_data["qty"],
-                        weight=line_form.cleaned_data["weight"],
+                        qty=Decimal("1.000"),
+                        weight=line_data["weight"],
                         to_location=location,
                     )
                 post_stock_txn(txn.id)
@@ -1085,17 +1088,22 @@ def create_bulk_inventory_inward(request):
                 stock_object.delete()
             form.add_error(None, exc.message)
         else:
-            messages.success(request, f"Bulk item entry recorded successfully for {len(created_stock_objects)} item(s).")
+            total_weight = line_data["weight"] * number_of_items
+            messages.success(
+                request,
+                f"Fresh raw material bulk entry recorded successfully: {len(created_stock_objects)} item(s), total weight {total_weight} Kgs.",
+            )
             return redirect("ledger:inventory_dashboard")
 
     return _render_bulk_inventory_form(
         request,
         page_title="Bulk Item Entry In Store",
-        page_intro="Select Group-2, Section Name, Grade, and Item once. Then scan QR and enter quantity/weight for each physical item.",
+        page_intro="Fresh Raw Material bulk entry only. Select the item once, enter Number of Items, then enter per-item weight and common batch details once.",
         form=form,
         formset=formset,
         submit_label="Record Bulk Item Entry",
         post_url="ledger:create_bulk_inventory_inward",
+        fresh_raw_bulk=True,
     )
 
 

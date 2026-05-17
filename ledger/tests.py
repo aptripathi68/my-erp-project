@@ -2,6 +2,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.db.models import Sum
 from django.test import TestCase
 from django.urls import reverse
 import openpyxl
@@ -138,6 +139,47 @@ class InventoryManagementTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Project reference is required")
+
+    def test_bulk_fresh_raw_material_creates_individual_records_without_qr(self):
+        response = self.client.post(
+            reverse("ledger:create_bulk_inventory_inward"),
+            {
+                "entry_type": "OPENING",
+                "stock_for": "PROJECT",
+                "object_type": "RAW",
+                "number_of_items": "3",
+                "group2": self.group2.id,
+                "section_name": self.item.section_name,
+                "grade_selector": self.grade.id,
+                "item": self.item.id,
+                "location": self.store.id,
+                "project_reference": "PRJ-BULK-RAW",
+                "project_name": "Bulk Raw Entry",
+                "rack_number": "R1",
+                "shelf_number": "S1",
+                "bin_number": "B1",
+                "remarks": "Fresh raw bulk entry",
+                "form-TOTAL_FORMS": "1",
+                "form-INITIAL_FORMS": "0",
+                "form-MIN_NUM_FORMS": "1",
+                "form-MAX_NUM_FORMS": "1000",
+                "form-0-weight": "125.500",
+                "form-0-rate_per_kg": "62.25",
+                "form-0-heat_number": "H123",
+                "form-0-plate_number": "P456",
+                "form-0-test_certificate_no": "",
+                "form-0-test_certificate_file_unavailable": "",
+                "form-0-qr_code": "",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(StockObject.objects.filter(object_type="RAW", qr_code__isnull=True).count(), 3)
+        self.assertEqual(StockLedgerEntry.objects.filter(txn__txn_type="OPENING_RAW").count(), 3)
+        self.assertEqual(
+            StockLedgerEntry.objects.filter(txn__txn_type="OPENING_RAW").aggregate(total=Sum("weight"))["total"],
+            Decimal("376.500"),
+        )
 
     def test_temporary_issue_and_return_update_bridge_status(self):
         stock_object = StockObject.objects.create(
